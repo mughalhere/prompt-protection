@@ -6,11 +6,14 @@
   "author": "mughalhere",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mughalhere/prompt-protection"
+    "url": "git+https://github.com/mughalhere/prompt-protection.git"
   },
   "homepage": "https://github.com/mughalhere/prompt-protection#readme",
   "bugs": {
     "url": "https://github.com/mughalhere/prompt-protection/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [
     "prompt-injection",
