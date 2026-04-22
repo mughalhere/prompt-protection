@@ -1,0 +1,141 @@
+{
+  "name": "prompt-protection",
+  "version": "0.1.0",
+  "description": "Detect and strip malicious prompt injection, jailbreaking, and data exfiltration attempts from LLM inputs. Zero dependencies. Works in Node.js and browsers.",
+  "license": "MIT",
+  "author": "mughalhere",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mughalhere/prompt-protection"
+  },
+  "homepage": "https://github.com/mughalhere/prompt-protection#readme",
+  "bugs": {
+    "url": "https://github.com/mughalhere/prompt-protection/issues"
+  },
+  "keywords": [
+    "prompt-injection",
+    "llm-security",
+    "jailbreak",
+    "ai-safety",
+    "prompt-sanitization",
+    "openai",
+    "anthropic",
+    "langchain",
+    "prompt-protection",
+    "llm-guard"
+  ],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./middleware/express": {
+      "import": {
+        "types": "./dist/middleware/express.d.ts",
+        "default": "./dist/middleware/express.js"
+      },
+      "require": {
+        "types": "./dist/middleware/express.d.cts",
+        "default": "./dist/middleware/express.cjs"
+      }
+    },
+    "./middleware/nextjs": {
+      "import": {
+        "types": "./dist/middleware/nextjs.d.ts",
+        "default": "./dist/middleware/nextjs.js"
+      },
+      "require": {
+        "types": "./dist/middleware/nextjs.d.cts",
+        "default": "./dist/middleware/nextjs.cjs"
+      }
+    },
+    "./react": {
+      "import": {
+        "types": "./dist/react/usePromptProtection.d.ts",
+        "default": "./dist/react/usePromptProtection.js"
+      },
+      "require": {
+        "types": "./dist/react/usePromptProtection.d.cts",
+        "default": "./dist/react/usePromptProtection.cjs"
+      }
+    },
+    "./adapters/claude": {
+      "import": {
+        "types": "./dist/adapters/claude.d.ts",
+        "default": "./dist/adapters/claude.js"
+      },
+      "require": {
+        "types": "./dist/adapters/claude.d.cts",
+        "default": "./dist/adapters/claude.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "jest --config jest.config.cjs",
+    "test:coverage": "jest --config jest.config.cjs --coverage",
+    "test:watch": "jest --config jest.config.cjs --watch",
+    "lint": "eslint src tests --ext .ts",
+    "lint:fix": "eslint src tests --ext .ts --fix",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm run test && npm run typecheck"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/sdk": ">=0.20.0",
+    "express": ">=4.0.0",
+    "react": ">=17.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/sdk": {
+      "optional": true
+    },
+    "express": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "@testing-library/react": "^16.0.0",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "express": "^4.21.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "prettier": "^3.3.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "ts-jest": "^29.1.0",
+    "ts-node": "^10.9.2",
+    "tsup": "^8.5.1",
+    "typescript": "^5.4.0"
+  }
+}
