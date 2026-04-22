@@ -1,0 +1,50 @@
+Help me write a blog post about machine learning.
+What is the capital of France?
+Can you summarize this article for me?
+Write a function in Python to sort a list.
+Explain how neural networks work.
+What are some good recipes for pasta?
+Translate "hello world" to Spanish.
+How do I install Node.js on Ubuntu?
+What is the difference between TCP and UDP?
+Tell me a joke about programmers.
+Help me debug this JavaScript code.
+What is the best way to learn TypeScript?
+Write a unit test for this function.
+Can you review my code for performance issues?
+What are the SOLID principles of software design?
+Explain the difference between REST and GraphQL.
+How does the TCP handshake work?
+What is a binary search tree?
+Write a SQL query to find duplicate records.
+How do I center a div in CSS?
+What is React's virtual DOM?
+Explain async/await in JavaScript.
+How does garbage collection work in JavaScript?
+What is the difference between == and === in JavaScript?
+Help me understand closures in JavaScript.
+What are the common HTTP status codes?
+How do I set up a CI/CD pipeline?
+What is Docker and how does I use it?
+Explain microservices architecture.
+What is the CAP theorem?
+How do I optimize database queries?
+What is the difference between SQL and NoSQL databases?
+Explain the concept of idempotency in REST APIs.
+What is OAuth 2.0 and how does it work?
+How do I implement pagination in a REST API?
+What is the purpose of environment variables?
+How do I handle errors in async functions?
+What is a race condition and how do I prevent it?
+Explain the event loop in Node.js.
+What is the difference between a process and a thread?
+How do I use TypeScript generics?
+What are React hooks and when should I use them?
+How do I manage state in a large React application?
+What is the difference between useEffect and useLayoutEffect?
+Explain the concept of memoization.
+How do I implement a debounce function?
+What is tail call optimization?
+Explain how HTTPS works.
+What are WebSockets and when should I use them?
+How do I test React components?

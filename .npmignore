@@ -1,0 +1,12 @@
+src/
+tests/
+demo/
+coverage/
+.github/
+*.config.ts
+tsconfig*.json
+.eslintrc.json
+.prettierrc
+.gitignore
+CONTRIBUTING.md
+*.log
