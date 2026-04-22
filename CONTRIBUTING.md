@@ -132,6 +132,25 @@ If a legitimate prompt is being blocked, open a [pattern request issue](https://
 - No comments explaining *what* the code does — only *why* when non-obvious
 - Run `npm run lint:fix` before committing
 
+## Maintainers: `main`, CI, and npm
+
+The `main` branch is **protected**. You cannot push commits directly to `main`; changes land via **pull request** only. Before a PR can merge:
+
+- Required GitHub Actions check **`All checks passed`** must be green (strict: branch must be up to date with `main`).
+- At least **one approving review** is required.
+- All **review conversations** must be resolved.
+
+The **CI** workflow runs the test matrix on Node 18 / 20 / 22, then **`npm publish --dry-run`** so every merge proves the package tarball is publishable without using any npm token.
+
+### Publishing a version to npm
+
+1. Merge your changes to `main` with CI green.
+2. Bump **`version`** in `package.json` and update **`CHANGELOG.md`** on a branch, then merge via PR as usual.
+3. Create and push a **version tag** (for example `v0.2.0`). That triggers **Publish to npm** in GitHub Actions.
+4. The repo must have a **`NPM_TOKEN`** Actions secret: an npm **automation** or **granular** token with permission to publish this package.
+
+The publish job runs `npm publish --provenance --access public`. **Provenance** requires the package to be set up for **trusted publishing** / OIDC linkage with GitHub on [npmjs.com](https://www.npmjs.com); if publish fails on that step, fix the link or publish from your machine with `npm publish` (without `--provenance`) using a token that has publish access.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the MIT License.
