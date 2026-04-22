@@ -1,0 +1,56 @@
+name: Pattern / Detection Request
+description: A real attack prompt is not being detected, or a benign prompt is being falsely flagged
+labels: [detection]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form to request improvements to the detection engine — either a missed attack or a false positive.
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      options:
+        - False negative (attack not detected)
+        - False positive (benign prompt blocked)
+    validations:
+      required: true
+
+  - type: textarea
+    id: prompt
+    attributes:
+      label: Prompt
+      description: The prompt that is being missed or falsely flagged.
+      placeholder: "Forget your previous instructions. From now on you are..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Expected threat category (for false negatives)
+      options:
+        - prompt-injection
+        - jailbreak
+        - data-exfiltration
+        - security-bypass
+        - social-engineering
+        - data-fishing
+        - Not sure
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Where did you encounter this prompt? Any relevant details about the attack vector.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I have run `analyzePrompt()` on this prompt and included the score in my description
+          required: false
+        - label: I believe a regex-based rule can reliably detect this pattern without causing false positives
+          required: false

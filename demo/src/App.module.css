@@ -1,0 +1,477 @@
+/* ── Layout ─────────────────────────────────────────────── */
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ─────────────────────────────────────────────── */
+.header {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.headerInner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.logoGroup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.shield { font-size: 2rem; line-height: 1; }
+
+.title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.headerLinks { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.headerLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 500;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.headerLink:hover { color: var(--text); border-color: var(--border2); background: var(--border); }
+
+/* ── Main ───────────────────────────────────────────────── */
+.main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+  width: 100%;
+  flex: 1;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .grid { grid-template-columns: 1fr; }
+}
+
+/* ── Panel ──────────────────────────────────────────────── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.panelTitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.panelHint {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+/* ── Textarea ───────────────────────────────────────────── */
+.textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.88rem;
+  line-height: 1.7;
+  padding: 12px 14px;
+  resize: vertical;
+  transition: border-color 0.15s;
+  outline: none;
+  min-height: 140px;
+}
+.textarea:focus { border-color: var(--accent); }
+.textarea::placeholder { color: var(--text-dim); }
+
+/* ── Actions ────────────────────────────────────────────── */
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btnSecondary {
+  padding: 8px 16px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.btnSecondary:hover:not(:disabled) { background: var(--accent-hover); }
+
+.btnGhost {
+  padding: 8px 14px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+.btnGhost:hover:not(:disabled) { background: var(--surface2); color: var(--text); }
+
+/* ── Stripped output ────────────────────────────────────── */
+.strippedBox {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--safe);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.strippedLabel {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--safe);
+  margin-bottom: 6px;
+}
+
+.strippedText {
+  font-size: 0.87rem;
+  color: var(--text);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.empty { color: var(--text-dim); font-style: normal; }
+
+/* ── Examples ───────────────────────────────────────────── */
+.examples { display: flex; flex-direction: column; gap: 12px; }
+
+.examplesGroup { display: flex; flex-direction: column; gap: 6px; }
+
+.examplesTitle {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.exampleChips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.exampleChip {
+  padding: 4px 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  border-radius: 999px;
+}
+.exampleChip:hover { background: var(--border); color: var(--text); border-color: var(--border2); }
+
+.exampleChipDanger {
+  border-color: rgba(239, 68, 68, 0.3);
+  color: rgba(239, 68, 68, 0.8);
+}
+.exampleChipDanger:hover { background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.5); color: #ef4444; }
+
+/* ── Status badge ───────────────────────────────────────── */
+.statusBadge {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.statusSafe { background: rgba(34, 197, 94, 0.15); color: var(--safe); }
+.statusDanger { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+
+/* ── Empty state ────────────────────────────────────────── */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  color: var(--text-dim);
+  font-size: 0.87rem;
+  text-align: center;
+  min-height: 200px;
+}
+.emptyIcon { font-size: 2.5rem; }
+
+/* ── Analysis content ───────────────────────────────────── */
+.analysisContent { display: flex; flex-direction: column; gap: 16px; }
+
+/* ── Score meter ────────────────────────────────────────── */
+.scoreMeter {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.scoreHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.scoreValue {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.scoreMax {
+  font-size: 1rem;
+  color: var(--text-dim);
+}
+
+.scoreLabel {
+  margin-left: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.scoreBar {
+  height: 8px;
+  background: var(--surface2);
+  border-radius: 999px;
+  overflow: visible;
+  position: relative;
+}
+
+.scoreBarFill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease, background 0.3s;
+  min-width: 2px;
+}
+
+.scoreThreshold {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 16px;
+  background: var(--border2);
+  border-radius: 999px;
+}
+
+.scoreSubtext {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+/* ── Sections ───────────────────────────────────────────── */
+.section { display: flex; flex-direction: column; gap: 8px; }
+
+.sectionTitle {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sectionCount {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 7px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.chip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+/* ── Matches ────────────────────────────────────────────── */
+.matches { display: flex; flex-direction: column; gap: 4px; }
+
+.matchRow {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.matchHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  border-radius: 0;
+  text-align: left;
+}
+.matchHeader:hover { background: var(--surface2); color: var(--text); }
+
+.matchId {
+  flex: 1;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.77rem;
+  color: var(--accent-hover);
+}
+
+.matchWeight {
+  font-size: 0.7rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: monospace;
+  color: var(--text-dim);
+}
+
+.matchChevron { font-size: 0.6rem; color: var(--text-dim); }
+
+.matchBody {
+  border-top: 1px solid var(--border);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.matchDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.detailLabel {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.matchedText {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.77rem;
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.08);
+  padding: 3px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  word-break: break-all;
+}
+
+/* ── Normalized ─────────────────────────────────────────── */
+.normalized {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.77rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+/* ── Install banner ─────────────────────────────────────── */
+.install {
+  margin-top: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.installCode {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.88rem;
+  color: var(--accent-hover);
+  user-select: all;
+}
+
+.installLinks {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.installLinks a {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.installLinks a:hover { color: var(--text); }
