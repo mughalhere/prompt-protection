@@ -1,0 +1,88 @@
+import type { PatternRule } from '../types.js';
+
+export const injectionRules: PatternRule[] = [
+  {
+    id: 'injection-ignore-previous',
+    category: 'prompt-injection',
+    pattern: /ignore\s+(all\s+)?(previous|prior|earlier|above|your)(\s+\w+)?\s+(instructions?|directives?|rules?|prompts?|context)/,
+    weight: 10,
+    description: 'Ignore previous instructions',
+  },
+  {
+    id: 'injection-disregard-above',
+    category: 'prompt-injection',
+    pattern: /disregard\s+(all\s+)?(the\s+)?(above|prior|previous|earlier|your)\s+(instructions?|directives?|rules?|context|text|prompt)/,
+    weight: 9,
+    description: 'Disregard above/prior instructions',
+  },
+  {
+    id: 'injection-forget-context',
+    category: 'prompt-injection',
+    pattern: /forget\s+(all\s+)?(your\s+)?(previous|prior|earlier|above|the)\s+(instructions?|context|rules?|conversation|directives?)/,
+    weight: 9,
+    description: 'Forget previous context/instructions',
+  },
+  {
+    id: 'injection-new-instructions',
+    category: 'prompt-injection',
+    pattern: /(your|the)\s+(new|updated|actual|real|true|correct)\s+instructions?\s+(are|is|will\s+be)\s*:/,
+    weight: 9,
+    description: 'Overriding with new instructions',
+  },
+  {
+    id: 'injection-system-override',
+    category: 'prompt-injection',
+    pattern: /\[?\s*system\s*(prompt|message|instructions?)?\s*\]?\s*[:=]\s*/,
+    weight: 8,
+    description: 'System prompt override marker',
+  },
+  {
+    id: 'injection-override-directive',
+    category: 'prompt-injection',
+    pattern: /override\s+(the\s+)?(system|safety|initial|original|base)\s*(prompt|instructions?|directives?|rules?)?/,
+    weight: 8,
+    description: 'Override system/safety directives',
+  },
+  {
+    id: 'injection-special-tokens',
+    category: 'prompt-injection',
+    pattern: /(\[SYSTEM\]|\[INST\]|\[\/INST\]|<\|system\|>|<\|user\|>|<\|assistant\|>|<<SYS>>|<\/s>)/,
+    weight: 9,
+    description: 'LLM special token injection',
+  },
+  {
+    id: 'injection-xml-system',
+    category: 'prompt-injection',
+    pattern: /<\s*system\s*>|<\s*\/\s*system\s*>/,
+    weight: 8,
+    description: 'XML system tag injection',
+  },
+  {
+    id: 'injection-end-prompt-marker',
+    category: 'prompt-injection',
+    pattern: /---+\s*(end\s+of\s+)?(system\s+)?(prompt|instructions?)\s*---+/,
+    weight: 8,
+    description: 'End-of-prompt delimiter injection',
+  },
+  {
+    id: 'injection-real-task',
+    category: 'prompt-injection',
+    pattern: /your\s+(actual|real|true|correct)\s+(task|goal|purpose|objective|instructions?|mission)\s+(is|are|will\s+be)\b/,
+    weight: 8,
+    description: "Redefining the model's real task",
+  },
+  {
+    id: 'injection-context-switch',
+    category: 'prompt-injection',
+    pattern: /(now\s+)?switch\s+(to\s+)?context|context\s*switch\s*:/,
+    weight: 6,
+    description: 'Context switching directive',
+  },
+  {
+    id: 'injection-human-turn',
+    category: 'prompt-injection',
+    pattern: /<\/?(human|user|assistant|ai)\s*>|Human\s*:\s*\n|Assistant\s*:\s*\n/,
+    weight: 7,
+    description: 'Conversation turn injection',
+  },
+];
