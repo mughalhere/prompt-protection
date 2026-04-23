@@ -23,7 +23,7 @@ body:
       description: Paste the smallest code snippet that reproduces the issue.
       render: typescript
       placeholder: |
-        import { verifyPrompt } from 'prompt-protection';
+        import { verifyPrompt } from '@mughalhere/prompt-protection';
         verifyPrompt('...');
     validations:
       required: true
