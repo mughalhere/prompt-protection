@@ -1,4 +1,4 @@
-name: Publish to npm
+name: Publish to GitHub Packages
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 concurrency:
-  group: npm-publish-${{ github.ref }}
+  group: github-packages-publish-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
+      packages: write
 
     steps:
       - uses: actions/checkout@v4
@@ -23,17 +23,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20.x
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: https://npm.pkg.github.com
+          scope: '@mughalhere'
           cache: 'npm'
-
-      - name: Verify npm token is configured
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -z "${NODE_AUTH_TOKEN}" ]; then
-            echo "::error::Repository secret NPM_TOKEN is not set. Add an npm automation or granular token with publish access."
-            exit 1
-          fi
 
       - name: Install dependencies
         run: npm ci
@@ -41,9 +33,7 @@ jobs:
       - name: Build and test
         run: npm run prepublishOnly
 
-      # Requires the package to be linked for provenance on npm (Trusted Publishers).
-      # If publish fails here, run: npm publish --access public without --provenance locally, or configure the link at npmjs.com.
-      - name: Publish to npm
-        run: npm publish --provenance --access public
+      - name: Publish to GitHub Packages
+        run: npm publish
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
