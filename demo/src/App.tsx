@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
-import { analyzePrompt, stripPrompt } from 'prompt-protection';
-import type { AnalysisResult, ThreatCategory } from 'prompt-protection';
+import { analyzePrompt, stripPrompt } from '@mughalhere/prompt-protection';
+import type { AnalysisResult, ThreatCategory } from '@mughalhere/prompt-protection';
 import styles from './App.module.css';
 
 const CATEGORY_LABELS: Record<ThreatCategory, string> = {
