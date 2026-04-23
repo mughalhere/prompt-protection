@@ -1,6 +1,6 @@
 {
-  "name": "prompt-protection",
-  "version": "0.1.0",
+  "name": "@mughalhere/prompt-protection",
+  "version": "0.2.0",
   "description": "Detect and strip malicious prompt injection, jailbreaking, and data exfiltration attempts from LLM inputs. Zero dependencies. Works in Node.js and browsers.",
   "license": "MIT",
   "author": "mughalhere",
@@ -13,7 +13,7 @@
     "url": "https://github.com/mughalhere/prompt-protection/issues"
   },
   "publishConfig": {
-    "access": "public"
+    "registry": "https://npm.pkg.github.com"
   },
   "keywords": [
     "prompt-injection",
