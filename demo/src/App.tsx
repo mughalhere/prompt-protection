@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
-import { analyzePrompt, stripPrompt } from '@mughalhere/prompt-protection';
-import type { AnalysisResult, ThreatCategory } from '@mughalhere/prompt-protection';
+import { analyzePrompt, stripPrompt } from 'prompt-protection';
+import type { AnalysisResult, ThreatCategory } from 'prompt-protection';
 import styles from './App.module.css';
 
 const CATEGORY_LABELS: Record<ThreatCategory, string> = {
@@ -10,6 +10,7 @@ const CATEGORY_LABELS: Record<ThreatCategory, string> = {
   'security-bypass': 'Security Bypass',
   'social-engineering': 'Social Engineering',
   'data-fishing': 'Data Fishing',
+  'context-smuggling': 'Context Smuggling',
 };
 
 const CATEGORY_COLORS: Record<ThreatCategory, string> = {
@@ -19,6 +20,7 @@ const CATEGORY_COLORS: Record<ThreatCategory, string> = {
   'security-bypass': '#eab308',
   'social-engineering': '#3b82f6',
   'data-fishing': '#ec4899',
+  'context-smuggling': '#14b8a6',
 };
 
 const EXAMPLES = {
