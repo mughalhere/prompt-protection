@@ -5,6 +5,7 @@ import { bypassRules } from './bypass.js';
 import { socialEngineeringRules } from './social-engineering.js';
 import { dataFishingRules } from './data-fishing.js';
 import { contextSmugglingRules } from './context-smuggling.js';
+import { outputRules } from './output.js';
 import type { PatternRule } from '../types.js';
 
 export const ALL_RULES: PatternRule[] = [
@@ -17,6 +18,8 @@ export const ALL_RULES: PatternRule[] = [
   ...contextSmugglingRules,
 ];
 
+export const OUTPUT_RULES: PatternRule[] = [...outputRules];
+
 export {
   injectionRules,
   jailbreakRules,
@@ -25,4 +28,5 @@ export {
   socialEngineeringRules,
   dataFishingRules,
   contextSmugglingRules,
+  outputRules,
 };

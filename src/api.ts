@@ -6,12 +6,21 @@ import type {
   AnalysisResult,
   AnalyzeOptions,
   PatternRule,
+  SeverityLevel,
   StripOptions,
   ThreatCategory,
   VerifyOptions,
 } from './types.js';
 
 const DEFAULT_THRESHOLD = 35;
+
+export function computeSeverity(s: number): SeverityLevel {
+  if (s >= 80) return 'critical';
+  if (s >= 65) return 'high';
+  if (s >= 50) return 'medium';
+  if (s >= 25) return 'low';
+  return 'safe';
+}
 
 function splitSentences(text: string): string[] {
   return text.split(/[.!?]+\s+/).map((s) => s.trim()).filter((s) => s.length > 3);
@@ -48,6 +57,7 @@ export function analyzePrompt(prompt: string, options: AnalyzeOptions = {}): Ana
 
   const result: AnalysisResult = {
     score: normalizedScore,
+    severity: computeSeverity(normalizedScore),
     isMalicious: normalizedScore >= threshold,
     matches,
     categories,

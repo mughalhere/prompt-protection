@@ -475,3 +475,46 @@
   transition: color 0.15s;
 }
 .installLinks a:hover { color: var(--text); }
+
+/* ── Mode tabs ──────────────────────────────────────────── */
+.modeTabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  width: fit-content;
+}
+
+.modeTab {
+  padding: 7px 20px;
+  font-size: 0.83rem;
+  font-weight: 600;
+  border-radius: 7px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  transition: background 0.15s, color 0.15s;
+  cursor: pointer;
+}
+.modeTab:hover { color: var(--text); background: var(--surface2); }
+
+.modeTabActive {
+  background: var(--accent);
+  color: #fff;
+}
+.modeTabActive:hover { background: var(--accent-hover); color: #fff; }
+
+/* ── Severity badge ─────────────────────────────────────── */
+.severityBadge {
+  margin-left: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  letter-spacing: 0.04em;
+  align-self: center;
+}
