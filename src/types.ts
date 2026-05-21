@@ -5,7 +5,14 @@ export type ThreatCategory =
   | 'security-bypass'
   | 'social-engineering'
   | 'data-fishing'
-  | 'context-smuggling';
+  | 'context-smuggling'
+  | 'system-prompt-leak'
+  | 'credential-leak'
+  | 'injection-relay'
+  | 'pii-exposure';
+
+/** Coarse severity band derived from the 0–100 score, independent of threshold. */
+export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'safe';
 
 export interface PatternRule {
   id: string;
@@ -28,6 +35,7 @@ export interface PatternMatch {
 export interface AnalysisResult {
   /** 0–100 normalised confidence that the prompt is malicious */
   score: number;
+  severity: SeverityLevel;
   isMalicious: boolean;
   matches: PatternMatch[];
   /** Deduplicated list of triggered threat categories */
@@ -70,4 +78,22 @@ export interface PromptInjectionErrorDetails {
   score: number;
   matches: PatternMatch[];
   categories: ThreatCategory[];
+}
+
+export interface OutputAnalysisResult {
+  /** 0–100 confidence that the LLM output is compromised/suspicious */
+  score: number;
+  severity: SeverityLevel;
+  isSuspicious: boolean;
+  matches: PatternMatch[];
+  /** Deduplicated list of triggered output threat categories */
+  threats: ThreatCategory[];
+}
+
+export interface OutputAnalysisOptions {
+  /** 0–100, default 50 (higher than input threshold to reduce false positives) */
+  threshold?: number;
+  customRules?: PatternRule[];
+  disabledCategories?: ThreatCategory[];
+  disabledRuleIds?: string[];
 }

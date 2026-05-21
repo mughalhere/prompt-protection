@@ -1,6 +1,6 @@
 {
   "name": "prompt-protection",
-  "version": "1.0.0",
+  "version": "1.5.0",
   "description": "Detect and strip malicious prompt injection, jailbreaking, and data exfiltration attempts from LLM inputs. Zero dependencies. Works in Node.js and browsers.",
   "license": "MIT",
   "author": "mughalhere",
@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/mughalhere/prompt-protection/issues"
   },
-"keywords": [
+  "keywords": [
     "prompt-injection",
     "llm-security",
     "jailbreak",
@@ -78,6 +78,16 @@
         "types": "./dist/adapters/claude.d.cts",
         "default": "./dist/adapters/claude.cjs"
       }
+    },
+    "./adapters/openai": {
+      "import": {
+        "types": "./dist/adapters/openai.d.ts",
+        "default": "./dist/adapters/openai.js"
+      },
+      "require": {
+        "types": "./dist/adapters/openai.d.cts",
+        "default": "./dist/adapters/openai.cjs"
+      }
     }
   },
   "files": [
@@ -104,10 +114,14 @@
   "peerDependencies": {
     "@anthropic-ai/sdk": ">=0.20.0",
     "express": ">=4.0.0",
+    "openai": ">=4.0.0",
     "react": ">=17.0.0"
   },
   "peerDependenciesMeta": {
     "@anthropic-ai/sdk": {
+      "optional": true
+    },
+    "openai": {
       "optional": true
     },
     "express": {
@@ -130,6 +144,7 @@
     "express": "^4.21.0",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
+    "openai": "^6.38.0",
     "prettier": "^3.3.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
