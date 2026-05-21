@@ -4,7 +4,8 @@ export type ThreatCategory =
   | 'data-exfiltration'
   | 'security-bypass'
   | 'social-engineering'
-  | 'data-fishing';
+  | 'data-fishing'
+  | 'context-smuggling';
 
 export interface PatternRule {
   id: string;
@@ -32,6 +33,8 @@ export interface AnalysisResult {
   /** Deduplicated list of triggered threat categories */
   categories: ThreatCategory[];
   normalizedPrompt: string;
+  /** Per-sentence scores, only present when options.sentenceAnalysis is true */
+  sentenceScores?: Array<{ sentence: string; score: number }>;
 }
 
 export interface AnalyzeOptions {
@@ -40,6 +43,8 @@ export interface AnalyzeOptions {
   customRules?: PatternRule[];
   disabledCategories?: ThreatCategory[];
   disabledRuleIds?: string[];
+  /** When true, each sentence is scored independently and reported in sentenceScores */
+  sentenceAnalysis?: boolean;
 }
 
 export type VerifyOptions = AnalyzeOptions;
