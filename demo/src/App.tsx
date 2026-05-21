@@ -10,6 +10,7 @@ const CATEGORY_LABELS: Record<ThreatCategory, string> = {
   'security-bypass': 'Security Bypass',
   'social-engineering': 'Social Engineering',
   'data-fishing': 'Data Fishing',
+  'context-smuggling': 'Context Smuggling',
 };
 
 const CATEGORY_COLORS: Record<ThreatCategory, string> = {
@@ -19,6 +20,7 @@ const CATEGORY_COLORS: Record<ThreatCategory, string> = {
   'security-bypass': '#eab308',
   'social-engineering': '#3b82f6',
   'data-fishing': '#ec4899',
+  'context-smuggling': '#14b8a6',
 };
 
 const EXAMPLES = {
