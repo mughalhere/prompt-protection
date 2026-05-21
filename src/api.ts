@@ -13,6 +13,10 @@ import type {
 
 const DEFAULT_THRESHOLD = 35;
 
+function splitSentences(text: string): string[] {
+  return text.split(/[.!?]+\s+/).map((s) => s.trim()).filter((s) => s.length > 3);
+}
+
 function buildRuleSet(options: AnalyzeOptions): PatternRule[] {
   let rules = [...ALL_RULES];
 
@@ -42,13 +46,24 @@ export function analyzePrompt(prompt: string, options: AnalyzeOptions = {}): Ana
 
   const categories = [...new Set(matches.map((m) => m.rule.category))] as ThreatCategory[];
 
-  return {
+  const result: AnalysisResult = {
     score: normalizedScore,
     isMalicious: normalizedScore >= threshold,
     matches,
     categories,
     normalizedPrompt: normalized,
   };
+
+  if (options.sentenceAnalysis === true) {
+    const sentences = splitSentences(prompt);
+    result.sentenceScores = sentences.map((sentence) => {
+      const { normalized: normSent } = normalize(sentence);
+      const { normalizedScore: sentScore } = score(rules, normSent, sentence);
+      return { sentence, score: sentScore };
+    });
+  }
+
+  return result;
 }
 
 export function verifyPrompt(prompt: string, options: VerifyOptions = {}): void {
