@@ -4,7 +4,7 @@
   "description": "Detect and strip malicious prompt injection, jailbreaking, and data exfiltration attempts from LLM inputs. Zero dependencies. Works in Node.js and browsers.",
   "license": "MIT",
   "author": "mughalhere",
-  "homepage": "https://github.com/mughalhere/prompt-protection#readme",
+  "homepage": "https://mughalhere.github.io/prompt-protection/",
   "repository": {
     "type": "git",
     "url": "https://github.com/mughalhere/prompt-protection"
