@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.1] - 2026-07-27
+
+### Changed
+- npm publish CI now uses **Trusted Publisher** (OIDC) instead of a long-lived `NPM_TOKEN`
+- Provenance attestations are generated automatically on publish from GitHub Actions
+
+---
+
 ## [1.5.0] - 2026-05-21
 
 ### Added
