@@ -1,6 +1,6 @@
 {
   "name": "prompt-protection",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Detect and strip malicious prompt injection, jailbreaking, and data exfiltration attempts from LLM inputs. Zero dependencies. Works in Node.js and browsers.",
   "license": "MIT",
   "author": "mughalhere",
