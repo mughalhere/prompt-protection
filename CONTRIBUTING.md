@@ -155,7 +155,7 @@ Publishing uses [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishe
 3. Bump **`version`** in `package.json` and update **`CHANGELOG.md`** on a branch, then merge via PR as usual.
 4. Create and push a **version tag** (for example `v1.5.1`). That triggers **Publish to npm** in GitHub Actions.
 
-The publish job requests `id-token: write`, runs on a GitHub-hosted runner with Node ≥ 22.14 / npm ≥ 11.5.1, and runs `npm publish --access public`. Provenance attestations are generated automatically. No long-lived npm token is used.
+The publish job requests `id-token: write`, runs on a GitHub-hosted runner with Node ≥ 22.14 and **npm@11** (≥ 11.5.1 for OIDC; npm 12 needs a newer Node), and runs `npm publish --access public`. Provenance attestations are generated automatically. No long-lived npm token is used.
 
 After trusted publishing works, optionally tighten the package on npm to **Require two-factor authentication and disallow tokens**, then revoke any leftover automation tokens.
 
