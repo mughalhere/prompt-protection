@@ -144,12 +144,20 @@ The **CI** workflow runs the test matrix on Node 18 / 20 / 22, then **`npm publi
 
 ### Publishing a version to npm
 
-1. Merge your changes to `main` with CI green.
-2. Bump **`version`** in `package.json` and update **`CHANGELOG.md`** on a branch, then merge via PR as usual.
-3. Create and push a **version tag** (for example `v0.2.0`). That triggers **Publish to npm** in GitHub Actions.
-4. The repo must have a **`NPM_TOKEN`** Actions secret: an npm **automation** or **granular** token with permission to publish this package.
+Publishing uses [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) (OIDC). There is **no** `NPM_TOKEN` Actions secret.
 
-The publish job runs `npm publish --provenance --access public`. **Provenance** requires the package to be set up for **trusted publishing** / OIDC linkage with GitHub on [npmjs.com](https://www.npmjs.com); if publish fails on that step, fix the link or publish from your machine with `npm publish` (without `--provenance`) using a token that has publish access.
+1. On [npmjs.com](https://www.npmjs.com/package/prompt-protection) → **Settings** → **Trusted Publisher**, add GitHub Actions with:
+   - **Organization or user**: `mughalhere`
+   - **Repository**: `prompt-protection`
+   - **Workflow filename**: `publish.yml` (filename only, must match exactly)
+   - **Allowed actions**: `npm publish`
+2. Merge your changes to `main` with CI green.
+3. Bump **`version`** in `package.json` and update **`CHANGELOG.md`** on a branch, then merge via PR as usual.
+4. Create and push a **version tag** (for example `v1.5.1`). That triggers **Publish to npm** in GitHub Actions.
+
+The publish job requests `id-token: write`, runs on a GitHub-hosted runner with Node ≥ 22.14 / npm ≥ 11.5.1, and runs `npm publish --access public`. Provenance attestations are generated automatically. No long-lived npm token is used.
+
+After trusted publishing works, optionally tighten the package on npm to **Require two-factor authentication and disallow tokens**, then revoke any leftover automation tokens.
 
 ## License
 
