@@ -1,9 +1,22 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { stripPrompt, analyzePrompt } from '../api.js';
 import { PromptInjectionError } from '../error.js';
+import {
+  createProtectionSession,
+  type ProtectionSession,
+} from '../session.js';
 import type { AnalysisResult, PromptInput, VerifyOptions, StripOptions } from '../types.js';
 
-export interface UsePromptProtectionOptions extends VerifyOptions {}
+export interface UsePromptProtectionOptions extends VerifyOptions {
+  /**
+   * When true, the hook owns a `ProtectionSession` so deferred follow-ups
+   * (e.g. "process the last prompt") correlate with recently blocked turns.
+   * Default: false (stateless per-call behaviour).
+   */
+  enableSession?: boolean;
+  /** External session; takes precedence over `enableSession`. */
+  session?: ProtectionSession;
+}
 
 export interface UsePromptProtectionResult {
   /** Throws PromptInjectionError if the prompt is blocked */
@@ -16,7 +29,7 @@ export interface UsePromptProtectionResult {
   result: AnalysisResult | null;
   /** The last error thrown by verify, or null if the last check passed */
   error: PromptInjectionError | null;
-  /** Reset state */
+  /** Reset analysis/error state (and clear session history when enabled) */
   reset: () => void;
 }
 
@@ -26,7 +39,11 @@ export interface UsePromptProtectionResult {
  * Flagged prompts set `result.action` to `'flag'` but do not throw.
  *
  * @example
- * const { verify, error, result } = usePromptProtection({ threshold: 35, flagThreshold: 25 });
+ * const { verify, error, result } = usePromptProtection({
+ *   threshold: 35,
+ *   flagThreshold: 25,
+ *   enableSession: true,
+ * });
  *
  * const handleSubmit = () => {
  *   try {
@@ -43,10 +60,26 @@ export function usePromptProtection(
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<PromptInjectionError | null>(null);
 
+  const { enableSession = false, session: externalSession, ...analyzeDefaults } =
+    defaultOptions;
+
+  const ownedSessionRef = useRef<ProtectionSession | null>(null);
+  if (enableSession && !externalSession && ownedSessionRef.current === null) {
+    ownedSessionRef.current = createProtectionSession(analyzeDefaults);
+  }
+
+  const activeSession = useMemo(() => {
+    if (externalSession) return externalSession;
+    if (enableSession) return ownedSessionRef.current;
+    return null;
+  }, [externalSession, enableSession]);
+
   const verify = useCallback(
     (prompt: PromptInput, options?: VerifyOptions) => {
-      const mergedOptions = { ...defaultOptions, ...options };
-      const analysis = analyzePrompt(prompt, mergedOptions);
+      const mergedOptions = { ...analyzeDefaults, ...options };
+      const analysis = activeSession
+        ? activeSession.analyze(prompt, mergedOptions)
+        : analyzePrompt(prompt, mergedOptions);
       setResult(analysis);
 
       if (analysis.action === 'block') {
@@ -61,30 +94,36 @@ export function usePromptProtection(
 
       setError(null);
     },
-    [defaultOptions],
+    [analyzeDefaults, activeSession],
   );
 
   const strip = useCallback(
     (prompt: PromptInput, options?: StripOptions) => {
-      const mergedOptions = { ...defaultOptions, ...options };
+      const mergedOptions = { ...analyzeDefaults, ...options };
+      if (activeSession) {
+        return activeSession.strip(prompt, mergedOptions);
+      }
       return stripPrompt(prompt, mergedOptions);
     },
-    [defaultOptions],
+    [analyzeDefaults, activeSession],
   );
 
   const analyze = useCallback(
     (prompt: PromptInput) => {
-      const analysis = analyzePrompt(prompt, defaultOptions);
+      const analysis = activeSession
+        ? activeSession.analyze(prompt, analyzeDefaults)
+        : analyzePrompt(prompt, analyzeDefaults);
       setResult(analysis);
       return analysis;
     },
-    [defaultOptions],
+    [analyzeDefaults, activeSession],
   );
 
   const reset = useCallback(() => {
     setResult(null);
     setError(null);
-  }, []);
+    activeSession?.clear();
+  }, [activeSession]);
 
   return { verify, strip, analyze, result, error, reset };
 }

@@ -1,6 +1,7 @@
 import { analyzePrompt } from '../api.js';
 import { PromptInjectionError } from '../error.js';
 import { isChatMessageArray } from '../messages.js';
+import type { ProtectionSession } from '../session.js';
 import type { AnalysisResult, PromptInput, VerifyOptions } from '../types.js';
 
 interface NextRequest {
@@ -26,6 +27,23 @@ export interface NextjsProtectionOptions extends VerifyOptions {
    * Called when the prompt is flagged but not blocked. Handler still runs after this.
    */
   onFlag?: (result: AnalysisResult) => void;
+  /**
+   * Shared protection session for multi-turn correlation.
+   * Prefer `getSession` when sessions are keyed per user/conversation.
+   */
+  session?: ProtectionSession;
+  /** Resolve a session per request (e.g. by conversation id). */
+  getSession?: (req: NextRequest) => ProtectionSession | undefined;
+}
+
+function toAnalyzeOptions(options: NextjsProtectionOptions): VerifyOptions {
+  const analyzeOpts: VerifyOptions = { ...options };
+  delete (analyzeOpts as NextjsProtectionOptions).field;
+  delete (analyzeOpts as NextjsProtectionOptions).onError;
+  delete (analyzeOpts as NextjsProtectionOptions).onFlag;
+  delete (analyzeOpts as NextjsProtectionOptions).session;
+  delete (analyzeOpts as NextjsProtectionOptions).getSession;
+  return analyzeOpts;
 }
 
 /**
@@ -59,7 +77,12 @@ export function withPromptProtection(
       const prompt = bodyObj[field];
 
       if (typeof prompt === 'string' || isChatMessageArray(prompt)) {
-        const analysis = analyzePrompt(prompt as PromptInput, options);
+        const session = options.getSession?.(req) ?? options.session;
+        const analyzeOpts = toAnalyzeOptions(options);
+
+        const analysis = session
+          ? session.analyze(prompt as PromptInput, analyzeOpts)
+          : analyzePrompt(prompt as PromptInput, analyzeOpts);
 
         if (analysis.action === 'block') {
           const err = new PromptInjectionError({

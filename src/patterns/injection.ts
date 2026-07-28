@@ -179,4 +179,40 @@ export const injectionRules: PatternRule[] = [
     precision: 'medium',
     description: 'Code/structured-payload wrapped injection',
   },
+  {
+    id: 'injection-process-last-prompt',
+    category: 'prompt-injection',
+    // "process/run/execute the last/previous prompt/message/request"
+    pattern:
+      /\b(process|run|execute|apply|perform|fulfill|continue|proceed)\s+(with\s+)?(my\s+|the\s+)?(last|previous|prior|earlier)\s+(prompt|message|request|instruction|query|command|question)\b/,
+    weight: 6,
+    precision: 'medium',
+    description: 'Deferred execution of a prior prompt/message/request',
+  },
+  {
+    id: 'injection-do-what-said-before',
+    category: 'prompt-injection',
+    // "do what I said before" / "answer what I asked in the previous message"
+    pattern:
+      /\b(do|answer|continue|complete|follow|execute|honou?r)\s+(with\s+)?(what|whatever)\s+i\s+(said|asked|requested|wrote)(\s+(before|earlier|previously|above)|\s+.{0,40}?\b(previous|prior|last|earlier)\s+(message|prompt|request|turn|question))\b/,
+    weight: 6,
+    precision: 'medium',
+    description: 'Request to act on what the user said/asked in a prior turn',
+  },
+  {
+    id: 'injection-retry-previous-request',
+    category: 'prompt-injection',
+    pattern:
+      /\b(try\s+again|retry|re[\s-]?do|re[\s-]?run|re[\s-]?process)\s+(on\s+)?(my\s+|the\s+)?(previous|prior|last|earlier)\s+(request|prompt|message|instruction|query|command|question)\b/,
+    weight: 6,
+    precision: 'medium',
+    description: 'Retry/re-do a previous request or prompt',
+  },
 ];
+
+/** Rule IDs that signal deferred reference to a prior turn (used by session correlation). */
+export const DEFERRED_REFERENCE_RULE_IDS: ReadonlySet<string> = new Set([
+  'injection-process-last-prompt',
+  'injection-do-what-said-before',
+  'injection-retry-previous-request',
+]);
