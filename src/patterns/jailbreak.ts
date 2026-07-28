@@ -72,6 +72,13 @@ export const jailbreakRules: PatternRule[] = [
     description: 'Admin/root override',
   },
   {
+    id: 'jailbreak-request-root-access',
+    category: 'jailbreak',
+    pattern: /(get|gain|grant|give|enable|provide|request)\s+(me\s+)?(root|admin|superuser|privileged?)\s+access\b/,
+    weight: 8,
+    description: 'Request root/admin access',
+  },
+  {
     id: 'jailbreak-free-mode',
     category: 'jailbreak',
     pattern: /(enter|enable|activate|switch\s+to)\s+(free|unrestricted|god|chaos|ultimate|super)\s+mode/,
