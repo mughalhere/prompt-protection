@@ -3,6 +3,8 @@ import { decodeObfuscation } from './utils/encoding.js';
 import { score } from './scorer.js';
 import { OUTPUT_RULES } from './patterns/index.js';
 import { computeSeverity } from './api.js';
+import { resolveAction } from './verdict.js';
+import { emitOutputLog } from './logging.js';
 import type {
   OutputAnalysisOptions,
   OutputAnalysisResult,
@@ -57,15 +59,24 @@ export function analyzeOutput(
   const rules = buildOutputRuleSet(options);
 
   const normalized = normalizeOutput(output);
-  const { normalizedScore, matches } = score(rules, normalized, output);
+  const { normalizedScore, matches } = score(rules, normalized, output, {
+    ...(options.allowlistPatterns ? { allowlistPatterns: options.allowlistPatterns } : {}),
+    ...(options.allowlistRuleIds ? { allowlistRuleIds: options.allowlistRuleIds } : {}),
+  });
 
   const threats = [...new Set(matches.map((m) => m.rule.category))] as ThreatCategory[];
+  const action = resolveAction(normalizedScore, matches, threshold, options.flagThreshold);
 
-  return {
+  const result: OutputAnalysisResult = {
     score: normalizedScore,
     severity: computeSeverity(normalizedScore),
-    isSuspicious: normalizedScore >= threshold,
+    isSuspicious: action === 'flag' || action === 'block',
+    action,
     matches,
     threats,
   };
+
+  emitOutputLog(result, output, options);
+
+  return result;
 }

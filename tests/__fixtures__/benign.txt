@@ -48,3 +48,10 @@ What is tail call optimization?
 Explain how HTTPS works.
 What are WebSockets and when should I use them?
 How do I test React components?
+Please ignore the previous file and use this one instead.
+Can you review the previous commit and suggest improvements?
+Ignore the lint warning on line 42 and focus on the logic.
+The previous instructions in the README were outdated.
+Forget about the old approach — let's use hooks instead.
+By the way, can you recommend a good TypeScript book?
+While you're at it, also format the imports.

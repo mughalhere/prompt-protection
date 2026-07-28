@@ -6,6 +6,7 @@ export const jailbreakRules: PatternRule[] = [
     category: 'jailbreak',
     pattern: /\bDAN\b|do\s+anything\s+now\b/,
     weight: 10,
+    precision: 'high',
     description: 'DAN (Do Anything Now) jailbreak',
   },
   {
@@ -13,6 +14,7 @@ export const jailbreakRules: PatternRule[] = [
     category: 'jailbreak',
     pattern: /developer\s+mode\s+(is\s+)?(now\s+)?(enabled?|on|activated?|unlocked)/,
     weight: 9,
+    precision: 'high',
     description: 'Developer mode activation',
   },
   {
@@ -20,6 +22,7 @@ export const jailbreakRules: PatternRule[] = [
     category: 'jailbreak',
     pattern: /(pretend|act|behave|imagine|assume)\s+(as\s+if\b|like\b|that\b|you\s+have\b|there\s+are\b)?\s*.{0,30}no\s+(rules?|restrictions?|limits?|guidelines?|constraints?|filters?|ethics?)/,
     weight: 10,
+    precision: 'high',
     description: 'No restrictions roleplay',
   },
   {
@@ -27,6 +30,7 @@ export const jailbreakRules: PatternRule[] = [
     category: 'jailbreak',
     pattern: /\bjailbreak\b/,
     weight: 7,
+    precision: 'medium',
     description: 'Explicit jailbreak mention',
   },
   {
@@ -34,6 +38,7 @@ export const jailbreakRules: PatternRule[] = [
     category: 'jailbreak',
     pattern: /unfiltered\s+(ai|version|mode|response|output|gpt|bot|model)/,
     weight: 9,
+    precision: 'high',
     description: 'Unfiltered AI mode request',
   },
   {
@@ -41,6 +46,7 @@ export const jailbreakRules: PatternRule[] = [
     category: 'jailbreak',
     pattern: /opposite\s+(day|mode|world)|answer\s+(the\s+)?opposite|reverse\s+(your\s+)?(rules?|instructions?|guidelines?)/,
     weight: 7,
+    precision: 'medium',
     description: 'Opposite/reverse mode jailbreak',
   },
   {
@@ -48,6 +54,7 @@ export const jailbreakRules: PatternRule[] = [
     category: 'jailbreak',
     pattern: /escape\s+(your\s+)?(training|constraints?|alignment|programming|parameters?)|break\s+(free\s+from|out\s+of)\s+(your\s+)?(training|constraints?)/,
     weight: 9,
+    precision: 'high',
     description: 'Escape training/alignment',
   },
   {
@@ -55,6 +62,7 @@ export const jailbreakRules: PatternRule[] = [
     category: 'jailbreak',
     pattern: /(evil|malicious|uncensored|unethical|unrestricted|harmful|dangerous)\s+(ai|version|mode|gpt|bot|model|assistant)/,
     weight: 9,
+    precision: 'high',
     description: 'Evil/uncensored AI persona',
   },
   {
@@ -62,6 +70,7 @@ export const jailbreakRules: PatternRule[] = [
     category: 'jailbreak',
     pattern: /\bsudo\s+(mode|command|override|access|enable)\b/,
     weight: 8,
+    precision: 'high',
     description: 'Sudo mode jailbreak',
   },
   {
@@ -69,6 +78,7 @@ export const jailbreakRules: PatternRule[] = [
     category: 'jailbreak',
     pattern: /admin\s*(override|access|mode|privileges?|command)|root\s+access\s+(granted|enabled?|mode)/,
     weight: 8,
+    precision: 'high',
     description: 'Admin/root override',
   },
   {
@@ -76,6 +86,7 @@ export const jailbreakRules: PatternRule[] = [
     category: 'jailbreak',
     pattern: /(get|gain|grant|give|enable|provide|request)\s+(me\s+)?(root|admin|superuser|privileged?)\s+access\b/,
     weight: 8,
+    precision: 'high',
     description: 'Request root/admin access',
   },
   {
@@ -83,6 +94,7 @@ export const jailbreakRules: PatternRule[] = [
     category: 'jailbreak',
     pattern: /(enter|enable|activate|switch\s+to)\s+(free|unrestricted|god|chaos|ultimate|super)\s+mode/,
     weight: 9,
+    precision: 'high',
     description: 'Free/unrestricted mode activation',
   },
   {
@@ -90,6 +102,7 @@ export const jailbreakRules: PatternRule[] = [
     category: 'jailbreak',
     pattern: /(play|be|act\s+as|become|roleplay\s+as)\s+(a\s+|an\s+|the\s+)?(character|role|persona|version)\s+(of\s+(you|an?\s+ai)\s+)?who\s+(has\s+no|can\s+do\s+anything|ignores?|doesn'?t\s+follow)/,
     weight: 8,
+    precision: 'high',
     description: 'Limitless character roleplay',
   },
   {
@@ -97,6 +110,7 @@ export const jailbreakRules: PatternRule[] = [
     category: 'jailbreak',
     pattern: /(ignore|skip|bypass|remove)\s+(the\s+)?(token|word|character|output)\s+(limit|cap|restriction|filter)/,
     weight: 8,
+    precision: 'medium',
     description: 'Token/word limit bypass',
   },
   {
@@ -104,6 +118,31 @@ export const jailbreakRules: PatternRule[] = [
     category: 'jailbreak',
     pattern: /(in\s+a\s+story|in\s+fiction|fictional(ly)?|as\s+a\s+story)[,.\s]+.{0,60}(instructions?\s+are|tell\s+me\s+how\s+to|describe\s+how\s+to)/,
     weight: 8,
+    precision: 'medium',
     description: 'Fictional framing for instructions',
+  },
+  {
+    id: 'jailbreak-many-shot',
+    category: 'jailbreak',
+    pattern: /(here\s+are\s+[0-9io]+\s+examples?\s+of\s+(you|an?\s+ai)\s+(ignoring|bypassing|without)|many[\s-]shot\s+(jailbreak|attack|prompt))/i,
+    weight: 8,
+    precision: 'high',
+    description: 'Many-shot jailbreak framing',
+  },
+  {
+    id: 'jailbreak-grandma-exploit',
+    category: 'jailbreak',
+    pattern: /(my\s+(grandma|grandmother|grandpa|grandfather)\s+(used\s+to|would)\s+.{0,40}(tell|teach|show|explain)\s+me\s+how\s+to)/i,
+    weight: 7,
+    precision: 'medium',
+    description: 'Grandma/nostalgia social jailbreak',
+  },
+  {
+    id: 'jailbreak-aim-pliny',
+    category: 'jailbreak',
+    pattern: /\b(AIM\s+prompt|pliny|jailbreak\s+prompt\s+library|dan\s+\d+\.?\d*)\b/i,
+    weight: 8,
+    precision: 'high',
+    description: 'Named jailbreak prompt families',
   },
 ];

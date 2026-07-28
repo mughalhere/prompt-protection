@@ -6,6 +6,7 @@ export const injectionRules: PatternRule[] = [
     category: 'prompt-injection',
     pattern: /ignore\s+(all\s+)?(previous|prior|earlier|above|your)(\s+\w+)?\s+(instructions?|directives?|rules?|prompts?|context)/,
     weight: 10,
+    precision: 'high',
     description: 'Ignore previous instructions',
   },
   {
@@ -13,6 +14,7 @@ export const injectionRules: PatternRule[] = [
     category: 'prompt-injection',
     pattern: /disregard\s+(all\s+)?(the\s+)?(above|prior|previous|earlier|your)\s+(instructions?|directives?|rules?|context|text|prompt)/,
     weight: 9,
+    precision: 'high',
     description: 'Disregard above/prior instructions',
   },
   {
@@ -21,6 +23,7 @@ export const injectionRules: PatternRule[] = [
     pattern:
       /forget\s+(all\s+)?(your\s+)?(the\s+)?(previous|prior|earlier|above)\s+(instructions?|context|rules?|conversation|directives?)|forget\s+the\s+(instructions?|context|rules?|conversation|directives?)/,
     weight: 9,
+    precision: 'high',
     description: 'Forget previous context/instructions',
   },
   {
@@ -29,6 +32,7 @@ export const injectionRules: PatternRule[] = [
     // Short forms that omit the instruction noun: "Forget above.", "Forget everything."
     pattern: /forget\s+(all\s+(of\s+)?)?(the\s+)?(above|everything)\b|forget\s+all\s+(that|this)\b/,
     weight: 8,
+    precision: 'high',
     description: 'Forget above/everything (short override)',
   },
   {
@@ -36,6 +40,7 @@ export const injectionRules: PatternRule[] = [
     category: 'prompt-injection',
     pattern: /(ignore|disregard)\s+(all\s+)?(of\s+)?(the\s+)?above\b/,
     weight: 8,
+    precision: 'medium',
     description: 'Ignore/disregard above (short override)',
   },
   {
@@ -43,6 +48,7 @@ export const injectionRules: PatternRule[] = [
     category: 'prompt-injection',
     pattern: /(discard|drop|wipe|clear|reset)\s+(all\s+)?(the\s+)?(previous|prior|earlier|above)\s+(instructions?|context|rules?|memory|conversation|prompts?)/,
     weight: 7,
+    precision: 'high',
     description: 'Discard/reset prior instructions or context',
   },
   {
@@ -50,6 +56,7 @@ export const injectionRules: PatternRule[] = [
     category: 'prompt-injection',
     pattern: /(your|the)\s+(new|updated|actual|real|true|correct)\s+instructions?\s+(are|is|will\s+be)\s*:/,
     weight: 9,
+    precision: 'high',
     description: 'Overriding with new instructions',
   },
   {
@@ -57,6 +64,7 @@ export const injectionRules: PatternRule[] = [
     category: 'prompt-injection',
     pattern: /\[?\s*system\s*(prompt|message|instructions?)?\s*\]?\s*[:=]\s*/,
     weight: 8,
+    precision: 'high',
     description: 'System prompt override marker',
   },
   {
@@ -64,6 +72,7 @@ export const injectionRules: PatternRule[] = [
     category: 'prompt-injection',
     pattern: /override\s+(the\s+)?(system|safety|initial|original|base)\s*(prompt|instructions?|directives?|rules?)?/,
     weight: 8,
+    precision: 'high',
     description: 'Override system/safety directives',
   },
   {
@@ -71,6 +80,7 @@ export const injectionRules: PatternRule[] = [
     category: 'prompt-injection',
     pattern: /(\[SYSTEM\]|\[INST\]|\[\/INST\]|<\|system\|>|<\|user\|>|<\|assistant\|>|<<SYS>>|<\/s>)/,
     weight: 9,
+    precision: 'high',
     description: 'LLM special token injection',
   },
   {
@@ -78,6 +88,7 @@ export const injectionRules: PatternRule[] = [
     category: 'prompt-injection',
     pattern: /<\s*system\s*>|<\s*\/\s*system\s*>/,
     weight: 8,
+    precision: 'high',
     description: 'XML system tag injection',
   },
   {
@@ -85,6 +96,7 @@ export const injectionRules: PatternRule[] = [
     category: 'prompt-injection',
     pattern: /---+\s*(end\s+of\s+)?(system\s+)?(prompt|instructions?)\s*---+/,
     weight: 8,
+    precision: 'high',
     description: 'End-of-prompt delimiter injection',
   },
   {
@@ -92,6 +104,7 @@ export const injectionRules: PatternRule[] = [
     category: 'prompt-injection',
     pattern: /your\s+(actual|real|true|correct)\s+(task|goal|purpose|objective|instructions?|mission)\s+(is|are|will\s+be)\b/,
     weight: 8,
+    precision: 'high',
     description: "Redefining the model's real task",
   },
   {
@@ -99,6 +112,7 @@ export const injectionRules: PatternRule[] = [
     category: 'prompt-injection',
     pattern: /(now\s+)?switch\s+(to\s+)?context|context\s*switch\s*:/,
     weight: 6,
+    precision: 'low',
     description: 'Context switching directive',
   },
   {
@@ -106,6 +120,63 @@ export const injectionRules: PatternRule[] = [
     category: 'prompt-injection',
     pattern: /<\/?(human|user|assistant|ai)\s*>|Human\s*:\s*\n|Assistant\s*:\s*\n/,
     weight: 7,
+    precision: 'medium',
     description: 'Conversation turn injection',
+  },
+  {
+    id: 'injection-chatml-im-tokens',
+    category: 'prompt-injection',
+    pattern: /<\|im_start\|>|<\|im_end\|>|<\|endoftext\|>|<\|end\|>|<\|start\|>/,
+    weight: 9,
+    precision: 'high',
+    description: 'ChatML / im_start special token injection',
+  },
+  {
+    id: 'injection-llama-header',
+    category: 'prompt-injection',
+    pattern: /<\|begin_of_text\|>|<\|start_header_id\|>|<\|end_header_id\|>|<\|eot_id\|>/,
+    weight: 9,
+    precision: 'high',
+    description: 'Llama-style header/EOT token injection',
+  },
+  {
+    id: 'injection-gemini-role',
+    category: 'prompt-injection',
+    pattern: /\b(system|model|user)\s*:\s*(you are|ignore|disregard|new instructions)/i,
+    weight: 8,
+    precision: 'high',
+    description: 'Role-colon injection with override content',
+  },
+  {
+    id: 'injection-fake-tool-call',
+    category: 'prompt-injection',
+    pattern: /["']?(tool_calls?|function_call|tool_use)["']?\s*:\s*\[?\s*\{/,
+    weight: 8,
+    precision: 'high',
+    description: 'Fake tool/function call JSON injection',
+  },
+  {
+    id: 'injection-policy-puppetry',
+    category: 'prompt-injection',
+    pattern: /(update|replace|set|override)\s+(the\s+)?(policy|policies|safety\s+policy|content\s+policy)\s*(to|with|:)/,
+    weight: 9,
+    precision: 'high',
+    description: 'Policy puppetry — overwrite safety policy',
+  },
+  {
+    id: 'injection-translate-then-obey',
+    category: 'prompt-injection',
+    pattern: /(translate|decode|decrypt|unscramble)\s+.{0,40}(then|and\s+then)\s+(follow|obey|execute|run|apply)\s+(the\s+)?(instructions?|commands?|directives?)/,
+    weight: 8,
+    precision: 'high',
+    description: 'Translate/decode then obey wrapped instructions',
+  },
+  {
+    id: 'injection-code-wrap',
+    category: 'prompt-injection',
+    pattern: /(in\s+(this|the)\s+(code|json|yaml|xml|markdown)\s*(block|snippet|payload)?|as\s+(json|yaml|xml))\s*[,:]?\s*.{0,40}(ignore|disregard|override|new\s+instructions?)/,
+    weight: 7,
+    precision: 'medium',
+    description: 'Code/structured-payload wrapped injection',
   },
 ];
