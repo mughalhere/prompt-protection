@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.7.0] - 2026-07-28
+
+### Added
+- **Three-way actions** — `action: 'allow' | 'flag' | 'block'` on every analysis result
+  - `isMalicious` remains true only when `action === 'block'` (backward compatible)
+  - Optional `flagThreshold` for a review band that logs/flags without throwing
+  - `verifyPrompt` / middleware throw only on `block`
+- **Precision gating** — rules tagged `precision: 'high' | 'medium' | 'low'`
+  - Lone `low`-precision matches (e.g. soft context-smuggling) can `flag` but cannot alone `block`
+- **Pluggable logging** — `logger`, `logLevels`, `includeContent`, `onLoggerError`
+  - Emits `ProtectionEvent` for input/output blocked/flagged (and optionally allow/clean)
+  - `createConsoleLogger()` helper for local debugging
+- **Allowlists** — `allowlistPatterns` / `allowlistRuleIds` exclude known-good spans from scoring
+- **Normalizer hardening** — multi-pass URL/base64 decode, Unicode Tags strip, bidi controls, fullwidth fold
+- **Accurate strip positions** — scorer uses `indexMap` from the normalizer
+- **New detection rules** — ChatML/Llama special tokens, policy puppetry, fake tool calls, many-shot jailbreaks, translate-then-obey, output email/phone PII and markdown/HTML exfil
+- Middleware `onFlag` callback (Express + Next.js); React hook exposes `action` on results
+- Exports: `Action`, `RulePrecision`, `ProtectionEvent`, `ProtectionLogger`, `LoggingOptions`, `LogLevel`, `createConsoleLogger`, `resolveAction`, `precisionAllowsBlock`
+
+### Changed
+- Package version bump: `1.6.0` → `1.7.0`
+- Total rules: 94 input + 20 output = **114** (was 82 + 15)
+- `verifyPromptAsync`: sync `block` always wins; adapter may only escalate allow/flag → block
+- Output analysis includes `action`; `isSuspicious` is true for `flag` or `block`
+- Default output threshold JSDoc corrected to 40
+
+---
+
 ## [1.6.0] - 2026-07-28
 
 ### Added

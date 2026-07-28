@@ -1,7 +1,7 @@
-import { verifyPrompt } from '../api.js';
+import { analyzePrompt } from '../api.js';
 import { PromptInjectionError } from '../error.js';
 import { isChatMessageArray } from '../messages.js';
-import type { PromptInput, VerifyOptions } from '../types.js';
+import type { AnalysisResult, PromptInput, VerifyOptions } from '../types.js';
 
 interface NextRequest {
   json(): Promise<unknown>;
@@ -22,18 +22,23 @@ export interface NextjsProtectionOptions extends VerifyOptions {
   field?: string;
   /** Custom error response factory */
   onError?: (err: PromptInjectionError) => NextResponse;
+  /**
+   * Called when the prompt is flagged but not blocked. Handler still runs after this.
+   */
+  onFlag?: (result: AnalysisResult) => void;
 }
 
 /**
  * Wraps a Next.js App Router route handler with prompt protection.
- * Reads the JSON body, checks the specified field, and returns 400 if malicious.
+ * Reads the JSON body, checks the specified field, and returns 400 if blocked.
+ * Flagged prompts continue (optional `onFlag` callback).
  *
  * @example
  * // app/api/chat/route.ts
  * export const POST = withPromptProtection(async (req) => {
  *   const { prompt } = await req.json();
  *   // ... call your LLM
- * }, { field: 'prompt' });
+ * }, { field: 'prompt', flagThreshold: 25 });
  */
 export function withPromptProtection(
   handler: RouteHandler,
@@ -46,7 +51,6 @@ export function withPromptProtection(
     try {
       body = await req.json();
     } catch {
-      // If body parsing fails, let the handler deal with it
       return handler(req);
     }
 
@@ -55,33 +59,40 @@ export function withPromptProtection(
       const prompt = bodyObj[field];
 
       if (typeof prompt === 'string' || isChatMessageArray(prompt)) {
-        try {
-          verifyPrompt(prompt as PromptInput, options);
-        } catch (err) {
-          if (err instanceof PromptInjectionError) {
-            if (options.onError) {
-              return options.onError(err);
-            }
+        const analysis = analyzePrompt(prompt as PromptInput, options);
 
-            // Lazy import NextResponse so this module works without next installed
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-            const nextServerModule = await import(
-              /* webpackIgnore: true */ 'next/server' as string
-            ).catch(() => null);
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-            const NextResponse: NextResponseConstructor = (nextServerModule as { NextResponse?: NextResponseConstructor } | null)?.NextResponse ?? makeFallbackNextResponse();
+        if (analysis.action === 'block') {
+          const err = new PromptInjectionError({
+            score: analysis.score,
+            matches: analysis.matches,
+            categories: analysis.categories,
+          });
 
-            return NextResponse.json(
-              {
-                error: 'Malicious prompt detected',
-                message: err.message,
-                score: err.score,
-                categories: err.categories,
-              },
-              { status: 400 },
-            );
+          if (options.onError) {
+            return options.onError(err);
           }
-          throw err;
+
+          // Lazy import NextResponse so this module works without next installed
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          const nextServerModule = await import(
+            /* webpackIgnore: true */ 'next/server' as string
+          ).catch(() => null);
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+          const NextResponse: NextResponseConstructor = (nextServerModule as { NextResponse?: NextResponseConstructor } | null)?.NextResponse ?? makeFallbackNextResponse();
+
+          return NextResponse.json(
+            {
+              error: 'Malicious prompt detected',
+              message: err.message,
+              score: err.score,
+              categories: err.categories,
+            },
+            { status: 400 },
+          );
+        }
+
+        if (analysis.action === 'flag' && options.onFlag) {
+          options.onFlag(analysis);
         }
       }
     }
@@ -95,7 +106,6 @@ function makeFallbackNextResponse(): NextResponseConstructor {
     json(body: unknown, init?: { status?: number }): NextResponse {
       const status = init?.status ?? 200;
       const headers = new Headers({ 'Content-Type': 'application/json' });
-      // Return a Response-compatible object
       return new Response(JSON.stringify(body), { status, headers }) as unknown as NextResponse;
     },
   };

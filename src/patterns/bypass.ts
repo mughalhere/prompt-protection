@@ -6,6 +6,7 @@ export const bypassRules: PatternRule[] = [
     category: 'security-bypass',
     pattern: /(disable|turn\s+off|remove|bypass|deactivate|circumvent)\s+(the\s+)?(safety|content|ethical?)\s+(filter|check|guard(rail)?|system|mode|policy|protocol)/,
     weight: 9,
+    precision: 'high',
     description: 'Disable safety/content filter',
   },
   {
@@ -13,6 +14,7 @@ export const bypassRules: PatternRule[] = [
     category: 'security-bypass',
     pattern: /act\s+as\s+if\s+(there\s+are\s+)?(no\s+)?(rules?|policies?|guidelines?|restrictions?|ethics?|laws?)\s*(apply|exist)?/,
     weight: 9,
+    precision: 'high',
     description: 'Act as if no rules apply',
   },
   {
@@ -20,6 +22,7 @@ export const bypassRules: PatternRule[] = [
     category: 'security-bypass',
     pattern: /ignore\s+(your\s+)?(guardrails?|safeguards?|alignment|ethical?\s+(guidelines?|constraints?|training)|safety\s+training)/,
     weight: 9,
+    precision: 'high',
     description: 'Ignore guardrails/safety training',
   },
   {
@@ -27,6 +30,7 @@ export const bypassRules: PatternRule[] = [
     category: 'security-bypass',
     pattern: /pretend\s+(that\s+)?(it\s+is\s+|it'?s\s+)?(allowed|permitted|legal|fine|okay|ok|acceptable)\s+(to|for)/,
     weight: 8,
+    precision: 'medium',
     description: 'Pretend prohibited action is allowed',
   },
   {
@@ -34,6 +38,7 @@ export const bypassRules: PatternRule[] = [
     category: 'security-bypass',
     pattern: /hypothetically\s*(speaking\s*)?[,.]?\s*(how\s+(would|do|could|can|to)|what\s+(are\s+the\s+)?(steps?|ways?|methods?))\s*(to\s+|one\s+could\s+)?/,
     weight: 8,
+    precision: 'medium',
     description: 'Hypothetical framing for harmful instructions',
   },
   {
@@ -41,6 +46,7 @@ export const bypassRules: PatternRule[] = [
     category: 'security-bypass',
     pattern: /for\s+(educational|research|academic|scientific|informational)\s+purposes?\s*.{0,80}(how\s+to\s+(make|build|create|synthesize|hack|crack|exploit|attack))/,
     weight: 7,
+    precision: 'medium',
     description: 'Educational framing for harmful instructions',
   },
   {
@@ -48,6 +54,7 @@ export const bypassRules: PatternRule[] = [
     category: 'security-bypass',
     pattern: /as\s+a?\s*(fictional|hypothetical|theoretical)\s+(character|ai|scenario|story|example)\s*.{0,50}(ignore|bypass|without\s+(restriction|filter|limit))/,
     weight: 7,
+    precision: 'medium',
     description: 'Fictional framing to bypass safety',
   },
   {
@@ -55,6 +62,7 @@ export const bypassRules: PatternRule[] = [
     category: 'security-bypass',
     pattern: /(evade|avoid|get\s+around|circumvent|trick)\s+(the\s+)?(filter|detection|moderation|guardrail|safety|content\s+policy)/,
     weight: 8,
+    precision: 'high',
     description: 'Explicit filter evasion',
   },
   {
@@ -62,6 +70,7 @@ export const bypassRules: PatternRule[] = [
     category: 'security-bypass',
     pattern: /use\s+(unicode|zero.?width|homoglyphs?|special\s+characters?|invisible\s+characters?)\s+to\s+(bypass|evade|hide|obfuscate)/,
     weight: 9,
+    precision: 'high',
     description: 'Unicode/homoglyph evasion technique',
   },
   {
@@ -69,6 +78,23 @@ export const bypassRules: PatternRule[] = [
     category: 'security-bypass',
     pattern: /prompt\s+injection/,
     weight: 7,
+    precision: 'medium',
     description: 'Explicit prompt injection mention',
+  },
+  {
+    id: 'bypass-developer-message',
+    category: 'security-bypass',
+    pattern: /(this\s+is\s+a\s+)?(developer|system|admin)\s+message\s*:\s*(ignore|disable|bypass|override)/i,
+    weight: 9,
+    precision: 'high',
+    description: 'Fake developer/system message to bypass',
+  },
+  {
+    id: 'bypass-response-prefix',
+    category: 'security-bypass',
+    pattern: /(start\s+your\s+(response|answer|reply)\s+with|prefix\s+(your\s+)?(output|response)\s+with)\s*["'].{0,40}(sure|of course|i'll help|no problem)/i,
+    weight: 7,
+    precision: 'medium',
+    description: 'Forced compliance response prefix',
   },
 ];
