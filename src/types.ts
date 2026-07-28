@@ -14,6 +14,20 @@ export type ThreatCategory =
 /** Coarse severity band derived from the 0–100 score, independent of threshold. */
 export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'safe';
 
+/**
+ * Three-way verdict for FP control.
+ * - `allow` — below thresholds
+ * - `flag` — reviewable / loggable, does not throw
+ * - `block` — treated as malicious (`isMalicious === true`); verify throws
+ */
+export type Action = 'allow' | 'flag' | 'block';
+
+/**
+ * How diagnostic a rule is. Lone `low` matches can flag but cannot alone produce `block`.
+ * Default when omitted: `medium`.
+ */
+export type RulePrecision = 'high' | 'medium' | 'low';
+
 export interface PatternRule {
   id: string;
   category: ThreatCategory;
@@ -22,6 +36,8 @@ export interface PatternRule {
   /** 1–10; higher = more diagnostic of an attack */
   weight: number;
   description: string;
+  /** Default `medium`. Lone `low` rules cannot alone produce `block`. */
+  precision?: RulePrecision;
 }
 
 export interface PatternMatch {
@@ -36,7 +52,10 @@ export interface AnalysisResult {
   /** 0–100 normalised confidence that the prompt is malicious */
   score: number;
   severity: SeverityLevel;
+  /** True only when `action === 'block'` (backward compatible) */
   isMalicious: boolean;
+  /** Three-way verdict: allow / flag / block */
+  action: Action;
   matches: PatternMatch[];
   /** Deduplicated list of triggered threat categories */
   categories: ThreatCategory[];
@@ -61,12 +80,67 @@ export type PromptInput = string | ChatMessage[];
  */
 export type AnalyzeRoles = 'all' | string[];
 
-export interface AnalyzeOptions {
-  /** 0–100, default 35 (strict) */
+/** Log levels that can be emitted by the protection logger. */
+export type LogLevel = 'blocked' | 'flagged' | 'allowed' | 'clean';
+
+export interface ProtectionEvent {
+  type:
+    | 'input.blocked'
+    | 'input.flagged'
+    | 'input.allowed'
+    | 'output.blocked'
+    | 'output.flagged'
+    | 'output.clean';
+  timestamp: string;
+  score: number;
+  action: Action;
+  severity: SeverityLevel;
+  categories: ThreatCategory[];
+  ruleIds: string[];
+  direction: 'input' | 'output';
+  /** Present only when `includeContent` is true */
+  promptPreview?: string;
+  contentPreview?: string;
+}
+
+export interface ProtectionLogger {
+  log(event: ProtectionEvent): void | Promise<void>;
+}
+
+export interface LoggingOptions {
+  logger?: ProtectionLogger;
+  /**
+   * Which outcomes to log. Default: `['blocked', 'flagged']`
+   * (does not log every allow/clean).
+   */
+  logLevels?: LogLevel[];
+  /** When true, include a truncated content preview. Default: false */
+  includeContent?: boolean;
+  /** Max preview length when `includeContent` is true. Default: 200 */
+  maxContentLength?: number;
+  /** Called if the logger throws; never rethrown into analyze/verify */
+  onLoggerError?: (err: unknown) => void;
+}
+
+export interface AnalyzeOptions extends LoggingOptions {
+  /** 0–100 block cutoff, default 35 (strict) */
   threshold?: number;
+  /**
+   * Optional flag band: when set and `flagThreshold <= score < threshold`,
+   * `action` is `'flag'` (does not throw). Omit for allow/block only (1.6 behaviour).
+   */
+  flagThreshold?: number;
   customRules?: PatternRule[];
   disabledCategories?: ThreatCategory[];
   disabledRuleIds?: string[];
+  /**
+   * Spans matching these patterns are excluded from scoring (FP control for DX jargon).
+   */
+  allowlistPatterns?: RegExp[];
+  /**
+   * Rule IDs whose matches are excluded from scoring.
+   */
+  allowlistRuleIds?: string[];
   /** When true, each sentence is scored independently and reported in sentenceScores */
   sentenceAnalysis?: boolean;
   /**
@@ -105,16 +179,25 @@ export interface OutputAnalysisResult {
   /** 0–100 confidence that the LLM output is compromised/suspicious */
   score: number;
   severity: SeverityLevel;
+  /** True when action is `flag` or `block` */
   isSuspicious: boolean;
+  /** Three-way verdict: allow / flag / block */
+  action: Action;
   matches: PatternMatch[];
   /** Deduplicated list of triggered output threat categories */
   threats: ThreatCategory[];
 }
 
-export interface OutputAnalysisOptions {
-  /** 0–100, default 50 (higher than input threshold to reduce false positives) */
+export interface OutputAnalysisOptions extends LoggingOptions {
+  /** 0–100 block cutoff, default 40 (higher than input to reduce false positives) */
   threshold?: number;
+  /**
+   * Optional flag band for output. When omitted, only allow/block (same as input 1.6 style).
+   */
+  flagThreshold?: number;
   customRules?: PatternRule[];
   disabledCategories?: ThreatCategory[];
   disabledRuleIds?: string[];
+  allowlistPatterns?: RegExp[];
+  allowlistRuleIds?: string[];
 }

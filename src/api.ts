@@ -3,6 +3,8 @@ import { score } from './scorer.js';
 import { ALL_RULES } from './patterns/index.js';
 import { PromptInjectionError } from './error.js';
 import { resolvePromptInput } from './messages.js';
+import { resolveAction } from './verdict.js';
+import { emitInputLog } from './logging.js';
 import type {
   AnalysisResult,
   AnalyzeOptions,
@@ -53,15 +55,21 @@ export function analyzePrompt(prompt: PromptInput, options: AnalyzeOptions = {})
   const rules = buildRuleSet(options);
   const text = resolvePromptInput(prompt, options.analyzeRoles);
 
-  const { normalized } = normalize(text);
-  const { normalizedScore, matches } = score(rules, normalized, text);
+  const { normalized, indexMap } = normalize(text);
+  const { normalizedScore, matches } = score(rules, normalized, text, {
+    indexMap,
+    ...(options.allowlistPatterns ? { allowlistPatterns: options.allowlistPatterns } : {}),
+    ...(options.allowlistRuleIds ? { allowlistRuleIds: options.allowlistRuleIds } : {}),
+  });
 
   const categories = [...new Set(matches.map((m) => m.rule.category))] as ThreatCategory[];
+  const action = resolveAction(normalizedScore, matches, threshold, options.flagThreshold);
 
   const result: AnalysisResult = {
     score: normalizedScore,
     severity: computeSeverity(normalizedScore),
-    isMalicious: normalizedScore >= threshold,
+    isMalicious: action === 'block',
+    action,
     matches,
     categories,
     normalizedPrompt: normalized,
@@ -70,11 +78,17 @@ export function analyzePrompt(prompt: PromptInput, options: AnalyzeOptions = {})
   if (options.sentenceAnalysis === true) {
     const sentences = splitSentences(text);
     result.sentenceScores = sentences.map((sentence) => {
-      const { normalized: normSent } = normalize(sentence);
-      const { normalizedScore: sentScore } = score(rules, normSent, sentence);
+      const { normalized: normSent, indexMap: sentMap } = normalize(sentence);
+      const { normalizedScore: sentScore } = score(rules, normSent, sentence, {
+        indexMap: sentMap,
+        ...(options.allowlistPatterns ? { allowlistPatterns: options.allowlistPatterns } : {}),
+        ...(options.allowlistRuleIds ? { allowlistRuleIds: options.allowlistRuleIds } : {}),
+      });
       return { sentence, score: sentScore };
     });
   }
+
+  emitInputLog(result, text, options);
 
   return result;
 }
@@ -82,7 +96,7 @@ export function analyzePrompt(prompt: PromptInput, options: AnalyzeOptions = {})
 export function verifyPrompt(prompt: PromptInput, options: VerifyOptions = {}): void {
   const result = analyzePrompt(prompt, options);
 
-  if (result.isMalicious) {
+  if (result.action === 'block') {
     throw new PromptInjectionError({
       score: result.score,
       matches: result.matches,
@@ -101,7 +115,6 @@ export function stripPrompt(prompt: PromptInput, options: StripOptions = {}): st
 
   const replacement = options.replacement ?? '';
 
-  // Sort matches by start index, then merge overlapping spans
   const spans = result.matches
     .map((m) => ({ start: m.startIndex, end: m.endIndex }))
     .sort((a, b) => a.start - b.start);
@@ -118,7 +131,6 @@ export function stripPrompt(prompt: PromptInput, options: StripOptions = {}): st
 
   if (options.stripWholeSegment === true) {
     for (const span of merged) {
-      // Expand to surrounding sentence boundary
       let start = span.start;
       let end = span.end;
 
@@ -135,7 +147,6 @@ export function stripPrompt(prompt: PromptInput, options: StripOptions = {}): st
     }
   }
 
-  // Replace spans in reverse order to preserve indices
   let result_ = text;
   for (let i = merged.length - 1; i >= 0; i--) {
     const span = merged[i];
