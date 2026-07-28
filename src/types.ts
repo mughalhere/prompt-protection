@@ -45,6 +45,22 @@ export interface AnalysisResult {
   sentenceScores?: Array<{ sentence: string; score: number }>;
 }
 
+/** OpenAI / Anthropic-style chat turn. Only `role` + `content` are required. */
+export interface ChatMessage {
+  role: string;
+  content: string;
+}
+
+/** Plain prompt string or a chat transcript (roles are used for smarter scanning). */
+export type PromptInput = string | ChatMessage[];
+
+/**
+ * Which chat roles to scan when `PromptInput` is a message array.
+ * Default: `user`, `tool`, and `function` (system/assistant are skipped).
+ * Pass `'all'` to score every turn.
+ */
+export type AnalyzeRoles = 'all' | string[];
+
 export interface AnalyzeOptions {
   /** 0–100, default 35 (strict) */
   threshold?: number;
@@ -53,6 +69,11 @@ export interface AnalyzeOptions {
   disabledRuleIds?: string[];
   /** When true, each sentence is scored independently and reported in sentenceScores */
   sentenceAnalysis?: boolean;
+  /**
+   * When input is a chat message array, which roles to include in scoring.
+   * Default: user / tool / function.
+   */
+  analyzeRoles?: AnalyzeRoles;
 }
 
 export type VerifyOptions = AnalyzeOptions;

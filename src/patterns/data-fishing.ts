@@ -9,6 +9,23 @@ export const dataFishingRules: PatternRule[] = [
     description: 'Request all passwords',
   },
   {
+    id: 'fishing-ask-password',
+    category: 'data-fishing',
+    // Interrogative credential asks — requires a privileged qualifier to avoid
+    // benign "what's the password for my wifi?" style prompts
+    pattern:
+      /(what('?s|\s+is)|tell\s+me|reveal|share)\s+(me\s+)?(the\s+)?(root|admin|system|master|superuser|database|db|server)\s+password(s)?|((what('?s|\s+is)|tell\s+me|reveal|share)\s+(me\s+)?(the\s+)?password(s)?\s+(to|for|of)\s+(the\s+)?(root|admin|system|master|superuser|database|db|server|privileged))/,
+    weight: 8,
+    description: 'Ask for a privileged password (interrogative fishing)',
+  },
+  {
+    id: 'fishing-password-to-access',
+    category: 'data-fishing',
+    pattern: /password(s)?\s+(to|for)\s+(root|admin|system|superuser|privileged?)\s+(access|login|account|privileges?)/,
+    weight: 9,
+    description: 'Password for root/admin access',
+  },
+  {
     id: 'fishing-database-dump',
     category: 'data-fishing',
     pattern: /(dump|export|return|output|extract|download)\s+(the\s+)?(entire\s+|full\s+|whole\s+)?(database|db|data\s+store|datastore|data\s+warehouse)/,

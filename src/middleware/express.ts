@@ -1,6 +1,7 @@
 import { verifyPrompt } from '../api.js';
 import { PromptInjectionError } from '../error.js';
-import type { VerifyOptions } from '../types.js';
+import { isChatMessageArray } from '../messages.js';
+import type { PromptInput, VerifyOptions } from '../types.js';
 
 type AnyObject = Record<string, unknown>;
 
@@ -60,13 +61,15 @@ export function promptProtectionMiddleware(
     }
 
     const prompt = body[field];
-    if (typeof prompt !== 'string') {
+    const isValidPrompt =
+      typeof prompt === 'string' || isChatMessageArray(prompt);
+    if (!isValidPrompt) {
       next();
       return;
     }
 
     try {
-      verifyPrompt(prompt, options);
+      verifyPrompt(prompt as PromptInput, options);
       next();
     } catch (err) {
       if (err instanceof PromptInjectionError) {
