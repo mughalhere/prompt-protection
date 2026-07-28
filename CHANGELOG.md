@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.8.0] - 2026-07-28
+
+### Added
+- **Deferred-reference injection rules** — catches follow-ups that re-invoke a prior turn without repeating the attack:
+  - `injection-process-last-prompt` — "process/run/execute the last/previous prompt/message/request"
+  - `injection-do-what-said-before` — "do what I said before" / "do what I asked in the previous message"
+  - `injection-retry-previous-request` — "retry/re-do my previous request"
+- **`createProtectionSession()`** — opt-in multi-turn correlation
+  - Remembers recently blocked prompts (ring buffer, default 5)
+  - Escalates deferred-ref follow-ups when prior blocked history exists (`session-correlate-blocked`)
+  - `analyze` / `verify` / `strip` / `clear` / `getBlockedHistory`
+- React hook: `enableSession` / `session` options for chat UIs
+- Express + Next.js middleware: optional `session` or `getSession(req)` for per-conversation correlation
+- Exports: `createProtectionSession`, `ProtectionSession`, `ProtectionSessionOptions`, `DEFERRED_REFERENCE_RULE_IDS`
+
+### Changed
+- Package version bump: `1.7.0` → `1.8.0`
+- Total rules: 97 input + 20 output = **117** (was 94 + 20)
+
+---
+
 ## [1.7.0] - 2026-07-28
 
 ### Added

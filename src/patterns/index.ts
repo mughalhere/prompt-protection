@@ -30,3 +30,5 @@ export {
   contextSmugglingRules,
   outputRules,
 };
+
+export { DEFERRED_REFERENCE_RULE_IDS } from './injection.js';

@@ -7,7 +7,20 @@ export { OpenAIAdapter } from './adapters/openai.js';
 export { flattenChatMessages, isChatMessageArray, resolvePromptInput } from './messages.js';
 export { createConsoleLogger } from './logging.js';
 export { resolveAction, precisionAllowsBlock } from './verdict.js';
-export { ALL_RULES, OUTPUT_RULES, injectionRules, jailbreakRules, exfiltrationRules, bypassRules, socialEngineeringRules, dataFishingRules, contextSmugglingRules, outputRules } from './patterns/index.js';
+export { createProtectionSession } from './session.js';
+export {
+  ALL_RULES,
+  OUTPUT_RULES,
+  injectionRules,
+  jailbreakRules,
+  exfiltrationRules,
+  bypassRules,
+  socialEngineeringRules,
+  dataFishingRules,
+  contextSmugglingRules,
+  outputRules,
+  DEFERRED_REFERENCE_RULE_IDS,
+} from './patterns/index.js';
 
 export type {
   ThreatCategory,
@@ -33,3 +46,5 @@ export type {
   LoggingOptions,
   LogLevel,
 } from './types.js';
+
+export type { ProtectionSession, ProtectionSessionOptions } from './session.js';
