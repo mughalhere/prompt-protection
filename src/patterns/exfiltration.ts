@@ -6,6 +6,7 @@ export const exfiltrationRules: PatternRule[] = [
     category: 'data-exfiltration',
     pattern: /(reveal|show|print|output|return|repeat|display|tell|give|share)\s+(me\s+)?(your\s+)?(system\s+prompt|initial\s+(instructions?|prompt)|base\s+prompt|original\s+(instructions?|prompt)|hidden\s+(instructions?|prompt))/,
     weight: 9,
+    precision: 'high',
     description: 'Reveal system prompt',
   },
   {
@@ -13,6 +14,7 @@ export const exfiltrationRules: PatternRule[] = [
     category: 'data-exfiltration',
     pattern: /decrypt\s+.{0,50}(and\s+)?(return|send|output|show|reveal|give)/,
     weight: 8,
+    precision: 'high',
     description: 'Decrypt and return data',
   },
   {
@@ -20,6 +22,7 @@ export const exfiltrationRules: PatternRule[] = [
     category: 'data-exfiltration',
     pattern: /(send|return|output|show|give|reveal)\s+(me\s+)?(the\s+)?(config(uration)?|settings?|env(ironment)?\s*variables?|credentials?|secrets?\.json|\.env)/,
     weight: 8,
+    precision: 'high',
     description: 'Exfiltrate config/credentials',
   },
   {
@@ -27,6 +30,7 @@ export const exfiltrationRules: PatternRule[] = [
     category: 'data-exfiltration',
     pattern: /(print|output|show|dump|reveal|return)\s+(the\s+)?(full\s+)?(context|conversation|chat\s+history|message\s+history|previous\s+messages)/,
     weight: 7,
+    precision: 'medium',
     description: 'Print full context/conversation',
   },
   {
@@ -34,6 +38,7 @@ export const exfiltrationRules: PatternRule[] = [
     category: 'data-exfiltration',
     pattern: /(summarize|repeat|paraphrase|recite|list|enumerate)\s+(your|the)\s+(instructions?|guidelines?|rules?|directives?|system\s+prompt)/,
     weight: 7,
+    precision: 'medium',
     description: 'Summarize/repeat instructions',
   },
   {
@@ -41,6 +46,7 @@ export const exfiltrationRules: PatternRule[] = [
     category: 'data-exfiltration',
     pattern: /what\s+(were|are)\s+you\s+(told|instructed|programmed|trained|asked)\s+(to\s+do|not\s+to|to\s+say|to\s+avoid)/,
     weight: 8,
+    precision: 'high',
     description: 'What were you told/instructed',
   },
   {
@@ -48,6 +54,7 @@ export const exfiltrationRules: PatternRule[] = [
     category: 'data-exfiltration',
     pattern: /(encode|base64|hex(-encode)?)\s+.{0,30}(your\s+)?(prompt|instructions?|system\s+message)/,
     weight: 8,
+    precision: 'high',
     description: 'Encode your prompt/instructions',
   },
   {
@@ -55,6 +62,7 @@ export const exfiltrationRules: PatternRule[] = [
     category: 'data-exfiltration',
     pattern: /(output|reveal|show|give|return|send)\s+(me\s+)?(the\s+)?(api\s+key|secret\s+key|access\s+token|auth\s+token|bearer\s+token|private\s+key)/,
     weight: 9,
+    precision: 'high',
     description: 'Exfiltrate API/secret keys',
   },
   {
@@ -62,6 +70,7 @@ export const exfiltrationRules: PatternRule[] = [
     category: 'data-exfiltration',
     pattern: /dump\s+(your\s+)?(full\s+)?(context(\s+window)?|memory|conversation|training)/,
     weight: 8,
+    precision: 'high',
     description: 'Dump context window/memory',
   },
   {
@@ -69,6 +78,7 @@ export const exfiltrationRules: PatternRule[] = [
     category: 'data-exfiltration',
     pattern: /(show|give|return|output|reproduce)\s+(me\s+)?examples?\s+(from\s+)?(your\s+)?(training\s+data|dataset|pre-?training)/,
     weight: 6,
+    precision: 'medium',
     description: 'Reproduce training data',
   },
 ];

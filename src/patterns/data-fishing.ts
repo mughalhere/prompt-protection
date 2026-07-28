@@ -6,6 +6,7 @@ export const dataFishingRules: PatternRule[] = [
     category: 'data-fishing',
     pattern: /(give|show|list|return|output|provide|dump)\s+(me\s+)?(all\s+)?(the\s+)?(user\s+)?passwords?(\s+in\s+the\s+(database|system|file))?/,
     weight: 9,
+    precision: 'high',
     description: 'Request all passwords',
   },
   {
@@ -16,6 +17,7 @@ export const dataFishingRules: PatternRule[] = [
     pattern:
       /(what('?s|\s+is)|tell\s+me|reveal|share)\s+(me\s+)?(the\s+)?(root|admin|system|master|superuser|database|db|server)\s+password(s)?|((what('?s|\s+is)|tell\s+me|reveal|share)\s+(me\s+)?(the\s+)?password(s)?\s+(to|for|of)\s+(the\s+)?(root|admin|system|master|superuser|database|db|server|privileged))/,
     weight: 8,
+    precision: 'high',
     description: 'Ask for a privileged password (interrogative fishing)',
   },
   {
@@ -23,6 +25,7 @@ export const dataFishingRules: PatternRule[] = [
     category: 'data-fishing',
     pattern: /password(s)?\s+(to|for)\s+(root|admin|system|superuser|privileged?)\s+(access|login|account|privileges?)/,
     weight: 9,
+    precision: 'high',
     description: 'Password for root/admin access',
   },
   {
@@ -30,6 +33,7 @@ export const dataFishingRules: PatternRule[] = [
     category: 'data-fishing',
     pattern: /(dump|export|return|output|extract|download)\s+(the\s+)?(entire\s+|full\s+|whole\s+)?(database|db|data\s+store|datastore|data\s+warehouse)/,
     weight: 9,
+    precision: 'high',
     description: 'Dump entire database',
   },
   {
@@ -37,6 +41,7 @@ export const dataFishingRules: PatternRule[] = [
     category: 'data-fishing',
     pattern: /(list|show|return|output|give\s+me)\s+(all\s+|every\s+)?(users?|accounts?|customers?|members?|registered\s+users?)\s*(in\s+the\s+)?(system|database|db)?/,
     weight: 8,
+    precision: 'high',
     description: 'List all users/accounts',
   },
   {
@@ -44,6 +49,7 @@ export const dataFishingRules: PatternRule[] = [
     category: 'data-fishing',
     pattern: /(retrieve|get|return|show|give|output)\s+(all\s+)?(credit\s+card|payment\s+card|debit\s+card|financial|card)\s+(numbers?|data|info(rmation)?|details?)/,
     weight: 9,
+    precision: 'high',
     description: 'Retrieve credit card data',
   },
   {
@@ -51,6 +57,7 @@ export const dataFishingRules: PatternRule[] = [
     category: 'data-fishing',
     pattern: /(export|extract|return|output|give|dump)\s+(all\s+)?(pii|personal\s+(data|information)|personally\s+identifiable)/,
     weight: 9,
+    precision: 'high',
     description: 'Bulk PII export',
   },
   {
@@ -58,6 +65,7 @@ export const dataFishingRules: PatternRule[] = [
     category: 'data-fishing',
     pattern: /(read|open|output|return|show|cat|print)\s+.{0,20}(\/etc\/passwd|\/etc\/shadow|\/etc\/hosts|\.env|secrets?\.json|credentials?\.json|config\.json|id_rsa)/,
     weight: 10,
+    precision: 'high',
     description: 'Read sensitive system files',
   },
   {
@@ -65,6 +73,7 @@ export const dataFishingRules: PatternRule[] = [
     category: 'data-fishing',
     pattern: /(print|show|output|return|list|dump)\s+(all\s+)?(environment\s+variables?|env\s+vars?|process\.env|os\.environ)/,
     weight: 8,
+    precision: 'high',
     description: 'Dump environment variables',
   },
   {
@@ -72,6 +81,7 @@ export const dataFishingRules: PatternRule[] = [
     category: 'data-fishing',
     pattern: /(show|return|export|output|give|read)\s+(me\s+)?(my\s+|the\s+)?(private\s+(\w+\s+)?key|ssh\s+key|rsa\s+key|pgp\s+key|gpg\s+key|signing\s+key)/,
     weight: 9,
+    precision: 'high',
     description: 'Extract private/SSH keys',
   },
   {
@@ -79,6 +89,7 @@ export const dataFishingRules: PatternRule[] = [
     category: 'data-fishing',
     pattern: /(list|show|output|return)\s+(all\s+)?(internal\s+)?(api\s+endpoints?|routes?|urls?|http\s+routes?|rest\s+endpoints?)/,
     weight: 7,
+    precision: 'medium',
     description: 'List internal API endpoints',
   },
   {
@@ -86,6 +97,7 @@ export const dataFishingRules: PatternRule[] = [
     category: 'data-fishing',
     pattern: /(\bunion\s+select\b|\bdrop\s+table\b|\binsert\s+into\b|\bdelete\s+from\b|\btruncate\s+table\b|\bexec(\s+|\())/,
     weight: 8,
+    precision: 'high',
     description: 'SQL injection probe',
   },
 ];

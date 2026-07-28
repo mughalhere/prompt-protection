@@ -6,7 +6,7 @@ import type { AnalysisResult, PromptInput, VerifyOptions, StripOptions } from '.
 export interface UsePromptProtectionOptions extends VerifyOptions {}
 
 export interface UsePromptProtectionResult {
-  /** Throws PromptInjectionError if the prompt is malicious */
+  /** Throws PromptInjectionError if the prompt is blocked */
   verify: (prompt: PromptInput, options?: VerifyOptions) => void;
   /** Returns a cleaned prompt with malicious spans removed */
   strip: (prompt: PromptInput, options?: StripOptions) => string;
@@ -23,16 +23,17 @@ export interface UsePromptProtectionResult {
 /**
  * React hook for client-side prompt protection.
  * Runs fully offline — zero network calls.
+ * Flagged prompts set `result.action` to `'flag'` but do not throw.
  *
  * @example
- * const { verify, error } = usePromptProtection({ threshold: 35 });
+ * const { verify, error, result } = usePromptProtection({ threshold: 35, flagThreshold: 25 });
  *
  * const handleSubmit = () => {
  *   try {
  *     verify(userInput);
  *     sendToLLM(userInput);
  *   } catch (e) {
- *     // error state is automatically set
+ *     // error state is automatically set on block
  *   }
  * };
  */
@@ -48,7 +49,7 @@ export function usePromptProtection(
       const analysis = analyzePrompt(prompt, mergedOptions);
       setResult(analysis);
 
-      if (analysis.isMalicious) {
+      if (analysis.action === 'block') {
         const err = new PromptInjectionError({
           score: analysis.score,
           matches: analysis.matches,
