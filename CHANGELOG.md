@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.6.0] - 2026-07-28
+
+### Added
+- **Chat message array input** — `analyzePrompt` / `verifyPrompt` / `stripPrompt` / `verifyPromptAsync` accept `PromptInput` (`string | ChatMessage[]`)
+  - Default scans untrusted roles only (`user`, `tool`, `function`); override with `analyzeRoles: 'all' | string[]`
+  - Express + Next.js middleware accept message arrays in the configured body field
+  - React hook `verify` / `strip` / `analyze` accept message arrays
+  - New exports: `ChatMessage`, `PromptInput`, `AnalyzeRoles`, `flattenChatMessages`, `isChatMessageArray`, `resolvePromptInput`
+- **Short-form instruction overrides** — catches paraphrases that omit the instruction noun:
+  - `injection-forget-above` — "Forget above.", "Forget everything.", "Forget all that"
+  - `injection-ignore-above-short` — "Ignore above", "Disregard above"
+  - `injection-discard-prior` — "Discard previous instructions/context"
+- **Privileged password fishing** — interrogative credential asks that previously scored as safe:
+  - `fishing-ask-password` — "What's the admin password?", "What is the password to root…"
+  - `fishing-password-to-access` — "password to root access"
+- **Root/admin access requests** — `jailbreak-request-root-access` ("Give me root access")
+
+### Changed
+- Package version bump: `1.5.1` → `1.6.0`
+- Total input rules: 76 → 82
+
+---
+
 ## [1.5.1] - 2026-07-27
 
 ### Changed

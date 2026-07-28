@@ -18,9 +18,32 @@ export const injectionRules: PatternRule[] = [
   {
     id: 'injection-forget-context',
     category: 'prompt-injection',
-    pattern: /forget\s+(all\s+)?(your\s+)?(previous|prior|earlier|above|the)\s+(instructions?|context|rules?|conversation|directives?)/,
+    pattern:
+      /forget\s+(all\s+)?(your\s+)?(the\s+)?(previous|prior|earlier|above)\s+(instructions?|context|rules?|conversation|directives?)|forget\s+the\s+(instructions?|context|rules?|conversation|directives?)/,
     weight: 9,
     description: 'Forget previous context/instructions',
+  },
+  {
+    id: 'injection-forget-above',
+    category: 'prompt-injection',
+    // Short forms that omit the instruction noun: "Forget above.", "Forget everything."
+    pattern: /forget\s+(all\s+(of\s+)?)?(the\s+)?(above|everything)\b|forget\s+all\s+(that|this)\b/,
+    weight: 8,
+    description: 'Forget above/everything (short override)',
+  },
+  {
+    id: 'injection-ignore-above-short',
+    category: 'prompt-injection',
+    pattern: /(ignore|disregard)\s+(all\s+)?(of\s+)?(the\s+)?above\b/,
+    weight: 8,
+    description: 'Ignore/disregard above (short override)',
+  },
+  {
+    id: 'injection-discard-prior',
+    category: 'prompt-injection',
+    pattern: /(discard|drop|wipe|clear|reset)\s+(all\s+)?(the\s+)?(previous|prior|earlier|above)\s+(instructions?|context|rules?|memory|conversation|prompts?)/,
+    weight: 7,
+    description: 'Discard/reset prior instructions or context',
   },
   {
     id: 'injection-new-instructions',
