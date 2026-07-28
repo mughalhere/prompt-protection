@@ -1,17 +1,17 @@
 import { useState, useCallback } from 'react';
 import { stripPrompt, analyzePrompt } from '../api.js';
 import { PromptInjectionError } from '../error.js';
-import type { AnalysisResult, VerifyOptions, StripOptions } from '../types.js';
+import type { AnalysisResult, PromptInput, VerifyOptions, StripOptions } from '../types.js';
 
 export interface UsePromptProtectionOptions extends VerifyOptions {}
 
 export interface UsePromptProtectionResult {
   /** Throws PromptInjectionError if the prompt is malicious */
-  verify: (prompt: string, options?: VerifyOptions) => void;
+  verify: (prompt: PromptInput, options?: VerifyOptions) => void;
   /** Returns a cleaned prompt with malicious spans removed */
-  strip: (prompt: string, options?: StripOptions) => string;
+  strip: (prompt: PromptInput, options?: StripOptions) => string;
   /** Returns the full analysis result without throwing */
-  analyze: (prompt: string) => AnalysisResult;
+  analyze: (prompt: PromptInput) => AnalysisResult;
   /** The last analysis result, or null if no prompt has been checked yet */
   result: AnalysisResult | null;
   /** The last error thrown by verify, or null if the last check passed */
@@ -43,7 +43,7 @@ export function usePromptProtection(
   const [error, setError] = useState<PromptInjectionError | null>(null);
 
   const verify = useCallback(
-    (prompt: string, options?: VerifyOptions) => {
+    (prompt: PromptInput, options?: VerifyOptions) => {
       const mergedOptions = { ...defaultOptions, ...options };
       const analysis = analyzePrompt(prompt, mergedOptions);
       setResult(analysis);
@@ -64,7 +64,7 @@ export function usePromptProtection(
   );
 
   const strip = useCallback(
-    (prompt: string, options?: StripOptions) => {
+    (prompt: PromptInput, options?: StripOptions) => {
       const mergedOptions = { ...defaultOptions, ...options };
       return stripPrompt(prompt, mergedOptions);
     },
@@ -72,7 +72,7 @@ export function usePromptProtection(
   );
 
   const analyze = useCallback(
-    (prompt: string) => {
+    (prompt: PromptInput) => {
       const analysis = analyzePrompt(prompt, defaultOptions);
       setResult(analysis);
       return analysis;

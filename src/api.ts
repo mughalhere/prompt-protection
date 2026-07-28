@@ -2,10 +2,12 @@ import { normalize } from './normalizer.js';
 import { score } from './scorer.js';
 import { ALL_RULES } from './patterns/index.js';
 import { PromptInjectionError } from './error.js';
+import { resolvePromptInput } from './messages.js';
 import type {
   AnalysisResult,
   AnalyzeOptions,
   PatternRule,
+  PromptInput,
   SeverityLevel,
   StripOptions,
   ThreatCategory,
@@ -46,12 +48,13 @@ function buildRuleSet(options: AnalyzeOptions): PatternRule[] {
   return rules;
 }
 
-export function analyzePrompt(prompt: string, options: AnalyzeOptions = {}): AnalysisResult {
+export function analyzePrompt(prompt: PromptInput, options: AnalyzeOptions = {}): AnalysisResult {
   const threshold = options.threshold ?? DEFAULT_THRESHOLD;
   const rules = buildRuleSet(options);
+  const text = resolvePromptInput(prompt, options.analyzeRoles);
 
-  const { normalized } = normalize(prompt);
-  const { normalizedScore, matches } = score(rules, normalized, prompt);
+  const { normalized } = normalize(text);
+  const { normalizedScore, matches } = score(rules, normalized, text);
 
   const categories = [...new Set(matches.map((m) => m.rule.category))] as ThreatCategory[];
 
@@ -65,7 +68,7 @@ export function analyzePrompt(prompt: string, options: AnalyzeOptions = {}): Ana
   };
 
   if (options.sentenceAnalysis === true) {
-    const sentences = splitSentences(prompt);
+    const sentences = splitSentences(text);
     result.sentenceScores = sentences.map((sentence) => {
       const { normalized: normSent } = normalize(sentence);
       const { normalizedScore: sentScore } = score(rules, normSent, sentence);
@@ -76,7 +79,7 @@ export function analyzePrompt(prompt: string, options: AnalyzeOptions = {}): Ana
   return result;
 }
 
-export function verifyPrompt(prompt: string, options: VerifyOptions = {}): void {
+export function verifyPrompt(prompt: PromptInput, options: VerifyOptions = {}): void {
   const result = analyzePrompt(prompt, options);
 
   if (result.isMalicious) {
@@ -88,11 +91,12 @@ export function verifyPrompt(prompt: string, options: VerifyOptions = {}): void 
   }
 }
 
-export function stripPrompt(prompt: string, options: StripOptions = {}): string {
-  const result = analyzePrompt(prompt, options);
+export function stripPrompt(prompt: PromptInput, options: StripOptions = {}): string {
+  const text = resolvePromptInput(prompt, options.analyzeRoles);
+  const result = analyzePrompt(text, options);
 
   if (result.matches.length === 0) {
-    return prompt;
+    return text;
   }
 
   const replacement = options.replacement ?? '';
@@ -118,13 +122,13 @@ export function stripPrompt(prompt: string, options: StripOptions = {}): string 
       let start = span.start;
       let end = span.end;
 
-      while (start > 0 && !/[.\n!?]/.test(prompt[start - 1] ?? '')) {
+      while (start > 0 && !/[.\n!?]/.test(text[start - 1] ?? '')) {
         start--;
       }
-      while (end < prompt.length && !/[.\n!?]/.test(prompt[end] ?? '')) {
+      while (end < text.length && !/[.\n!?]/.test(text[end] ?? '')) {
         end++;
       }
-      if (end < prompt.length) end++;
+      if (end < text.length) end++;
 
       span.start = start;
       span.end = end;
@@ -132,7 +136,7 @@ export function stripPrompt(prompt: string, options: StripOptions = {}): string 
   }
 
   // Replace spans in reverse order to preserve indices
-  let result_ = prompt;
+  let result_ = text;
   for (let i = merged.length - 1; i >= 0; i--) {
     const span = merged[i];
     if (span !== undefined) {

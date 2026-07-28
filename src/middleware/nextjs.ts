@@ -1,6 +1,7 @@
 import { verifyPrompt } from '../api.js';
 import { PromptInjectionError } from '../error.js';
-import type { VerifyOptions } from '../types.js';
+import { isChatMessageArray } from '../messages.js';
+import type { PromptInput, VerifyOptions } from '../types.js';
 
 interface NextRequest {
   json(): Promise<unknown>;
@@ -53,9 +54,9 @@ export function withPromptProtection(
       const bodyObj = body as Record<string, unknown>;
       const prompt = bodyObj[field];
 
-      if (typeof prompt === 'string') {
+      if (typeof prompt === 'string' || isChatMessageArray(prompt)) {
         try {
-          verifyPrompt(prompt, options);
+          verifyPrompt(prompt as PromptInput, options);
         } catch (err) {
           if (err instanceof PromptInjectionError) {
             if (options.onError) {
