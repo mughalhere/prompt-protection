@@ -12,32 +12,43 @@ export interface NormalizeResult {
 }
 
 /**
- * Builds a character-level index map from original → normalized.
+ * Builds a character-level index map from normalized → original.
  * Characters that are removed collapse to the nearest preceding kept index.
  */
 function buildIndexMap(original: string, normalized: string): number[] {
-  // Simple heuristic: the map is built by aligning characters that survived.
-  // Since normalization changes string length, we track original positions.
   const map: number[] = [];
+  const origLower = original.toLowerCase();
   let origIdx = 0;
 
   for (let normIdx = 0; normIdx < normalized.length; normIdx++) {
-    // Advance origIdx until we find the matching char or give up
-    while (origIdx < original.length && normalized[normIdx] !== original[origIdx]?.toLowerCase()) {
-      origIdx++;
+    const target = normalized[normIdx];
+    const searchStart = origIdx;
+    let found = -1;
+
+    for (let i = searchStart; i < origLower.length; i++) {
+      if (origLower[i] === target) {
+        found = i;
+        break;
+      }
     }
-    map.push(origIdx);
-    if (origIdx < original.length) origIdx++;
+
+    if (found >= 0) {
+      map.push(found);
+      origIdx = found + 1;
+    } else {
+      // Decoded/appended content with no original counterpart — clamp to last known
+      map.push(Math.max(0, Math.min(origIdx, original.length - 1)));
+    }
   }
 
   return map;
 }
 
 export function normalize(text: string): NormalizeResult {
-  // 1. NFKC normalisation + zero-width strip + whitespace collapse
+  // 1. NFKC + invisible/bidi/tags strip + fullwidth fold + whitespace collapse
   const afterUnicode = normalizeUnicode(text);
 
-  // 2. URL/base64 decoding BEFORE homoglyph substitution so %20 doesn't become %2o
+  // 2. Multi-pass URL/base64 decoding BEFORE homoglyph substitution
   const afterDecoding = decodeObfuscation(afterUnicode);
 
   // 3. Homoglyph substitution (after decoding to avoid corrupting %XX sequences)
@@ -46,8 +57,7 @@ export function normalize(text: string): NormalizeResult {
   // 4. Lowercase for case-insensitive comparison baseline
   const normalized = afterHomoglyphs.toLowerCase();
 
-  // Build index map against the original text for span restoration
-  const indexMap = buildIndexMap(text.toLowerCase(), normalized);
+  const indexMap = buildIndexMap(text, normalized);
 
   return { normalized, indexMap };
 }
