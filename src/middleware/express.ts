@@ -1,6 +1,7 @@
 import { analyzePrompt } from '../api.js';
 import { PromptInjectionError } from '../error.js';
 import { isChatMessageArray } from '../messages.js';
+import type { ProtectionSession } from '../session.js';
 import type { AnalysisResult, PromptInput, VerifyOptions } from '../types.js';
 
 type AnyObject = Record<string, unknown>;
@@ -27,6 +28,23 @@ export interface PromptProtectionMiddlewareOptions extends VerifyOptions {
    * Called when the prompt is flagged but not blocked. Request continues after this.
    */
   onFlag?: (result: AnalysisResult, req: ExpressRequest, res: ExpressResponse) => void;
+  /**
+   * Shared protection session for multi-turn correlation.
+   * Prefer `getSession` when sessions are keyed per user/conversation.
+   */
+  session?: ProtectionSession;
+  /** Resolve a session per request (e.g. by conversation id). */
+  getSession?: (req: ExpressRequest) => ProtectionSession | undefined;
+}
+
+function toAnalyzeOptions(options: PromptProtectionMiddlewareOptions): VerifyOptions {
+  const analyzeOpts: VerifyOptions = { ...options };
+  delete (analyzeOpts as PromptProtectionMiddlewareOptions).field;
+  delete (analyzeOpts as PromptProtectionMiddlewareOptions).onError;
+  delete (analyzeOpts as PromptProtectionMiddlewareOptions).onFlag;
+  delete (analyzeOpts as PromptProtectionMiddlewareOptions).session;
+  delete (analyzeOpts as PromptProtectionMiddlewareOptions).getSession;
+  return analyzeOpts;
 }
 
 /**
@@ -74,7 +92,12 @@ export function promptProtectionMiddleware(
     }
 
     try {
-      const analysis = analyzePrompt(prompt as PromptInput, options);
+      const session = options.getSession?.(req) ?? options.session;
+      const analyzeOpts = toAnalyzeOptions(options);
+
+      const analysis = session
+        ? session.analyze(prompt as PromptInput, analyzeOpts)
+        : analyzePrompt(prompt as PromptInput, analyzeOpts);
 
       if (analysis.action === 'block') {
         throw new PromptInjectionError({
