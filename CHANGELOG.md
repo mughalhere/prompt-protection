@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.8.2] - 2026-08-10
+
+Supply-chain and tooling maintenance only. **No runtime behaviour changes** — no
+rules added or altered, no API changes, all 418 tests pass unchanged.
+
+### Added
+- `socket.yml` — Socket.dev configuration. Scopes analysis to the files that make
+  up the published package and excludes the standalone `demo/` app, which carries
+  its own dependency graph and ships nothing. Deliberately leaves the `usesEval`,
+  `networkAccess`, `shellAccess`, and `gptSecurity` rules enabled rather than
+  suppressing those alert classes.
+- `SECURITY.md` — new "Supply chain" section documenting that the package ships
+  zero runtime dependencies, with commands to verify it and a triage table for
+  third-party scanner alerts that originate in optional peers or the dev graph.
+
+### Changed
+- Dev dependencies `@anthropic-ai/sdk` `^0.52.0` → `^0.116.0` and `openai`
+  `^6.38.0` → `^7.4.0`, so the local lockfile matches the versions supply-chain
+  scanners resolve from the open-ended peer ranges.
+- Applied non-breaking `npm audit` fixes across the dev toolchain: 10 advisories
+  (4 high, 3 moderate, 3 low) → 1 low. The remainder is an `esbuild` dev-server
+  issue reachable only on Windows via `tsup --watch`; it does not affect builds
+  or the published output.
+- CI Node matrix `[18.x, 20.x, 22.x]` → `[20.x, 22.x, 24.x]`, matching the
+  `engines.node` field (`>=20`). The 18.x job was testing a version the package
+  declares unsupported.
+
+### Notes
+- `npm audit --omit=dev` remains **0 vulnerabilities**.
+- No 1.8.1 was published; this release follows 1.8.0 directly.
+
+---
+
 ## [1.8.0] - 2026-07-28
 
 ### Added
