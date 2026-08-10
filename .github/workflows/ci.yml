@@ -17,7 +17,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [18.x, 20.x, 22.x]
+        # Must stay in sync with the `engines.node` range in package.json (>=20).
+        node-version: [20.x, 22.x, 24.x]
 
     steps:
       - uses: actions/checkout@v4
