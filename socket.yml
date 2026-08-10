@@ -1,0 +1,58 @@
+version: 2
+
+# Socket.dev configuration for prompt-protection.
+#
+# Context for anyone reading a Socket report on this package:
+#
+#   prompt-protection ships ZERO runtime dependencies. `package.json` has no
+#   `dependencies` and no `optionalDependencies`. The four peer dependencies
+#   (@anthropic-ai/sdk, openai, express, react) are all marked optional in
+#   `peerDependenciesMeta`, so npm does not install them for consumers.
+#
+#   Every supply-chain alert Socket raises against this project therefore comes
+#   from the *development* graph or from Socket resolving the open-ended peer
+#   ranges to their latest published versions. None of it is reachable from the
+#   published `dist/` output. See SECURITY.md ("Supply chain") for the full
+#   triage and the commands to reproduce it.
+
+# Paths that are not part of the published package. The demo is a standalone
+# Vite app with its own lockfile and its own dependency graph; nothing in it is
+# built into `dist/` or referenced by the package `exports` map.
+projectIgnorePaths:
+  - "demo"
+  - "coverage"
+  - "dist"
+
+# Only re-run supply-chain analysis when something that can change the graph
+# actually changes.
+triggerPaths:
+  - "package.json"
+  - "package-lock.json"
+
+issueRules:
+  # NOTE: we deliberately do NOT disable `usesEval`, `networkAccess`,
+  # `shellAccess`, or `gptSecurity` here.
+  #
+  # Those alerts currently fire only on third-party packages in the dev/peer
+  # graph (e.g. @anthropic-ai/sdk's agent-toolset, which prompt-protection never
+  # loads — our adapters call `client.messages.create` and nothing else).
+  # Silencing the whole alert class would also blind us to a genuinely
+  # malicious future dependency, which is an unacceptable trade for a security
+  # package. Those specific instances are triaged in the Socket dashboard
+  # instead, so the rule keeps protecting us against new packages.
+  #
+  # The rules below are enabled because they are the ones that would indicate a
+  # real compromise of this project's own supply chain.
+  malware: true
+  installScripts: true
+  telemetry: true
+  gitDependency: true
+  httpDependency: true
+  shellScriptOverride: true
+  hasNativeCode: true
+  didYouMean: true
+  invalidPackageJSON: true
+
+githubApp:
+  enabled: true
+  dependencyOverviewEnabled: true
