@@ -1,0 +1,14 @@
+# prompt-protection — https://mughalhere.github.io/prompt-protection/
+#
+# NOTE: This is a GitHub Project Pages site served under a subpath
+# (/prompt-protection/). Crawlers only read robots.txt from the domain
+# ROOT — https://mughalhere.github.io/robots.txt — so this file is not
+# honoured at its published location. It is shipped for correctness in case
+# a custom domain is added later, where it WOULD sit at the root.
+#
+# Sitemap discovery is handled by manual submission in Google Search Console.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://mughalhere.github.io/prompt-protection/sitemap.xml
