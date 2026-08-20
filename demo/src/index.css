@@ -41,3 +41,96 @@ button {
 }
 button:active { transform: scale(0.97); }
 button:disabled { opacity: 0.45; cursor: default; transform: none; }
+
+/* ---------------------------------------------------------------------------
+   Static content block.
+
+   Lives outside #root in index.html so it is present in the initial HTML
+   response and survives React mounting. Styled here rather than in a CSS
+   module because it is plain markup, not a component.
+   --------------------------------------------------------------------------- */
+
+.static-content {
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  padding: 3.5rem 1.5rem 3rem;
+}
+
+.static-inner {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.static-inner h2 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 2.25rem 0 0.75rem;
+  letter-spacing: -0.01em;
+}
+.static-inner h2:first-child { margin-top: 0; }
+
+.static-inner p {
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.static-inner strong { color: var(--text); font-weight: 600; }
+.static-inner em { color: var(--text); font-style: italic; }
+
+.static-inner a {
+  color: var(--accent-hover);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+.static-inner a:hover { border-bottom-color: var(--accent-hover); }
+
+.static-inner code {
+  font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.1em 0.35em;
+  color: var(--text);
+}
+
+.static-inner pre {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+.static-inner pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.83rem;
+  line-height: 1.65;
+  color: var(--text-muted);
+}
+
+.static-links { list-style: none; margin-bottom: 1rem; }
+.static-links li {
+  color: var(--text-dim);
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.95rem;
+}
+.static-links li:last-child { border-bottom: none; }
+
+.static-footer {
+  display: flex;
+  gap: 1.25rem;
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 640px) {
+  .static-content { padding: 2.5rem 1.15rem 2rem; }
+  .static-inner h2 { font-size: 1.15rem; }
+}

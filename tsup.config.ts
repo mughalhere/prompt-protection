@@ -7,6 +7,7 @@ export default defineConfig({
     'src/middleware/nextjs.ts',
     'src/react/usePromptProtection.ts',
     'src/adapters/claude.ts',
+    'src/adapters/openai.ts',
   ],
   format: ['esm', 'cjs'],
   dts: true,
