@@ -1,7 +1,7 @@
 {
   "name": "prompt-protection",
-  "version": "1.8.2",
-  "description": "Detect and strip malicious prompt injection, jailbreaking, and data exfiltration attempts from LLM inputs. Zero dependencies. Works in Node.js and browsers.",
+  "version": "1.8.3",
+  "description": "Prompt injection detection and LLM firewall for Node.js and browsers. Blocks jailbreaks, data exfiltration, and system prompt leaks. 117 rules, zero dependencies, TypeScript-first.",
   "license": "MIT",
   "author": "mughalhere",
   "homepage": "https://mughalhere.github.io/prompt-protection/",
@@ -22,7 +22,17 @@
     "anthropic",
     "langchain",
     "prompt-protection",
-    "llm-guard"
+    "llm-guard",
+    "ai-security",
+    "llm-firewall",
+    "guardrails",
+    "owasp-llm",
+    "prompt-security",
+    "injection-detection",
+    "chatbot-security",
+    "llm-safety",
+    "ai-red-team",
+    "gpt"
   ],
   "type": "module",
   "main": "./dist/index.cjs",

@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.8.3] - 2026-08-20
+
+### Fixed
+- **`prompt-protection/adapters/openai` subpath was unresolvable.** `package.json`
+  declared the export map entry, but `src/adapters/openai.ts` was missing from the
+  `tsup` entry list, so `dist/adapters/openai.*` was never built. Importing
+  `OpenAIAdapter` from the documented subpath failed at runtime; only the root
+  barrel (`from 'prompt-protection'`) worked. Added the entry — the subpath now
+  emits ESM, CJS, and both declaration formats.
+- `README.md` "How Detection Works" said 94 input regexes; the correct count is 97.
+
+### Changed
+- npm `description` rewritten to lead with the terms the package is searched by,
+  and `keywords` expanded 10 → 20 (`ai-security`, `llm-firewall`, `guardrails`,
+  `owasp-llm`, `prompt-security`, `injection-detection`, `chatbot-security`,
+  `llm-safety`, `ai-red-team`, `gpt`). Discoverability only — no runtime effect.
+- `README.md`: monthly-downloads badge, reworked opening, new FAQ section, and
+  links to the new guides on the documentation site.
+
+### Added
+- Documentation site under `demo/public/docs/` — six static, self-contained pages
+  covering prompt injection in Node.js, jailbreak detection, OWASP LLM01, output
+  scanning, an attack-pattern reference, and a comparison with adjacent tools.
+- Crawlable metadata for the GitHub Pages site: Open Graph and Twitter card tags,
+  canonical URLs, `SoftwareApplication` / `TechArticle` JSON-LD, `sitemap.xml`,
+  `robots.txt`, a 1200×630 social preview image, and a static content section on
+  the landing page that does not depend on JavaScript.
+
+### Notes
+- No detection rules were added, removed, or altered. Rule counts are unchanged at
+  97 input + 20 output = 117. All 418 tests pass.
+
+---
+
 ## [1.8.2] - 2026-08-10
 
 Supply-chain and tooling maintenance only. **No runtime behaviour changes** — no
