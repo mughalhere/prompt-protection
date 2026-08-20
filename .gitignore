@@ -10,3 +10,6 @@ coverage/
 demo/dist/
 demo/node_modules/
 demo/.vite/
+
+# Private promotion notes — never published, never committed
+/docs/promotion/

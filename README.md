@@ -1,16 +1,26 @@
 # prompt-protection
 
-Protect LLM inputs from **prompt injection**, **jailbreaking**, **data exfiltration**, and more — before they reach your AI.
+**Prompt injection detection and LLM firewall for Node.js and browsers.** Block prompt injection, jailbreaks, data exfiltration, and system-prompt leaks before they reach your model — and scan the model's output on the way back.
 
-Zero runtime dependencies. Works in **Node.js** and **browsers**. TypeScript-first.
+Runs in-process: no API call, no network round-trip, no prompt text leaving your infrastructure. Zero runtime dependencies, TypeScript-first, works client-side too.
 
 [![CI](https://github.com/mughalhere/prompt-protection/actions/workflows/ci.yml/badge.svg)](https://github.com/mughalhere/prompt-protection/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/prompt-protection?logo=npm)](https://www.npmjs.com/package/prompt-protection)
+[![npm downloads](https://img.shields.io/npm/dm/prompt-protection?logo=npm&color=blue)](https://www.npmjs.com/package/prompt-protection)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![Zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](package.json)
 
 **[Live Demo →](https://mughalhere.github.io/prompt-protection/)**
+
+### Guides
+
+- [Preventing prompt injection in Node.js](https://mughalhere.github.io/prompt-protection/docs/prompt-injection-nodejs.html) — Express, Next.js, chat transcripts, threshold tuning
+- [Detecting LLM jailbreaks in JavaScript](https://mughalhere.github.io/prompt-protection/docs/llm-jailbreak-detection.html) — DAN, persona override, obfuscation
+- [OWASP LLM01: mitigating prompt injection](https://mughalhere.github.io/prompt-protection/docs/owasp-llm01-prompt-injection.html) — direct vs. indirect, and what a scanner can and cannot do
+- [Scanning LLM output for leaks](https://mughalhere.github.io/prompt-protection/docs/llm-output-scanning.html) — system prompts, API keys, PII, injection relay
+- [Prompt injection examples](https://mughalhere.github.io/prompt-protection/docs/prompt-injection-examples.html) — a reference of real attack patterns
+- [Comparison with other tools](https://mughalhere.github.io/prompt-protection/docs/alternatives.html) — Rebuff, LLM Guard, Lakera, NeMo Guardrails
 
 ---
 
@@ -530,9 +540,34 @@ Works without a bundler in modern browsers:
 2. **URL-decode** — handle `%20`-style encoding
 3. **Base64-decode** — detect and decode embedded base64 segments (≥ 20 chars)
 4. **Homoglyph substitution** — `0→o`, `1→i`, `@→a`, `$→s`, Cyrillic look-alikes, etc.
-5. **Pattern match** — 94 regexes across 7 input threat categories (+ 20 output rules)
+5. **Pattern match** — 97 regexes across 7 input threat categories (+ 20 output rules)
 6. **Score** — `100 × (1 − e^(−raw/15))` with 25% diminishing returns for repeated same-rule hits
 7. **Threshold** — score ≥ 35 → malicious
+
+---
+
+## FAQ
+
+**Does this work with LangChain / the OpenAI SDK / the Anthropic SDK?**
+Yes. It operates on plain strings and on `{ role, content }[]` chat arrays, so it sits in front of any LLM client. Call `verifyPrompt` (or `analyzePrompt`) on the user text before you build the request; there is no framework coupling.
+
+**How is this different from an LLM-based classifier like Lakera or an LLM Guard model?**
+Those reason about intent and catch novel, semantically-rephrased attacks that regex cannot. This runs in-process in under a millisecond, calls nothing, sends nothing off-box, and has zero dependencies. They are complementary: use this as a cheap deterministic first layer and escalate only the survivors to a model — the bundled [Claude / OpenAI adapters](#ai-adapters) do exactly that, and the local verdict always wins. See the [comparison](https://mughalhere.github.io/prompt-protection/docs/alternatives.html).
+
+**What is the performance cost?**
+Sub-millisecond for typical prompt sizes — it is regex matching over normalized text, no I/O and no model. Safe to run synchronously on every request.
+
+**Can it catch every attack?**
+No, and nothing can. It is pattern-based: it defeats obfuscation (homoglyphs, zero-width characters, base64, percent-encoding) and covers the known attack shapes well, but a genuinely novel phrasing can pass. Treat it as one layer alongside least-privilege tool access, human approval for consequential actions, and output scanning.
+
+**Does it send my prompts anywhere?**
+No. The core is fully offline. The only network calls are the *optional* Claude / OpenAI adapters, which you wire in explicitly and which are off by default.
+
+**Does it run in the browser / at the edge?**
+Yes — no Node built-ins, no bundler required. The [live demo](https://mughalhere.github.io/prompt-protection/) is the library running client-side. It works in Cloudflare Workers and other edge runtimes.
+
+**What about false positives?**
+Tunable. Use `flagThreshold` for a review band that logs without blocking, raise `threshold` for developer-facing tools, and exclude known-good phrases with `allowlistPatterns` / `allowlistRuleIds`. See [Threshold Tuning](#threshold-tuning).
 
 ---
 

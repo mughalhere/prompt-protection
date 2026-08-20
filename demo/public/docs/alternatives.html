@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>" />
+<title>prompt-protection vs. Rebuff, LLM Guard, Lakera, NeMo Guardrails</title>
+<meta name="description" content="An honest comparison of prompt injection defences: prompt-protection, Rebuff, LLM Guard, Lakera Guard and NVIDIA NeMo Guardrails. Where each fits by language, deployment model, latency, privacy and cost — including where the others are the better choice." />
+<link rel="canonical" href="https://mughalhere.github.io/prompt-protection/docs/alternatives.html" />
+<meta property="og:type" content="article" />
+<meta property="og:site_name" content="prompt-protection" />
+<meta property="og:title" content="prompt-protection vs. Rebuff, LLM Guard, Lakera, NeMo Guardrails" />
+<meta property="og:description" content="An honest, feature-matrix comparison of prompt injection defences by language, deployment, latency, privacy and cost — including where the alternatives win." />
+<meta property="og:url" content="https://mughalhere.github.io/prompt-protection/docs/alternatives.html" />
+<meta property="og:image" content="https://mughalhere.github.io/prompt-protection/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="prompt-protection vs. Rebuff, LLM Guard, Lakera, NeMo Guardrails" />
+<meta name="twitter:description" content="An honest comparison of prompt injection defences by language, deployment, latency, privacy and cost." />
+<meta name="twitter:image" content="https://mughalhere.github.io/prompt-protection/og-image.png" />
+<link rel="stylesheet" href="./docs.css" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"prompt-protection vs. Rebuff, LLM Guard, Lakera, NeMo Guardrails","description":"A comparison of prompt injection defences by language, deployment model, latency, privacy and cost.","url":"https://mughalhere.github.io/prompt-protection/docs/alternatives.html","image":"https://mughalhere.github.io/prompt-protection/og-image.png","proficiencyLevel":"Intermediate","author":{"@type":"Person","name":"mughalhere","url":"https://github.com/mughalhere"},"publisher":{"@type":"Organization","name":"prompt-protection","url":"https://mughalhere.github.io/prompt-protection/"}}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"prompt-protection","item":"https://mughalhere.github.io/prompt-protection/"},{"@type":"ListItem","position":2,"name":"Guides","item":"https://mughalhere.github.io/prompt-protection/#guides"},{"@type":"ListItem","position":3,"name":"Comparison","item":"https://mughalhere.github.io/prompt-protection/docs/alternatives.html"}]}
+</script>
+</head>
+<body>
+<nav class="topbar"><div class="topbar-inner">
+  <a class="brand" href="../"><span>🛡️</span> prompt-protection</a>
+  <div class="topbar-links">
+    <a href="../">Live demo</a>
+    <a href="https://github.com/mughalhere/prompt-protection" rel="noopener">GitHub</a>
+    <a href="https://www.npmjs.com/package/prompt-protection" rel="noopener">npm</a>
+  </div>
+</div></nav>
+
+<main>
+<div class="crumbs"><a href="../">Home</a> → Guides → Comparison</div>
+
+<h1>prompt-protection vs. the alternatives</h1>
+<p class="lede">This page is written by the author of one of the tools, so read it with that in mind. The aim is to route you to the right tool for your constraints — which is frequently not this one. Where another project is the better fit, it says so.</p>
+
+<div class="callout"><p><strong>Accuracy note.</strong> These projects move quickly. Details below are a point-in-time summary and may be out of date by the time you read it — verify against each project's own documentation before deciding. Corrections are welcome via a <a href="https://github.com/mughalhere/prompt-protection/issues" rel="noopener">GitHub issue</a>.</p></div>
+
+<h2>The one distinction that decides most of it</h2>
+<p>Before any feature table, one axis separates these tools more than any other: <strong>does detection run in your process, or does it call a service?</strong></p>
+<p><strong>In-process</strong> (prompt-protection, LLM Guard, NeMo Guardrails) means no network hop, no per-request fee, no third party seeing user text, and detection that works offline — bounded by what runs locally.</p>
+<p><strong>Service-based</strong> (Lakera Guard, Rebuff's hosted mode) means a model-backed classifier that reasons about intent and updates centrally as new attacks appear — at the cost of latency, spend, and sending every prompt to a vendor.</p>
+<p>That trade-off usually decides the question before feature counts enter into it.</p>
+
+<h2>At a glance</h2>
+<table>
+<thead><tr><th>Tool</th><th>Language</th><th>Model</th><th>Latency</th><th>Privacy</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td><strong>prompt-protection</strong></td><td>TS / JS</td><td>In-process, rules</td><td>Sub-ms</td><td>Nothing leaves</td><td>Free (MIT)</td></tr>
+<tr><td>Rebuff</td><td>Python / JS</td><td>Hybrid: heuristics + LLM + vector DB</td><td>Mixed</td><td>Depends on mode</td><td>OSS + hosted</td></tr>
+<tr><td>LLM Guard</td><td>Python</td><td>In-process, ML models</td><td>10s–100s ms</td><td>Nothing leaves</td><td>Free (MIT)</td></tr>
+<tr><td>Lakera Guard</td><td>API (any)</td><td>Hosted classifier</td><td>Network RTT</td><td>Prompts sent to Lakera</td><td>Commercial</td></tr>
+<tr><td>NeMo Guardrails</td><td>Python</td><td>In-process, LLM-driven rails</td><td>10s–100s ms</td><td>Nothing leaves</td><td>Free (Apache 2)</td></tr>
+</tbody>
+</table>
+
+<h2>The projects</h2>
+
+<h3>Rebuff</h3>
+<p>Layered by design — a heuristic pass, a dedicated LLM detector, a vector store of previously seen attacks, and a canary-token trick for detecting leaks. That vector-store layer is genuinely clever: it learns from attacks it has already seen, which a static rule set cannot.</p>
+<p><strong>Choose Rebuff over this</strong> if you want a self-improving detector and can run the LLM and vector-DB dependencies, or want the hosted version. <strong>Choose prompt-protection</strong> if you are on Node with no appetite for a vector DB and a model call in your hot path, and you want deterministic sub-millisecond checks.</p>
+
+<h3>LLM Guard</h3>
+<p>The most feature-complete open-source option, and it is not close. A broad set of input and output scanners — prompt injection, toxicity, PII with anonymisation, secrets, relevance, and more — backed by real ML models rather than only regex.</p>
+<p><strong>Choose LLM Guard</strong> if you are on Python and want the widest, strongest coverage and can absorb the model-inference latency and footprint. It is the more powerful tool. <strong>Choose prompt-protection</strong> if you are on Node/TypeScript (LLM Guard is Python-only), or you need a near-zero-latency, zero-dependency check in a browser or edge runtime where loading ML models is not an option.</p>
+
+<h3>Lakera Guard</h3>
+<p>A commercial, hosted API with a strong research team behind the detection models, continuous updates, and a managed service you do not operate. If you want someone whose full-time job is keeping up with novel attacks, this is the category.</p>
+<p><strong>Choose Lakera</strong> if you want managed, professionally maintained, model-grade detection and are comfortable sending prompts to a third party and paying per call. <strong>Choose prompt-protection</strong> if data residency, offline operation, or cost rule out a hosted service, or you want a free first layer before deciding whether a paid service is warranted.</p>
+
+<h3>NVIDIA NeMo Guardrails</h3>
+<p>A different shape of tool — a framework for programmable conversational rails using its Colang language, covering topic control and dialogue flow, not only injection. Considerably more capable and considerably more to learn.</p>
+<p><strong>Choose NeMo</strong> if you need rich conversational guardrails and dialogue management and can invest in the framework. <strong>Choose prompt-protection</strong> if you want a focused injection/jailbreak/exfiltration scanner you wire in with a single function call.</p>
+
+<h2>Where prompt-protection is the right pick</h2>
+<p>Not as the strongest detector on this page — LLM Guard and the hosted services detect more. It is the right pick when the <em>constraints</em> matter as much as the detection:</p>
+<ul>
+<li><strong>You are on Node.js or TypeScript.</strong> Most serious open-source competitors are Python-only. Running one from a Node service means a subprocess or a sidecar; this is an <code>npm install</code>.</li>
+<li><strong>Latency is in the budget.</strong> Detection is synchronous and sub-millisecond. No model to load, no service to call.</li>
+<li><strong>Privacy or residency is non-negotiable.</strong> Regulated data that cannot go to a third-party API; the check runs in your process and nothing leaves.</li>
+<li><strong>The supply chain is scrutinised.</strong> Zero runtime dependencies — nothing transitive to audit or get flagged.</li>
+<li><strong>You need it in the browser or at the edge.</strong> Runs client-side (the demo is the library in your browser) and in Workers/edge runtimes where a Python ML stack cannot go.</li>
+<li><strong>You want a free first layer.</strong> Cheap deterministic pass in front; escalate the survivors to a model — including via the bundled Claude/OpenAI adapters — only when warranted.</li>
+</ul>
+
+<h2>The honest limitation, restated</h2>
+<p>prompt-protection is pattern-based. It will not catch a novel attack phrased in a way its rules do not anticipate, and it cannot reason about intent the way a model-backed detector can. The obfuscation handling is strong and the known-shape coverage is good, but a determined attacker who rewrites their payload semantically gets through. If your threat model includes sophisticated adaptive adversaries and you can afford the latency and cost, a model-based detector — LLM Guard locally, or a hosted service — will serve you better, and the two compose well: fast deterministic rules first, model second.</p>
+
+<h2>Using them together</h2>
+<p>These are not mutually exclusive; the strongest posture layers them.</p>
+<pre><code>import { analyzePrompt } from 'prompt-protection';
+
+// Layer 1 — cheap, deterministic, in-process. Kills the obvious volume.
+const local = analyzePrompt(userInput, { threshold: 35 });
+if (local.action === 'block') return reject();
+
+// Layer 2 — only the survivors reach the expensive/hosted detector,
+// so you pay for the model on a fraction of traffic.
+if (local.action === 'flag') {
+  const verdict = await hostedDetector.check(userInput);
+  if (verdict.malicious) return reject();
+}</code></pre>
+<p>The cheap layer absorbs the bulk of attack traffic at no marginal cost; the expensive layer only runs where the fast pass was uncertain. You get most of the coverage of the stronger tool at a fraction of its per-request cost.</p>
+
+<a class="cta" href="../">Try prompt-protection live →</a>
+
+<div class="related">
+<h2>Related guides</h2>
+<ul>
+<li><a href="./prompt-injection-nodejs.html">Preventing prompt injection in Node.js</a></li>
+<li><a href="./llm-jailbreak-detection.html">Detecting LLM jailbreaks in JavaScript</a></li>
+<li><a href="./owasp-llm01-prompt-injection.html">OWASP LLM01: mitigating prompt injection</a></li>
+<li><a href="./llm-output-scanning.html">Scanning LLM output for leaks</a></li>
+<li><a href="./prompt-injection-examples.html">Prompt injection examples</a></li>
+</ul>
+</div>
+
+<footer class="page-footer">
+<a href="../">Live demo</a>
+<a href="https://github.com/mughalhere/prompt-protection" rel="noopener">GitHub</a>
+<a href="https://www.npmjs.com/package/prompt-protection" rel="noopener">npm</a>
+<span>MIT licensed</span>
+</footer>
+</main>
+</body>
+</html>
