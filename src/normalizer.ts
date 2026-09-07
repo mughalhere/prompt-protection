@@ -20,7 +20,18 @@ function buildIndexMap(original: string, normalized: string): number[] {
   const origLower = original.toLowerCase();
   let origIdx = 0;
 
+  const clampTail = Math.max(0, original.length - 1);
+
   for (let normIdx = 0; normIdx < normalized.length; normIdx++) {
+    // Once the original is exhausted (e.g. decode-appended content with no
+    // counterpart), every remaining char is a miss — clamp in O(1) instead of
+    // rescanning the whole tail per char. Produces the same value the forward
+    // scan would (Math.min(origIdx, length-1) with origIdx past the end).
+    if (origIdx >= origLower.length) {
+      map.push(clampTail);
+      continue;
+    }
+
     const target = normalized[normIdx];
     const searchStart = origIdx;
     let found = -1;

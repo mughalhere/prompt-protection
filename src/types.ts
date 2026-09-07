@@ -6,6 +6,7 @@ export type ThreatCategory =
   | 'social-engineering'
   | 'data-fishing'
   | 'context-smuggling'
+  | 'tool-poisoning'
   | 'system-prompt-leak'
   | 'credential-leak'
   | 'injection-relay'
@@ -68,6 +69,20 @@ export interface AnalysisResult {
 export interface ChatMessage {
   role: string;
   content: string;
+}
+
+/**
+ * A tool / function definition, as passed to an LLM. Accepts both the OpenAI
+ * shape (`parameters`) and the MCP / Anthropic shape (`inputSchema`). All fields
+ * are optional so partial definitions can still be scanned.
+ */
+export interface ToolDefinition {
+  name?: string;
+  description?: string;
+  /** OpenAI-style JSON schema for arguments. */
+  parameters?: unknown;
+  /** MCP / Anthropic-style JSON schema for arguments. */
+  inputSchema?: unknown;
 }
 
 /** Plain prompt string or a chat transcript (roles are used for smarter scanning). */
@@ -148,6 +163,12 @@ export interface AnalyzeOptions extends LoggingOptions {
    * Default: user / tool / function.
    */
   analyzeRoles?: AnalyzeRoles;
+  /**
+   * Hard cap on input length (characters) scored. Longer input is truncated
+   * before normalization/scoring, bounding regex work on adversarial input.
+   * Default: 100_000.
+   */
+  maxInputLength?: number;
 }
 
 export type VerifyOptions = AnalyzeOptions;
@@ -200,4 +221,9 @@ export interface OutputAnalysisOptions extends LoggingOptions {
   disabledRuleIds?: string[];
   allowlistPatterns?: RegExp[];
   allowlistRuleIds?: string[];
+  /**
+   * Hard cap on output length (characters) scored. Longer output is truncated
+   * before normalization/scoring. Default: 100_000.
+   */
+  maxInputLength?: number;
 }

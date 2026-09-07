@@ -21,6 +21,25 @@ interface Span {
   end: number;
 }
 
+/**
+ * Compiled-regex cache. The engine matches every rule as `/gi`; without a cache
+ * that is one `new RegExp()` per rule per `score()` call (97+ constructions each
+ * analysis). Keyed on the rule's source `RegExp` identity so the same compiled
+ * `/gi` instance is reused across calls. `lastIndex` is reset before each use, so
+ * the shared instance is safe in JS's single-threaded model.
+ */
+const compiledCache = new WeakMap<RegExp, RegExp>();
+
+function compiledRule(pattern: RegExp): RegExp {
+  let re = compiledCache.get(pattern);
+  if (re === undefined) {
+    re = new RegExp(pattern.source, 'gi');
+    compiledCache.set(pattern, re);
+  }
+  re.lastIndex = 0;
+  return re;
+}
+
 function collectAllowlistSpans(text: string, patterns: RegExp[] | undefined): Span[] {
   if (!patterns || patterns.length === 0) return [];
 
@@ -77,7 +96,7 @@ export function score(
   const allowlistedRuleIds = new Set(options.allowlistRuleIds ?? []);
 
   for (const rule of rules) {
-    const re = new RegExp(rule.pattern.source, 'gi');
+    const re = compiledRule(rule.pattern);
     let match: RegExpExecArray | null;
 
     while ((match = re.exec(normalizedText)) !== null) {
