@@ -1,4 +1,4 @@
-export { analyzePrompt, verifyPrompt, stripPrompt } from './api.js';
+export { analyzePrompt, verifyPrompt, stripPrompt, scanToolDefinition } from './api.js';
 export { verifyPromptAsync } from './async.js';
 export { analyzeOutput } from './output.js';
 export { PromptInjectionError } from './error.js';
@@ -11,6 +11,7 @@ export { createProtectionSession } from './session.js';
 export {
   ALL_RULES,
   OUTPUT_RULES,
+  TOOL_RULES,
   injectionRules,
   jailbreakRules,
   exfiltrationRules,
@@ -18,6 +19,7 @@ export {
   socialEngineeringRules,
   dataFishingRules,
   contextSmugglingRules,
+  toolPoisoningRules,
   outputRules,
   DEFERRED_REFERENCE_RULE_IDS,
 } from './patterns/index.js';
@@ -33,6 +35,7 @@ export type {
   AnalyzeOptions,
   AnalyzeRoles,
   ChatMessage,
+  ToolDefinition,
   PromptInput,
   VerifyOptions,
   StripOptions,

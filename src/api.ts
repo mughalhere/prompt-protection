@@ -1,6 +1,6 @@
 import { normalize } from './normalizer.js';
 import { score } from './scorer.js';
-import { ALL_RULES } from './patterns/index.js';
+import { ALL_RULES, TOOL_RULES } from './patterns/index.js';
 import { PromptInjectionError } from './error.js';
 import { resolvePromptInput } from './messages.js';
 import { resolveAction } from './verdict.js';
@@ -13,10 +13,18 @@ import type {
   SeverityLevel,
   StripOptions,
   ThreatCategory,
+  ToolDefinition,
   VerifyOptions,
 } from './types.js';
 
 const DEFAULT_THRESHOLD = 35;
+const DEFAULT_MAX_INPUT_LENGTH = 100_000;
+
+/** Bounds regex work on adversarial input by truncating over-long text before scoring. */
+function capLength(text: string, maxInputLength: number | undefined): string {
+  const cap = maxInputLength ?? DEFAULT_MAX_INPUT_LENGTH;
+  return text.length > cap ? text.slice(0, cap) : text;
+}
 
 export function computeSeverity(s: number): SeverityLevel {
   if (s >= 80) return 'critical';
@@ -53,7 +61,7 @@ function buildRuleSet(options: AnalyzeOptions): PatternRule[] {
 export function analyzePrompt(prompt: PromptInput, options: AnalyzeOptions = {}): AnalysisResult {
   const threshold = options.threshold ?? DEFAULT_THRESHOLD;
   const rules = buildRuleSet(options);
-  const text = resolvePromptInput(prompt, options.analyzeRoles);
+  const text = capLength(resolvePromptInput(prompt, options.analyzeRoles), options.maxInputLength);
 
   const { normalized, indexMap } = normalize(text);
   const { normalizedScore, matches } = score(rules, normalized, text, {
@@ -87,6 +95,76 @@ export function analyzePrompt(prompt: PromptInput, options: AnalyzeOptions = {})
       return { sentence, score: sentScore };
     });
   }
+
+  emitInputLog(result, text, options);
+
+  return result;
+}
+
+/** Flattens the human-readable fields of a tool definition into one scannable string. */
+function flattenToolDefinition(tool: ToolDefinition): string {
+  const parts: string[] = [];
+  if (tool.name) parts.push(tool.name);
+  if (tool.description) parts.push(tool.description);
+  const schema = tool.parameters ?? tool.inputSchema;
+  if (schema !== undefined) {
+    try {
+      parts.push(JSON.stringify(schema));
+    } catch {
+      /* circular or non-serialisable schema — skip it */
+    }
+  }
+  return parts.join('\n');
+}
+
+/**
+ * Scans a tool / function **definition** (name, description, parameter schema)
+ * for poisoning — hidden instructions, concealment directives, exfiltration, and
+ * injection embedded in tool metadata that an agent reads but the user never
+ * sees. Uses the tool-poisoning rule set plus injection/exfiltration rules.
+ *
+ * Custom rules and allowlists from `options` still apply; the default rule set is
+ * `TOOL_RULES` rather than the full input set.
+ */
+export function scanToolDefinition(
+  tool: ToolDefinition,
+  options: AnalyzeOptions = {},
+): AnalysisResult {
+  const threshold = options.threshold ?? DEFAULT_THRESHOLD;
+
+  let rules: PatternRule[] = [...TOOL_RULES];
+  if (options.disabledCategories && options.disabledCategories.length > 0) {
+    const disabled = new Set(options.disabledCategories);
+    rules = rules.filter((r) => !disabled.has(r.category));
+  }
+  if (options.disabledRuleIds && options.disabledRuleIds.length > 0) {
+    const disabled = new Set(options.disabledRuleIds);
+    rules = rules.filter((r) => !disabled.has(r.id));
+  }
+  if (options.customRules && options.customRules.length > 0) {
+    rules = [...rules, ...options.customRules];
+  }
+
+  const text = capLength(flattenToolDefinition(tool), options.maxInputLength);
+  const { normalized, indexMap } = normalize(text);
+  const { normalizedScore, matches } = score(rules, normalized, text, {
+    indexMap,
+    ...(options.allowlistPatterns ? { allowlistPatterns: options.allowlistPatterns } : {}),
+    ...(options.allowlistRuleIds ? { allowlistRuleIds: options.allowlistRuleIds } : {}),
+  });
+
+  const categories = [...new Set(matches.map((m) => m.rule.category))] as ThreatCategory[];
+  const action = resolveAction(normalizedScore, matches, threshold, options.flagThreshold);
+
+  const result: AnalysisResult = {
+    score: normalizedScore,
+    severity: computeSeverity(normalizedScore),
+    isMalicious: action === 'block',
+    action,
+    matches,
+    categories,
+    normalizedPrompt: normalized,
+  };
 
   emitInputLog(result, text, options);
 
