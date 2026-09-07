@@ -1,5 +1,48 @@
 # Changelog
 
+## [2.0.0] - 2026-09-03
+
+The agentic-security major. Adds MCP tool-poisoning defence, an MCP server, a
+Vercel AI SDK adapter, and a published, measured detection benchmark. The base
+`npm install prompt-protection` stays **zero runtime dependencies** — the two new
+SDK-backed surfaces are separate subpaths with *optional* peer dependencies.
+
+### Added
+- **Tool-poisoning detection.** New `tool-poisoning` threat category (9 rules) and
+  `scanToolDefinition(tool)` — scans a tool/function definition (name, description,
+  parameter schema; OpenAI `parameters` or MCP `inputSchema` shape) for hidden
+  instructions, concealment directives ("do not tell the user"), exfiltration, and
+  injection embedded in tool metadata. The rules also run on `tool`-role messages
+  in normal transcripts.
+- **MCP server** (`prompt-protection/mcp`, bin `prompt-protection-mcp`). Exposes
+  `scan_prompt`, `scan_tool_definition`, and `scan_output` as MCP tools so an agent
+  can vet its own inputs, tools, and outputs. Optional peer `@modelcontextprotocol/sdk`.
+- **Vercel AI SDK adapter** (`prompt-protection/adapters/vercel`). `promptProtectionMiddleware()`
+  for `wrapLanguageModel`; verifies user prompts before the call and optionally scans
+  output. Optional peer `ai` (>=4).
+- **Benchmark harness** (`npm run bench`) over a labeled corpus in `bench/corpus/`,
+  reporting recall/precision/FP-rate/F1/latency to `bench/results.json`, and acting
+  as a CI gate. Published numbers: input detection **94.8% recall / 98.9% precision /
+  1.4% FP**, tool poisoning **100% / 100%**.
+- **`llms.txt`** at the site root and repo, for AI coding assistants.
+- `maxInputLength` option (default 100_000) on input and output analysis.
+- Exports: `scanToolDefinition`, `TOOL_RULES`, `toolPoisoningRules`, `ToolDefinition`,
+  `createProtectionMcpServer`, `promptProtectionMiddleware`.
+
+### Changed
+- Rule totals: **106 input across 8 categories + 20 output = 126** (was 97 + 20 = 117).
+- **Performance:** rule regexes are now compiled once and cached (was recompiled per
+  `score()` call); `buildIndexMap` no longer rescans the tail on decode-appended input
+  (O(n²) → O(n) in the pathological case). These can shift `stripPrompt` span offsets
+  or scores by a hair on unusual inputs — part of why this is a major bump.
+
+### Migration
+- Fully backward compatible for the documented API. `ThreatCategory` gained the
+  `tool-poisoning` value — widen any exhaustive switch over it. Adaptive/pathological
+  inputs may score marginally differently after the normalizer/scorer changes.
+
+---
+
 ## [1.8.3] - 2026-08-20
 
 ### Fixed
