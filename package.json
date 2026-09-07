@@ -1,6 +1,6 @@
 {
   "name": "prompt-protection",
-  "version": "1.8.3",
+  "version": "2.0.0",
   "description": "Prompt injection detection and LLM firewall for Node.js and browsers. Blocks jailbreaks, data exfiltration, and system prompt leaks. 117 rules, zero dependencies, TypeScript-first.",
   "license": "MIT",
   "author": "mughalhere",
@@ -98,6 +98,26 @@
         "types": "./dist/adapters/openai.d.cts",
         "default": "./dist/adapters/openai.cjs"
       }
+    },
+    "./mcp": {
+      "import": {
+        "types": "./dist/mcp/server.d.ts",
+        "default": "./dist/mcp/server.js"
+      },
+      "require": {
+        "types": "./dist/mcp/server.d.cts",
+        "default": "./dist/mcp/server.cjs"
+      }
+    },
+    "./adapters/vercel": {
+      "import": {
+        "types": "./dist/adapters/vercel.d.ts",
+        "default": "./dist/adapters/vercel.js"
+      },
+      "require": {
+        "types": "./dist/adapters/vercel.d.cts",
+        "default": "./dist/adapters/vercel.cjs"
+      }
     }
   },
   "files": [
@@ -119,13 +139,16 @@
     "lint": "eslint src tests --ext .ts",
     "lint:fix": "eslint src tests --ext .ts --fix",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build && npm run test && npm run typecheck"
+    "prepublishOnly": "npm run build && npm run test && npm run typecheck",
+    "bench": "npm run build && node bench/run.mjs"
   },
   "peerDependencies": {
     "@anthropic-ai/sdk": ">=0.20.0",
     "express": ">=4.0.0",
     "openai": ">=4.0.0",
-    "react": ">=17.0.0"
+    "react": ">=17.0.0",
+    "@modelcontextprotocol/sdk": ">=1.0.0",
+    "ai": ">=4.0.0"
   },
   "peerDependenciesMeta": {
     "@anthropic-ai/sdk": {
@@ -139,10 +162,17 @@
     },
     "react": {
       "optional": true
+    },
+    "@modelcontextprotocol/sdk": {
+      "optional": true
+    },
+    "ai": {
+      "optional": true
     }
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@testing-library/react": "^16.0.0",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.0",
@@ -150,6 +180,7 @@
     "@types/react": "^18.0.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
+    "ai": "^7.0.93",
     "eslint": "^8.57.0",
     "express": "^4.21.0",
     "jest": "^29.7.0",
@@ -162,5 +193,8 @@
     "ts-node": "^10.9.2",
     "tsup": "^8.5.1",
     "typescript": "^5.4.0"
+  },
+  "bin": {
+    "prompt-protection-mcp": "./dist/mcp/bin.cjs"
   }
 }

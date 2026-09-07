@@ -15,6 +15,7 @@ import type {
 // Higher than input default (35) to reduce false positives, but low enough
 // that a single high-confidence match (weight 10 → score ~49) still triggers.
 const DEFAULT_OUTPUT_THRESHOLD = 40;
+const DEFAULT_MAX_INPUT_LENGTH = 100_000;
 
 /**
  * Normalizes output text for scanning without applying the homoglyph digit→letter
@@ -58,8 +59,10 @@ export function analyzeOutput(
   const threshold = options.threshold ?? DEFAULT_OUTPUT_THRESHOLD;
   const rules = buildOutputRuleSet(options);
 
-  const normalized = normalizeOutput(output);
-  const { normalizedScore, matches } = score(rules, normalized, output, {
+  const cap = options.maxInputLength ?? DEFAULT_MAX_INPUT_LENGTH;
+  const capped = output.length > cap ? output.slice(0, cap) : output;
+  const normalized = normalizeOutput(capped);
+  const { normalizedScore, matches } = score(rules, normalized, capped, {
     ...(options.allowlistPatterns ? { allowlistPatterns: options.allowlistPatterns } : {}),
     ...(options.allowlistRuleIds ? { allowlistRuleIds: options.allowlistRuleIds } : {}),
   });
