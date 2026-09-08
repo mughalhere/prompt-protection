@@ -1,5 +1,37 @@
 # Changelog
 
+## [2.0.1] - 2026-09-08
+
+Benchmark-integrity release. No rule or API changes — the detection behaviour of
+2.0.0 is untouched. What changes is how honestly the benchmark is reported and
+whether anything mechanically keeps it true.
+
+### Fixed
+- **The published benchmark number was contaminated by the test fixtures.** 134 of
+  the 169 input corpus items were byte-identical to `tests/__fixtures__/`, which
+  `tests/api.test.ts` asserts on in CI — so they could not score wrong while the
+  build was green. `bench/run.mjs` now partitions the corpus by set-membership
+  against the fixtures at runtime and reports three rows: **tuning** (134 items,
+  100%/100%/0%), **held-out** (35 items, **75.0% recall / 93.8% precision /
+  6.7% FP**), and combined (unchanged at 94.8%/98.9%/1.4%). The split is computed,
+  never maintained, so it cannot drift: a corpus line that is not also a fixture is
+  automatically held out.
+- **The benchmark now actually runs in CI.** README and the wiki claimed it ran as
+  a CI gate; no workflow invoked it. `.github/workflows/ci.yml` gains a `bench` job,
+  and `all-checks-passed` depends on it. The gate covers combined recall/FP,
+  held-out recall/FP, and tool recall.
+- **`bench/results.json` was written before the gate evaluated**, so a regressed run
+  persisted its own numbers. The gate now runs first; a failing run exits non-zero
+  and leaves the last-good file untouched.
+- **Latency p99 was a cold-start artifact.** The benchmark had no warm-up, so with
+  n=169 the p99 index landed on a JIT-compilation sample (10.16 ms). A warm-up pass
+  brings it to steady state (~0.06 ms). The published p50 was always sound.
+- `package.json` description advertised **117 rules**; actual is 126. npm renders
+  this on the public package page.
+- `demo/public/docs/owasp-llm01-prompt-injection.html` said "97 rules across seven
+  categories"; actual is 106 across eight.
+- `CONTRIBUTING.md` said `ThreatCategory` has 6 members; it has 8.
+
 ## [2.0.0] - 2026-09-03
 
 The agentic-security major. Adds MCP tool-poisoning defence, an MCP server, a
