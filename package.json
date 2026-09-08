@@ -1,7 +1,7 @@
 {
   "name": "prompt-protection",
-  "version": "2.0.0",
-  "description": "Prompt injection detection and LLM firewall for Node.js and browsers. Blocks jailbreaks, data exfiltration, and system prompt leaks. 117 rules, zero dependencies, TypeScript-first.",
+  "version": "2.0.1",
+  "description": "Prompt injection detection and LLM firewall for Node.js and browsers. Blocks jailbreaks, data exfiltration, and system prompt leaks. 126 rules, zero dependencies, TypeScript-first.",
   "license": "MIT",
   "author": "mughalhere",
   "homepage": "https://mughalhere.github.io/prompt-protection/",
