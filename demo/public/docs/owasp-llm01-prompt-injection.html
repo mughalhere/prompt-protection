@@ -72,7 +72,7 @@ if (check.action === 'block') {                          // page instructs your 
 <tbody>
 <tr><td>Constrain model behaviour via system prompt</td><td><span class="tag">no</span></td><td>Your prompt engineering. Necessary, insufficient.</td></tr>
 <tr><td>Validate expected output format</td><td><span class="tag tag-warn">partial</span></td><td><code>analyzeOutput()</code> checks for leak and relay patterns; schema validation is yours.</td></tr>
-<tr><td>Input filtering</td><td><span class="tag tag-safe">yes</span></td><td>97 rules across seven categories, with obfuscation-resistant normalisation.</td></tr>
+<tr><td>Input filtering</td><td><span class="tag tag-safe">yes</span></td><td>106 rules across eight categories, with obfuscation-resistant normalisation.</td></tr>
 <tr><td>Output filtering</td><td><span class="tag tag-safe">yes</span></td><td>20 rules — system prompt leak, credentials, PII, relayed injection.</td></tr>
 <tr><td>Least-privilege tool access</td><td><span class="tag">no</span></td><td><strong>The highest-value control there is.</strong> Architecture, not a library.</td></tr>
 <tr><td>Human approval for high-risk actions</td><td><span class="tag">no</span></td><td>Your workflow.</td></tr>
