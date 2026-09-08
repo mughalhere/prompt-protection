@@ -42,7 +42,7 @@ Open the appropriate file in `src/patterns/`. Add a new `PatternRule` object:
 ```typescript
 {
   id: 'category-short-description',     // kebab-case, unique
-  category: 'jailbreak',                // one of the 6 ThreatCategories
+  category: 'jailbreak',                // one of the 8 ThreatCategories
   pattern: /your regex here/,           // compiled with 'i' flag by the engine
   weight: 8,                            // 1–10; see weight guide below
   description: 'One-sentence description of what this detects',
