@@ -23,7 +23,7 @@ interface Span {
 
 /**
  * Compiled-regex cache. The engine matches every rule as `/gi`; without a cache
- * that is one `new RegExp()` per rule per `score()` call (97+ constructions each
+ * that is one `new RegExp()` per rule per `score()` call (106+ constructions each
  * analysis). Keyed on the rule's source `RegExp` identity so the same compiled
  * `/gi` instance is reused across calls. `lastIndex` is reset before each use, so
  * the shared instance is safe in JS's single-threaded model.
