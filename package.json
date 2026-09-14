@@ -250,7 +250,8 @@
     "prepublishOnly": "npm run build && npm run test && npm run typecheck",
     "bench": "npm run build && node bench/run.mjs",
     "size": "node bench/lib/size.mjs",
-    "test:redos": "jest --config jest.redos.config.cjs"
+    "test:redos": "jest --config jest.redos.config.cjs",
+    "compat": "node scripts/compat/smoke.mjs && node --experimental-vm-modules scripts/compat/no-globals.mjs"
   },
   "peerDependencies": {
     "@anthropic-ai/sdk": ">=0.20.0",
