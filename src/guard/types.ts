@@ -4,6 +4,7 @@ import type {
   Action,
   AnalysisResult,
   AnalyzeOptions,
+  FailMode,
   LoggingOptions,
   ThreatCategory,
 } from '../types.js';
@@ -129,6 +130,8 @@ export interface GuardOptions extends LoggingOptions {
   trustedIdentifiers?: string[];
   /** Spotlight tool results returned through `wrapTools`. */
   spotlight?: SpotlightMode | GuardSpotlightOptions;
+  /** Verdict when the guard itself throws: `'closed'` (default) blocks, `'open'` allows. */
+  failMode?: FailMode;
 }
 
 export interface TaintOptions {
