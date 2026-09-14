@@ -11,7 +11,7 @@ concurrency:
 
 permissions:
   id-token: write # Required for npm Trusted Publisher (OIDC)
-  contents: read
+  contents: write # Release asset: CycloneDX SBOM
 
 jobs:
   publish:
@@ -41,3 +41,11 @@ jobs:
       # Provenance attestations are generated automatically.
       - name: Publish to npm
         run: npm publish --access public
+
+      - name: Generate CycloneDX SBOM
+        run: npm run sbom
+
+      - name: Attach SBOM to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" sbom.cdx.json --generate-notes --verify-tag || gh release upload "$GITHUB_REF_NAME" sbom.cdx.json --clobber

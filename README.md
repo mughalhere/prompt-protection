@@ -100,6 +100,48 @@ Latency: rule scan p99 ≈ 0.1 ms; guard `checkToolCall` p99 ≈ 3 ms with 64 re
 
 ---
 
+## Standards: ATR, OWASP, ATLAS
+
+`prompt-protection/atr` loads [Agent Threat Rules](https://github.com/Agent-Threat-Rule/agent-threat-rules) packs — the Sigma-style open standard adopted by Microsoft, Cisco, MISP and SigmaHQ — as `customRules`, and emits findings in the ATR `ScanResult` shape:
+
+```ts
+import { loadAtrRules, toAtrFindings } from 'prompt-protection/atr';
+import { parseAtrYaml } from 'prompt-protection/atr/yaml';   // optional `yaml` peer
+
+const { rules, report } = loadAtrRules(await parseAtrYaml(packYaml), { agentSource: 'llm_input', lane: 'enforce' });
+const result = analyzePrompt(text, { customRules: rules });
+const findings = toAtrFindings(result);   // { matches: [{ rule_id: 'ATR-2026-00001', severity, confidence, … }], engine: { rules_version } }
+```
+
+Engine behaviour follows the spec's mandatory rules (no short-circuit, `scan_target` and `agent_source` filtering, draft/deprecated skipped, enforce lane) and is verified by `tests/atr/conformance.test.ts`. Conditions the engine cannot express faithfully — `condition: all`, named/behavioural formats, PCRE-only syntax — are **skipped with a reason in `report`**, never approximated. Native rules carry OWASP LLM Top 10 (2025) and MITRE ATLAS ids in `mappings`; coverage is CI-floored and ratcheted. We scan normalised text while the reference engine scans raw, so zero-width and case-sensitive ATR rules behave differently; `docs/ATR.md` lists the deltas.
+
+## Observability
+
+```ts
+import { createAuditLog, replayAuditLog } from 'prompt-protection/audit';
+const audit = createAuditLog({ sink: (line) => appendFile('decisions.jsonl', line + '\n') });
+analyzePrompt(text, { logger: audit });          // one hash-chained record per decision, content as a digest
+const { valid } = await replayAuditLog(lines);   // false if any record or link was altered
+
+import { createOtelLogger } from 'prompt-protection/otel';   // optional @opentelemetry/api peer
+const logger = await createOtelLogger();          // span events + pp.decisions counter, pp.* attributes, no prompt text
+```
+
+## Composing with policy-as-code (Vercel AI SDK)
+
+`prompt-protection/adapters/vercel-guardrail` implements the GuardrailProvider shape proposed in [vercel/ai#13434](https://github.com/vercel/ai/issues/13434) — pre-call decision, approval context, hash-chained receipts — and composes with `@ai-sdk/policy-opa`:
+
+```ts
+import { createGuardrailProvider, composeToolApproval } from 'prompt-protection/adapters/vercel-guardrail';
+const provider = createGuardrailProvider(guard, { tools: Object.keys(tools) });
+await generateText({
+  model, tools: guard.wrapTools(tools),
+  toolApproval: composeToolApproval(opaToolApproval, provider.toolApproval()),  // deny wins, reasons joined
+  onToolExecutionEnd: provider.onToolExecutionEnd(),   // receipt + taint into memory (ASI06)
+  prepareStep: provider.prepareStep(),                 // drop sink tools after an injection-scored source
+});
+```
+
 ## Failure semantics
 
 Every shipped regex — 148 across input, output and tool rules, sink heuristics, identifier extraction and normalisation — is fuzzed with [`recheck`](https://makenowjust-labs.github.io/recheck/) in CI (`npm run test:redos`). Result at 3.1.0: 147 safe, 1 reviewed timeout with a written justification in `tests/regex-safety/allowlist.json`, 0 vulnerable. The first run found 28 quadratic-or-worse patterns in 3.0.0; all were rewritten, and no bench number moved.

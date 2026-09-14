@@ -1,6 +1,6 @@
 {
   "name": "prompt-protection",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Agent security runtime for Node.js and browsers: provenance-tracked tool-call guard (CaMeL-style), spotlighting, fuzzy canaries, and hybrid rules + embedded ML detection for prompt injection. Zero dependencies, TypeScript-first, published benchmarks.",
   "license": "MIT",
   "author": "mughalhere",
@@ -22,6 +22,12 @@
     "camel",
     "mcp-security",
     "ai-agents",
+    "owasp-agentic",
+    "audit-log",
+    "fail-closed",
+    "opentelemetry",
+    "agent-threat-rules",
+    "atr",
     "llm-security",
     "jailbreak",
     "ai-safety",
@@ -251,7 +257,8 @@
     "bench": "npm run build && node bench/run.mjs",
     "size": "node bench/lib/size.mjs",
     "test:redos": "jest --config jest.redos.config.cjs",
-    "compat": "node scripts/compat/smoke.mjs && node --experimental-vm-modules scripts/compat/no-globals.mjs"
+    "compat": "node scripts/compat/smoke.mjs && node --experimental-vm-modules scripts/compat/no-globals.mjs",
+    "sbom": "cyclonedx-npm --omit dev --output-format JSON --output-file sbom.cdx.json"
   },
   "peerDependencies": {
     "@anthropic-ai/sdk": ">=0.20.0",
