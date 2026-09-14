@@ -21,7 +21,7 @@ export const outputRules: PatternRule[] = [
   {
     id: 'out-system-prompt-markup',
     category: 'system-prompt-leak',
-    pattern: /(\[system\][\s\S]{0,400}\[\/system\]|<system>[\s\S]{0,400}<\/system>|```\s*system\s*\n)/,
+    pattern: /(\[system\](?:(?!\[\/?system\])[\s\S]){0,400}\[\/system\]|<system>(?:(?!<\/?system>)[\s\S]){0,400}<\/system>|```[ \t]*system[ \t]*\n)/,
     weight: 9,
     precision: 'high',
     description: 'Output contains system prompt markup tags',
@@ -71,7 +71,7 @@ export const outputRules: PatternRule[] = [
   {
     id: 'out-password-value',
     category: 'credential-leak',
-    pattern: /\b(password|passwd|pwd)\s*(is\s*)?[:=]\s*['"]?\S{6,}/i,
+    pattern: /\b(password|passwd|pwd)(?:\s+is)?\s*[:=]\s*['"]?\S{6,}/i,
     weight: 9,
     precision: 'high',
     description: 'Password value exposed in output',
@@ -139,7 +139,7 @@ export const outputRules: PatternRule[] = [
   {
     id: 'out-email-bulk',
     category: 'pii-exposure',
-    pattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b.*\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/,
+    pattern: /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+(?![A-Za-z0-9.-])[^@]*?(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+(?![A-Za-z0-9.-])/,
     weight: 7,
     precision: 'medium',
     description: 'Multiple email addresses in output (bulk PII)',
@@ -155,7 +155,7 @@ export const outputRules: PatternRule[] = [
   {
     id: 'out-markdown-exfil-link',
     category: 'injection-relay',
-    pattern: /!\[[^\]]*\]\(\s*https?:\/\/[^)]*(api[_-]?key|token|secret|password)=/i,
+    pattern: /!\[(?:(?!!\[)[^\]\n]){0,200}\]\(\s*https?:\/\/[^)\s[\]()!]{0,1000}?[?&](api[_-]?key|token|secret|password)=/i,
     weight: 9,
     precision: 'high',
     description: 'Markdown image/link exfiltrating secrets via query params',
@@ -163,7 +163,7 @@ export const outputRules: PatternRule[] = [
   {
     id: 'out-markdown-image-beacon',
     category: 'injection-relay',
-    pattern: /!\[[^\]]*\]\(\s*https?:\/\/[^)\s?]+\?[^)\s]*?[=&][A-Za-z0-9+/_-]{16,}={0,2}[^)\s]*\)/,
+    pattern: /!\[(?:(?!!\[)[^\]\n]){0,200}\]\(\s*https?:\/\/[^)\s?[\]()!]{1,500}\?[^)\s[\]()!]{0,500}?[=&][A-Za-z0-9+/_-]{16,}/,
     weight: 8,
     precision: 'medium',
     description: 'Markdown image whose URL carries a long opaque query value — the classic zero-click exfil beacon',
@@ -171,7 +171,7 @@ export const outputRules: PatternRule[] = [
   {
     id: 'out-html-exfil',
     category: 'injection-relay',
-    pattern: /<\s*(img|iframe|script)[^>]+(src|href)\s*=\s*["']https?:\/\/[^"']*(token|secret|api[_-]?key)=/i,
+    pattern: /<\s*(img|iframe|script)\b[^<>]{0,500}?\b(src|href)\s*=\s*["']https?:\/\/[^"'\s<>]{0,1000}?[?&](token|secret|api[_-]?key)=/i,
     weight: 9,
     precision: 'high',
     description: 'HTML tag exfiltrating secrets via URL',
