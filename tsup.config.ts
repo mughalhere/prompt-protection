@@ -16,6 +16,7 @@ export default defineConfig({
     'src/adapters/claude.ts',
     'src/adapters/openai.ts',
     'src/adapters/vercel.ts',
+    'src/adapters/vercel-guardrail.ts',
     'src/mcp/server.ts',
     'src/mcp/bin.ts',
   ],

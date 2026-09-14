@@ -69,6 +69,5 @@ export type { Canary, CanaryDetection, CanaryVariant, PromptSimilarity } from '.
 
 // v3.1: fail-closed, rule-pack pinning, framework mappings (ATR loader lives in `prompt-protection/atr`)
 export { RULES_VERSION } from './patterns/version.js';
-export { RULE_MAPPINGS, withMappings } from './patterns/mappings.js';
 export { INTERNAL_ERROR_RULE } from './core/analyze.js';
 export type { FailMode, AnalysisError, FlowSummary, RuleMappings, RuleOrigin } from './types.js';
