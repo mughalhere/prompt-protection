@@ -10,7 +10,8 @@ export type ThreatCategory =
   | 'system-prompt-leak'
   | 'credential-leak'
   | 'injection-relay'
-  | 'pii-exposure';
+  | 'pii-exposure'
+  | 'data-flow';
 
 /** Coarse severity band derived from the 0–100 score, independent of threshold. */
 export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'safe';
@@ -63,7 +64,23 @@ export interface AnalysisResult {
   normalizedPrompt: string;
   /** Per-sentence scores, only present when options.sentenceAnalysis is true */
   sentenceScores?: Array<{ sentence: string; score: number }>;
+  /** Embedded-classifier verdict; absent when no model is wired or `ml: 'off'`. */
+  ml?: MlContribution;
 }
+
+/** How the embedded classifier affected the final action. */
+export interface MlContribution {
+  /** Model probability that the input is an injection, 0–1. */
+  probability: number;
+  contributed: 'none' | 'escalated' | 'flagged' | 'downgraded';
+}
+
+/**
+ * Embedded-classifier fusion mode. `escalate` (default) may only raise the
+ * action; `hybrid` may also downgrade weak rules-only blocks; `off` skips the
+ * model entirely (rules-only, same as the `lite` entry).
+ */
+export type MlMode = 'off' | 'escalate' | 'hybrid';
 
 /** OpenAI / Anthropic-style chat turn. Only `role` + `content` are required. */
 export interface ChatMessage {
@@ -105,14 +122,19 @@ export interface ProtectionEvent {
     | 'input.allowed'
     | 'output.blocked'
     | 'output.flagged'
-    | 'output.clean';
+    | 'output.clean'
+    | 'tool-call.blocked'
+    | 'tool-call.flagged'
+    | 'tool-call.allowed';
   timestamp: string;
   score: number;
   action: Action;
   severity: SeverityLevel;
   categories: ThreatCategory[];
   ruleIds: string[];
-  direction: 'input' | 'output';
+  direction: 'input' | 'output' | 'tool-call';
+  /** Tool name for `tool-call.*` events. */
+  toolName?: string;
   /** Present only when `includeContent` is true */
   promptPreview?: string;
   contentPreview?: string;
@@ -169,6 +191,8 @@ export interface AnalyzeOptions extends LoggingOptions {
    * Default: 100_000.
    */
   maxInputLength?: number;
+  /** Embedded-classifier fusion mode. Default `'escalate'`; ignored by the `lite` entry. */
+  ml?: MlMode;
 }
 
 export type VerifyOptions = AnalyzeOptions;
@@ -207,6 +231,8 @@ export interface OutputAnalysisResult {
   matches: PatternMatch[];
   /** Deduplicated list of triggered output threat categories */
   threats: ThreatCategory[];
+  /** Present only when `canary` or `systemPrompt` was passed. */
+  canary?: CanaryDetection;
 }
 
 export interface OutputAnalysisOptions extends LoggingOptions {
@@ -226,4 +252,41 @@ export interface OutputAnalysisOptions extends LoggingOptions {
    * before normalization/scoring. Default: 100_000.
    */
   maxInputLength?: number;
+  /** Canary token(s) injected into the system prompt; a leak adds `out-canary-leak`. */
+  canary?: Canary | Canary[];
+  /** System prompt to compare against; verbatim overlap adds `out-system-prompt-similarity`. */
+  systemPrompt?: string;
+}
+
+export interface Canary {
+  /** Full token as injected, e.g. `pp-3f9a…`. */
+  token: string;
+  /** Random part of the token (used for partial matching). */
+  secret: string;
+  prefix: string;
+}
+
+export type CanaryVariant =
+  | 'exact'
+  | 'normalized'
+  | 'spaced'
+  | 'base64'
+  | 'hex'
+  | 'reversed'
+  | 'partial';
+
+export interface PromptSimilarity {
+  /** Fraction of system-prompt word shingles found in the output (0–1). */
+  containment: number;
+  /** Longest run of consecutive system-prompt shingles present in the output. */
+  longestRun: number;
+}
+
+export interface CanaryDetection {
+  leaked: boolean;
+  /** 0–1; max over detected variants, 0 when nothing leaked. */
+  confidence: number;
+  variants: CanaryVariant[];
+  /** Set when `systemPrompt` was supplied. */
+  promptSimilarity?: PromptSimilarity;
 }

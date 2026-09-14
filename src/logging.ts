@@ -10,23 +10,37 @@ import type {
   ThreatCategory,
 } from './types.js';
 
+/** Shape of a guard decision as seen by the logger (avoids importing guard types). */
+export interface ToolCallEventSource {
+  action: Action;
+  toolName: string;
+  argsAnalysis: AnalysisResult;
+}
+
 const DEFAULT_LOG_LEVELS: LogLevel[] = ['blocked', 'flagged'];
 const DEFAULT_MAX_CONTENT = 200;
 
-function actionToLogLevel(action: Action, direction: 'input' | 'output'): LogLevel {
+type Direction = ProtectionEvent['direction'];
+
+function actionToLogLevel(action: Action, direction: Direction): LogLevel {
   if (action === 'block') return 'blocked';
   if (action === 'flag') return 'flagged';
-  return direction === 'input' ? 'allowed' : 'clean';
+  return direction === 'output' ? 'clean' : 'allowed';
 }
 
 function eventType(
-  direction: 'input' | 'output',
+  direction: Direction,
   action: Action,
 ): ProtectionEvent['type'] {
   if (direction === 'input') {
     if (action === 'block') return 'input.blocked';
     if (action === 'flag') return 'input.flagged';
     return 'input.allowed';
+  }
+  if (direction === 'tool-call') {
+    if (action === 'block') return 'tool-call.blocked';
+    if (action === 'flag') return 'tool-call.flagged';
+    return 'tool-call.allowed';
   }
   if (action === 'block') return 'output.blocked';
   if (action === 'flag') return 'output.flagged';
@@ -39,7 +53,7 @@ function truncate(text: string, max: number): string {
 }
 
 function buildEvent(
-  direction: 'input' | 'output',
+  direction: Direction,
   score: number,
   action: Action,
   severity: SeverityLevel,
@@ -62,17 +76,17 @@ function buildEvent(
   if (options.includeContent === true && content !== undefined) {
     const max = options.maxContentLength ?? DEFAULT_MAX_CONTENT;
     const preview = truncate(content, max);
-    if (direction === 'input') {
-      event.promptPreview = preview;
-    } else {
+    if (direction === 'output') {
       event.contentPreview = preview;
+    } else {
+      event.promptPreview = preview;
     }
   }
 
   return event;
 }
 
-function shouldLog(action: Action, direction: 'input' | 'output', options: LoggingOptions): boolean {
+function shouldLog(action: Action, direction: Direction, options: LoggingOptions): boolean {
   const levels = options.logLevels ?? DEFAULT_LOG_LEVELS;
   return levels.includes(actionToLogLevel(action, direction));
 }
@@ -131,6 +145,30 @@ export function emitOutputLog(
     content,
     options,
   );
+  emitSafe(options.logger, event, options);
+}
+
+/** Emit a `tool-call.*` event for a guard decision when a logger is configured. */
+export function emitToolCallLog(
+  decision: ToolCallEventSource,
+  argsText: string,
+  options: LoggingOptions,
+): void {
+  if (!options.logger) return;
+  if (!shouldLog(decision.action, 'tool-call', options)) return;
+
+  const analysis = decision.argsAnalysis;
+  const event = buildEvent(
+    'tool-call',
+    analysis.score,
+    decision.action,
+    analysis.severity,
+    analysis.categories,
+    analysis.matches.map((m) => m.rule.id),
+    argsText,
+    options,
+  );
+  event.toolName = decision.toolName;
   emitSafe(options.logger, event, options);
 }
 

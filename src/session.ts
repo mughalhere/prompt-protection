@@ -1,4 +1,5 @@
-import { analyzePrompt, computeSeverity, stripPrompt } from './api.js';
+import { analyzePrompt, stripPrompt } from './api.js';
+import { computeSeverity } from './core/analyze.js';
 import { PromptInjectionError } from './error.js';
 import { resolvePromptInput } from './messages.js';
 import { DEFERRED_REFERENCE_RULE_IDS } from './patterns/injection.js';

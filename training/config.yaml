@@ -1,0 +1,163 @@
+# prompt-protection v3 training config — datasets, licences, hyperparameters.
+# Licence policy: fetch.py hard-fails unless the HF dataset card's `license`
+# is in `licence_allowlist` (override with --force, which writes a warning).
+
+licence_allowlist: [apache-2.0, mit, cc-by-4.0, cc-by-sa-4.0, cc-by-sa-3.0, cc-by-2.0, cc0-1.0, bsd-3-clause]
+
+seed: 42
+
+hyperparams:
+  buckets: [65536]
+  ngram_char: [3, 5]
+  ngram_word: [1, 2]
+  max_chars: 4000
+  C_grid: [0.05, 0.1, 0.25, 0.5, 1.0, 2.0]
+  l1_ratio_grid: [0.0, 0.15, 0.5, 0.85, 1.0]
+  fpr_targets: { block: 0.005, flag: 0.02 }
+
+dedupe:
+  minhash_perms: 128
+  shingle_words: 5
+  jaccard_threshold: 0.8
+
+# Schema per dataset:
+#   name        short id, used for data/raw/<name>.jsonl
+#   hf_id       Hugging Face repo id
+#   role        train | eval   (eval rows NEVER enter train; train near-dups of eval are dropped)
+#   licence     licence as verified on the HF card at fetch time (fetch.py re-verifies)
+#   subsets     list of {config, split} to concatenate
+#   text_field  column holding the prompt
+#   label_field column holding the label (null → every row gets fixed_label)
+#   label_map   raw label value → 0/1; rows whose raw label is absent from the map are DROPPED
+#   cap         max rows after mapping (seeded stratified by label); null = keep all
+datasets:
+  - name: deepset
+    hf_id: deepset/prompt-injections
+    role: train
+    licence: apache-2.0
+    subsets: [{config: default, split: train}, {config: default, split: test}]
+    text_field: text
+    label_field: label
+    label_map: {0: 0, 1: 1}
+    cap: null
+
+  - name: jackhhao
+    hf_id: jackhhao/jailbreak-classification
+    role: train
+    licence: apache-2.0
+    subsets: [{config: default, split: train}, {config: default, split: test}]
+    text_field: prompt
+    label_field: type
+    label_map: {benign: 0, jailbreak: 1}
+    cap: null
+
+  - name: hackaprompt
+    hf_id: hackaprompt/hackaprompt-dataset
+    role: train
+    licence: mit
+    gated: true            # "auto" gated on HF — needs HF_TOKEN; fetch.py skips with a warning if absent
+    subsets: [{config: default, split: train}]
+    text_field: user_input
+    label_field: correct
+    label_map: {true: 1}   # only successful attacks; the dataset has no benign rows
+    cap: 20000
+
+  - name: gandalf
+    hf_id: Lakera/gandalf_ignore_instructions
+    role: train
+    licence: mit
+    subsets:
+      - {config: default, split: train}
+      - {config: default, split: validation}
+      - {config: default, split: test}
+    text_field: text
+    label_field: null
+    fixed_label: 1
+    cap: null
+
+  - name: spml
+    hf_id: reshabhs/SPML_Chatbot_Prompt_Injection
+    role: train
+    licence: mit
+    subsets: [{config: default, split: train}]
+    text_field: User Prompt
+    label_field: Prompt injection
+    label_map: {0: 0, 1: 1}
+    cap: 8000
+    lodo_drop_only: true   # used in the final fit; its LODO fold is reported separately
+    caveat: labels are relative to a paired system prompt — many positives read benign standalone
+
+  - name: in_the_wild
+    hf_id: TrustAIRLab/in-the-wild-jailbreak-prompts
+    role: eval
+    licence: mit
+    subsets:
+      - {config: jailbreak_2023_12_25, split: train}
+      - {config: regular_2023_12_25, split: train}
+    text_field: prompt
+    label_field: jailbreak
+    label_map: {true: 1, false: 0}
+    cap: null
+
+  - name: notinject
+    hf_id: leolee99/NotInject
+    role: eval
+    licence: mit
+    subsets:
+      - {config: default, split: NotInject_one}
+      - {config: default, split: NotInject_two}
+      - {config: default, split: NotInject_three}
+    text_field: prompt
+    label_field: null
+    fixed_label: 0
+    cap: null
+
+# Benign mining (mine_benign.py) → data/raw/benign_<name>.jsonl, all label 0, role train.
+# Rows containing a trigger word are taken first (oversampled, never synthesised) up to cap.
+benign:
+  trigger_words: [ignore, instruction, instructions, override, cancel, system, prompt, forget,
+                  disregard, pretend, act as, role, bypass, reveal, secret, password, admin,
+                  developer mode, jailbreak, rules]
+  min_chars: 15
+  sources:
+    - name: dolly
+      hf_id: databricks/databricks-dolly-15k
+      licence: cc-by-sa-3.0
+      kind: dolly            # instruction (+ context when ≤ 600 chars)
+      cap: 6000
+    - name: oasst
+      hf_id: OpenAssistant/oasst1
+      licence: apache-2.0
+      kind: oasst            # role == prompter, all langs; cap split by sqrt(lang count)
+      cap: 5000
+    - name: tatoeba
+      hf_id: Helsinki-NLP/tatoeba_mt
+      licence: cc-by-2.0
+      kind: tatoeba          # refs/convert/parquet, non-English side of eng-* pairs (+ eng from eng-fra)
+      pairs: [ara-eng, eng-fra, eng-ita, eng-por, eng-rus, eng-hin, eng-urd, eng-zho, eng-cmn_Hans,
+              eng-jpn_Hani, eng-kor, eng-pol, eng-nld, eng-swe, eng-ind, eng-fin]
+      cap: 2500
+    - name: wikitext
+      hf_id: Salesforce/wikitext
+      licence: cc-by-sa-3.0  # card lists [cc-by-sa-3.0, gfdl]; first allowlisted licence wins
+      kind: wikitext         # wikitext-103-raw-v1 train, paragraphs 200–1500 chars
+      config: wikitext-103-raw-v1
+      scan_lines: 300000
+      cap: 2500
+    - name: gutenberg
+      hf_id: sedthh/gutenberg_english
+      licence: mit
+      kind: gutenberg        # streamed; paragraphs 200–1500 chars from the first `scan_books` books
+      scan_books: 600
+      cap: 1500
+
+# Recorded but never fetched. fetch.py prints these in its summary.
+excluded:
+  - hf_id: xTRam1/safe-guard-prompt-injection
+    reason: seeded from jackhhao/jailbreak-classification (train leakage); no licence on card
+  - hf_id: JasperLS/prompt-injections
+    reason: no licence on card; content identical to deepset/prompt-injections (546/116 rows, 343/203 labels)
+  - hf_id: qualifire/prompt-injections-benchmark
+    reason: licence cc-by-nc-4.0 (non-commercial) — fails allowlist; also gated
+  - hf_id: Deysi/prompt-injection
+    reason: repository not found (404/401 on HfApi.dataset_info, 2026-09-14)

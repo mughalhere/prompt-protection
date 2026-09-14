@@ -161,6 +161,14 @@ export const outputRules: PatternRule[] = [
     description: 'Markdown image/link exfiltrating secrets via query params',
   },
   {
+    id: 'out-markdown-image-beacon',
+    category: 'injection-relay',
+    pattern: /!\[[^\]]*\]\(\s*https?:\/\/[^)\s?]+\?[^)\s]*?[=&][A-Za-z0-9+/_-]{16,}={0,2}[^)\s]*\)/,
+    weight: 8,
+    precision: 'medium',
+    description: 'Markdown image whose URL carries a long opaque query value — the classic zero-click exfil beacon',
+  },
+  {
     id: 'out-html-exfil',
     category: 'injection-relay',
     pattern: /<\s*(img|iframe|script)[^>]+(src|href)\s*=\s*["']https?:\/\/[^"']*(token|secret|api[_-]?key)=/i,
