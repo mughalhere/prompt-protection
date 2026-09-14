@@ -20,7 +20,7 @@ export const jailbreakRules: PatternRule[] = [
   {
     id: 'jailbreak-no-restrictions',
     category: 'jailbreak',
-    pattern: /(pretend|act|behave|imagine|assume)\b(?:(?!\b(?:pretend|act|behave|imagine|assume)\b)[\s\S]){0,40}?\bno\s+(rules?|restrictions?|limits?|guidelines?|constraints?|filters?|ethics?)/,
+    pattern: /(pretend|act|behave|imagine|assume)\s+(?:(?:as\s+if|like|that)\s+)?(?:you\s+(?:have|are|had)|there\s+(?:are|is|were)|i\s+have|we\s+have)\s+(?:an?\s+\w+\s+with\s+)?no\s+(rules?|restrictions?|limits?|guidelines?|constraints?|filters?|ethics?)/,
     weight: 10,
     precision: 'high',
     description: 'No restrictions roleplay',
