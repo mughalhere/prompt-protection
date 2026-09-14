@@ -363,3 +363,6 @@ export function containmentOf(needle: string, hay: string): { word: number; char
   const c = containment(normalize(needle).normalized, normalize(hay).normalized);
   return { word: c.word, char: c.char };
 }
+
+/** Regexes this module runs on untrusted text; consumed by the ReDoS safety suite. */
+export const PROVENANCE_REGEXES = { DEFANG_RE } as const;
