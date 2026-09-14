@@ -1,11 +1,1 @@
-[
-  {
-    "source": "(pretend|act|behave|imagine|assume)\\b(?:(?!\\b(?:pretend|act|behave|imagine|assume)\\b)[\\s\\S]){0,40}?\\bno\\s+(rules?|restrictions?|limits?|guidelines?|constraints?|filters?|ethics?)",
-    "flags": "gi",
-    "status": "unknown",
-    "error_kind": "timeout",
-    "reviewed_by": "maintainer",
-    "date": "2026-09-15",
-    "justification": "recheck times out on the tempered lookahead. Every quantifier is bounded ({0,40}); the tempered gap excludes further start words, so each start position does at most 40 steps: worst case O(40\u00b7n)."
-  }
-]
+[]
