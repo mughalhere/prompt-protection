@@ -83,9 +83,24 @@ jobs:
       - name: Benchmark
         run: npm run bench
 
+  redos:
+    name: ReDoS safety (recheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Fuzz every shipped regex
+        run: npm run test:redos
+
   all-checks-passed:
     name: All checks passed
-    needs: [test, pack, bench]
+    needs: [test, pack, bench, redos]
     runs-on: ubuntu-latest
     steps:
       - name: CI complete

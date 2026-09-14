@@ -18,7 +18,7 @@ export const contextSmugglingRules: PatternRule[] = [
     // "by the way / btw / anyway, [can you / tell me ...] how ..."
     // Requires "how" in the request to avoid false positives like "by the way, can you recommend a book"
     pattern:
-      /\b(by\s+the\s+way|btw|anyway|while\s+(i\s+have\s+you|i'?ve\s+got\s+you|we'?re?\s+at\s+it|you'?re?\s+here))\s*[,.]?\s*(how\s+(do|would|can|could)\s+(i|you|one)|(can\s+you|could\s+you|would\s+you|help\s+me|tell\s+me|explain).{0,30}?\bhow\b)/i,
+      /\b(by\s+the\s+way|btw|anyway|while\s+(i\s+have\s+you|i'?ve\s+got\s+you|we'?re?\s+at\s+it|you'?re?\s+here))[\s,.]*(how\s+(do|would|can|could)\s+(i|you|one)|(can\s+you|could\s+you|would\s+you|help\s+me|tell\s+me|explain).{0,30}?\bhow\b)/i,
     weight: 2,
     precision: 'low',
     description: 'Side-request injection via "by the way / btw / while you\'re at it" with how-to framing',
@@ -28,7 +28,7 @@ export const contextSmugglingRules: PatternRule[] = [
     category: 'context-smuggling',
     // "setting that aside / putting that aside ... how do / can you"
     pattern:
-      /\b(setting\s+(that\s+)?aside|putting\s+that\s+aside|leaving\s+that\s+(for\s+later|aside)|forget\s+about\s+that\s+for\s+now|ignoring\s+that\s+(for\s+a\s+moment|temporarily))\s*[,.]?\s*(how\s+(do|can|would|could)|can\s+you|could\s+you|tell\s+me|help\s+me)/i,
+      /\b(setting\s+(that\s+)?aside|putting\s+that\s+aside|leaving\s+that\s+(for\s+later|aside)|forget\s+about\s+that\s+for\s+now|ignoring\s+that\s+(for\s+a\s+moment|temporarily))[\s,.]*(how\s+(do|can|would|could)|can\s+you|could\s+you|tell\s+me|help\s+me)/i,
     weight: 4,
     precision: 'low',
     description: 'Topic dismissal pivot followed by a new request',
@@ -48,7 +48,7 @@ export const contextSmugglingRules: PatternRule[] = [
     category: 'context-smuggling',
     // "while you're at it, can you also tell me"
     pattern:
-      /\bwhile\s+(you'?re?\s+(at\s+it|helping|here)|i\s+have\s+you|we'?re?\s+(talking|at\s+it|on\s+the\s+topic))\s*[,.]?\s*(can\s+you\s+also|could\s+you\s+also|also\s+(tell|help|explain|show)|tell\s+me\s+how)/i,
+      /\bwhile\s+(you'?re?\s+(at\s+it|helping|here)|i\s+have\s+you|we'?re?\s+(talking|at\s+it|on\s+the\s+topic))[\s,.]*(can\s+you\s+also|could\s+you\s+also|also\s+(tell|help|explain|show)|tell\s+me\s+how)/i,
     weight: 2,
     precision: 'low',
     description: 'Dual-task injection via "while you\'re at it, can you also"',
@@ -58,7 +58,7 @@ export const contextSmugglingRules: PatternRule[] = [
     category: 'context-smuggling',
     // "first / before we start, help me figure out how to"
     pattern:
-      /\b(first|before\s+(that|anything|we\s+start|i\s+forget))\s*[,.]?\s*(i\s+need\s+(you\s+to\s+|to\s+)?(tell|explain|show|help|give|describe)|can\s+you\s+(tell|explain|show|help|give)|help\s+me\s+(understand|figure\s+out|with))\s+how\s+to\b/i,
+      /\b(first|before\s+(that|anything|we\s+start|i\s+forget))[\s,.]*(i\s+need\s+(you\s+to\s+|to\s+)?(tell|explain|show|help|give|describe)|can\s+you\s+(tell|explain|show|help|give)|help\s+me\s+(understand|figure\s+out|with))\s+how\s+to\b/i,
     weight: 4,
     precision: 'low',
     description: 'Prerequisite-request framing: inject a request before the stated main task',
@@ -89,7 +89,7 @@ export const contextSmugglingRules: PatternRule[] = [
     // "before you help [me] / before you answer, I need you to"
     // (\s+\w+)? allows for direct objects like "me" after the verb
     pattern:
-      /\b(before\s+you\s+(help|answer|respond|continue)(\s+\w+)?|prior\s+to\s+(helping|answering|that))\s*[,.]?\s*(i\s+need\s+you\s+to|can\s+you|could\s+you|please)/i,
+      /\b(before\s+you\s+(help|answer|respond|continue)(\s+\w+)?|prior\s+to\s+(helping|answering|that))[\s,.]*(i\s+need\s+you\s+to|can\s+you|could\s+you|please)/i,
     weight: 2,
     precision: 'low',
     description: 'Prerequisite injection before answering the stated request',

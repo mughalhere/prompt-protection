@@ -219,7 +219,8 @@
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build && npm run test && npm run typecheck",
     "bench": "npm run build && node bench/run.mjs",
-    "size": "node bench/lib/size.mjs"
+    "size": "node bench/lib/size.mjs",
+    "test:redos": "jest --config jest.redos.config.cjs"
   },
   "peerDependencies": {
     "@anthropic-ai/sdk": ">=0.20.0",
