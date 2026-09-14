@@ -40,6 +40,32 @@ export interface PatternRule {
   description: string;
   /** Default `medium`. Lone `low` rules cannot alone produce `block`. */
   precision?: RulePrecision;
+  /** Framework identifiers this rule maps to (ATR / OWASP / ATLAS). Ids only, never prose. */
+  mappings?: RuleMappings;
+  /** Present when the rule was compiled from an external rule format. */
+  origin?: RuleOrigin;
+}
+
+export interface RuleMappings {
+  atr?: string[];
+  owaspLlm?: string[];
+  owaspAsi?: string[];
+  owaspAst?: string[];
+  atlas?: string[];
+  attack?: string[];
+  cve?: string[];
+}
+
+export interface RuleOrigin {
+  format: 'atr';
+  ruleId: string;
+  ruleVersion?: number;
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'informational';
+  tags: { category: string; subcategory?: string; confidence?: RulePrecision; scan_target?: 'mcp' | 'skill' | 'runtime' };
+  conditionIndex: number;
+  conditionCount: number;
+  field: string;
+  operator: string;
 }
 
 export interface PatternMatch {

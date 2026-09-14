@@ -66,3 +66,9 @@ export { createCanary, injectCanary, detectCanary, promptSimilarity } from './ca
 export type { SpotlightMode, SpotlightOptions, SpotlightResult } from './spotlight/index.js';
 export type { CreateCanaryOptions, InjectCanaryOptions, DetectCanaryOptions } from './canary/index.js';
 export type { Canary, CanaryDetection, CanaryVariant, PromptSimilarity } from './types.js';
+
+// v3.1: fail-closed, rule-pack pinning, framework mappings (ATR loader lives in `prompt-protection/atr`)
+export { RULES_VERSION } from './patterns/version.js';
+export { RULE_MAPPINGS, withMappings } from './patterns/mappings.js';
+export { INTERNAL_ERROR_RULE } from './core/analyze.js';
+export type { FailMode, AnalysisError, FlowSummary, RuleMappings, RuleOrigin } from './types.js';
