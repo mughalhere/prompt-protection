@@ -144,7 +144,7 @@ await generateText({
 
 ## Failure semantics
 
-Every shipped regex — 148 across input, output and tool rules, sink heuristics, identifier extraction and normalisation — is fuzzed with [`recheck`](https://makenowjust-labs.github.io/recheck/) in CI (`npm run test:redos`). Result at 3.1.0: 147 safe, 1 reviewed timeout with a written justification in `tests/regex-safety/allowlist.json`, 0 vulnerable. The first run found 28 quadratic-or-worse patterns in 3.0.0; all were rewritten, and no bench number moved.
+Every shipped regex — 148 across input, output and tool rules, sink heuristics, identifier extraction and normalisation — is fuzzed with [`recheck`](https://makenowjust-labs.github.io/recheck/) in CI (`npm run test:redos`). Result at 3.1.0: 148 safe, 0 allowlisted, 0 vulnerable. The first run found 28 quadratic-or-worse patterns in 3.0.0 and one more once the fuzzer was given time; all 29 were rewritten, and no bench number moved.
 
 The library fails **closed**. If anything inside it throws — a rule, a policy, a sink resolver, a classifier adapter — the verdict is `block` with a synthetic `internal-error` match and `result.error` set, and the logger receives the event with `error`. Set `failMode: 'open'` to let input through instead (the error is still reported). A throwing *logger* never changes a verdict.
 

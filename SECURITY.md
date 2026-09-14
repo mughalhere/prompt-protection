@@ -12,7 +12,7 @@ The library **fails closed**. Any internal throw — a rule, a policy, a sink re
 
 ## Regular-expression safety
 
-Every regex the library runs on untrusted text (148 at 3.1.0) is fuzzed with [`recheck`](https://makenowjust-labs.github.io/recheck/) in CI (`npm run test:redos`). A `vulnerable` verdict fails the build; an `unknown` verdict passes only through `tests/regex-safety/allowlist.json`, which requires a written justification per entry. 3.1.0 rewrote 28 patterns that the first run found polynomial.
+Every regex the library runs on untrusted text (148 at 3.1.0) is fuzzed with [`recheck`](https://makenowjust-labs.github.io/recheck/) in CI (`npm run test:redos`). A `vulnerable` verdict fails the build; an `unknown` verdict passes only through `tests/regex-safety/allowlist.json`, which requires a written justification per entry. 3.1.0 rewrote 29 patterns that the fuzzer found polynomial; the allowlist is empty.
 
 ## No telemetry
 
