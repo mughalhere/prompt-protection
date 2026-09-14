@@ -127,6 +127,16 @@
         "default": "./dist/adapters/vercel.cjs"
       }
     },
+    "./adapters/vercel-guardrail": {
+      "import": {
+        "types": "./dist/adapters/vercel-guardrail.d.ts",
+        "default": "./dist/adapters/vercel-guardrail.js"
+      },
+      "require": {
+        "types": "./dist/adapters/vercel-guardrail.d.cts",
+        "default": "./dist/adapters/vercel-guardrail.cjs"
+      }
+    },
     "./lite": {
       "import": {
         "types": "./dist/lite.d.ts",

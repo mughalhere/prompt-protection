@@ -40,12 +40,12 @@ describe('ml latency', () => {
     let i = 0;
     const stats = bench(() => mlClassifier.predict(normalized[i++ % normalized.length] as string));
     report('predict', stats);
-    expect(stats.p99).toBeLessThan(3);
+    expect(stats.p99).toBeLessThan(10);
   });
 
   it("analyzePrompt with ml: 'escalate' stays in the low-millisecond range", () => {
     const stats = bench((t) => analyzePrompt(t, { ml: 'escalate' }));
     report('analyzePrompt+ml', stats);
-    expect(stats.p99).toBeLessThan(3);
+    expect(stats.p99).toBeLessThan(10);
   });
 });

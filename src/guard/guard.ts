@@ -14,6 +14,8 @@ import type {
   GuardDecision,
   GuardOptions,
   GuardSpotlightOptions,
+  MemoryWriteOptions,
+  MemoryWriteResult,
   TaintOptions,
   TaintedSource,
   ToolCall,
@@ -117,8 +119,20 @@ export function createGuard(options: GuardOptions = {}): Guard {
 
   const unmark = spot ? (leaf: string) => unspotlight(leaf, marker, spot.mode) : undefined;
 
+  const recent = new Map<string, GuardDecision>();
+  const RECENT_MAX = 64;
+
+  function remember(decision: GuardDecision): GuardDecision {
+    if (decision.toolCallId !== undefined) {
+      recent.delete(decision.toolCallId);
+      recent.set(decision.toolCallId, decision);
+      if (recent.size > RECENT_MAX) recent.delete(recent.keys().next().value as string);
+    }
+    return decision;
+  }
+
   function check(call: ToolCall): GuardDecision {
-    return runCheck(call, {
+    return remember(runCheck(call, {
       index,
       trust,
       thresholds,
@@ -130,7 +144,17 @@ export function createGuard(options: GuardOptions = {}): Guard {
       logging,
       failMode,
       ...(unmark ? { unmark } : {}),
-    });
+    }));
+  }
+
+  function taintMemoryWrite(source: string, value: unknown, memoryOptions: MemoryWriteOptions = {}): MemoryWriteResult {
+    const entry = taint(source, value, memoryOptions.id !== undefined ? { id: memoryOptions.id } : {});
+    const policy = memoryOptions.policy ?? 'reject-blocked';
+    const action = entry.injection.action;
+    const store = !(policy === 'reject-blocked' && action === 'block');
+    const result: MemoryWriteResult = { source: entry, action, store };
+    if (spot) result.spotlit = spotlight(entry.text, { mode: spot.mode, marker, sourceId: entry.id }).text;
+    return result;
   }
 
   const guard: Guard = {
@@ -153,6 +177,8 @@ export function createGuard(options: GuardOptions = {}): Guard {
       });
     },
     vercelToolApproval: () => createToolApproval(check),
+    taintMemoryWrite,
+    lastDecision: (toolCallId) => recent.get(toolCallId),
     nextTurn() {
       turn += 1;
     },
@@ -161,6 +187,7 @@ export function createGuard(options: GuardOptions = {}): Guard {
       trust = { identifiers: new Set(options.trustedIdentifiers?.map((s) => s.toLowerCase())), text: '' };
       plan = null;
       turn = 0;
+      recent.clear();
       session.clear();
     },
     get session() {
