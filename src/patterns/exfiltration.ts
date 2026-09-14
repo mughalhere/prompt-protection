@@ -12,7 +12,7 @@ export const exfiltrationRules: PatternRule[] = [
   {
     id: 'exfil-decrypt-return',
     category: 'data-exfiltration',
-    pattern: /decrypt\s+.{0,50}(and\s+)?(return|send|output|show|reveal|give)/,
+    pattern: /decrypt\b[\s\S]{0,50}?\b(return|send|output|show|reveal|give)\b/,
     weight: 8,
     precision: 'high',
     description: 'Decrypt and return data',
