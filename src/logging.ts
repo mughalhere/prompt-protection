@@ -1,6 +1,7 @@
 import type {
   Action,
   AnalysisResult,
+  FlowSummary,
   LogLevel,
   LoggingOptions,
   OutputAnalysisResult,
@@ -14,6 +15,11 @@ import type {
 export interface ToolCallEventSource {
   action: Action;
   toolName: string;
+  toolCallId?: string;
+  policy?: string;
+  reasons?: string[];
+  sink?: string;
+  flows?: FlowSummary[];
   argsAnalysis: AnalysisResult;
 }
 
@@ -123,6 +129,7 @@ export function emitInputLog(
     content,
     options,
   );
+  if (result.error) event.error = result.error.message;
   emitSafe(options.logger, event, options);
 }
 
@@ -145,6 +152,7 @@ export function emitOutputLog(
     content,
     options,
   );
+  if (result.error) event.error = result.error.message;
   emitSafe(options.logger, event, options);
 }
 
@@ -169,6 +177,12 @@ export function emitToolCallLog(
     options,
   );
   event.toolName = decision.toolName;
+  if (decision.toolCallId !== undefined) event.toolCallId = decision.toolCallId;
+  if (decision.policy !== undefined) event.policy = decision.policy;
+  if (decision.reasons !== undefined) event.reasons = decision.reasons;
+  if (decision.sink !== undefined) event.sink = decision.sink;
+  if (decision.flows !== undefined) event.flows = decision.flows;
+  if (analysis.error) event.error = analysis.error.message;
   emitSafe(options.logger, event, options);
 }
 

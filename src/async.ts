@@ -30,7 +30,7 @@ export async function verifyPromptAsync(
   try {
     adapterResult = await options.adapter.analyze(text);
   } catch (err) {
-    if (options.fallbackToSync === true) {
+    if (options.fallbackToSync === true || options.failMode === 'open') {
       adapterResult = null;
     } else {
       throw err;

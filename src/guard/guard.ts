@@ -1,8 +1,9 @@
 import { normalize } from '../normalizer.js';
+import { failedAnalysis } from '../core/analyze.js';
 import { createProtectionSession } from '../session.js';
 import type { ProtectionSession } from '../session.js';
 import { buildShingles } from '../utils/shingle.js';
-import type { AnalysisResult, AnalyzeOptions, LoggingOptions } from '../types.js';
+import type { AnalysisResult, AnalyzeOptions, FailMode, LoggingOptions } from '../types.js';
 import { checkToolCall as runCheck } from './check.js';
 import { DEFAULT_POLICIES } from './policy.js';
 import { SourceIndex, identifierValues, stringifyValue } from './provenance.js';
@@ -59,6 +60,8 @@ export function createGuard(options: GuardOptions = {}): Guard {
   const maxSources = options.maxSources ?? DEFAULT_MAX_SOURCES;
   const maxSourceChars = options.maxSourceChars ?? DEFAULT_MAX_SOURCE_CHARS;
   const spot = resolveSpotlight(options.spotlight);
+  const failMode: FailMode = options.failMode ?? 'closed';
+  if (analyzeOptions.failMode === undefined) analyzeOptions.failMode = failMode;
   const marker = spot ? (spot.marker ?? spotlight('', { mode: spot.mode }).marker) : '';
 
   let index = new SourceIndex(maxSources, maxSourceChars);
@@ -75,7 +78,12 @@ export function createGuard(options: GuardOptions = {}): Guard {
     const text = stringifyValue(value).slice(0, maxSourceChars);
     const { normalized } = normalize(text);
     // Session scoring on purpose: a blocked tool result feeds deferred-reference correlation.
-    const result = session.analyze(text, { ...analyzeOptions, analyzeRoles: 'all' });
+    let result: AnalysisResult;
+    try {
+      result = session.analyze(text, { ...analyzeOptions, analyzeRoles: 'all' });
+    } catch (err) {
+      result = failedAnalysis(err, failMode, analyzeOptions.threshold ?? 35);
+    }
     const entry: TaintedSource = {
       id,
       tool: source,
@@ -120,6 +128,7 @@ export function createGuard(options: GuardOptions = {}): Guard {
       turn,
       analyzeOptions,
       logging,
+      failMode,
       ...(unmark ? { unmark } : {}),
     });
   }

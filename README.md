@@ -100,6 +100,18 @@ Latency: rule scan p99 ≈ 0.1 ms; guard `checkToolCall` p99 ≈ 3 ms with 64 re
 
 ---
 
+## Failure semantics
+
+The library fails **closed**. If anything inside it throws — a rule, a policy, a sink resolver, a classifier adapter — the verdict is `block` with a synthetic `internal-error` match and `result.error` set, and the logger receives the event with `error`. Set `failMode: 'open'` to let input through instead (the error is still reported). A throwing *logger* never changes a verdict.
+
+| Fault | prompt-protection (default) | `failMode: 'open'` | For comparison |
+|---|---|---|---|
+| Rule / allowlist regex throws | `block`, rule `internal-error` | `allow`, `error` set | — |
+| Guard policy throws | `block`, `policy` = the faulty policy id | policy skipped | — |
+| Sink resolver throws | `block`, `policy: 'internal-error'` | `allow`, `error` set | — |
+| LLM adapter (`verifyPromptAsync`) throws | rejects — nothing passes | sync verdict stands | openai-agents-js guardrails fail open on unexpected results ([#1810](https://github.com/openai/openai-agents-js/issues/1810), [#1816](https://github.com/openai/openai-agents-js/issues/1816), [#1803](https://github.com/openai/openai-agents-js/issues/1803)) |
+| Logger throws | verdict unchanged, `onLoggerError` called | same | Vercel AI SDK `onToolExecutionStart` swallows throws, so it cannot deny ([#15842](https://github.com/vercel/ai/issues/15842)) — use `toolApproval` / `wrapTools` |
+
 ## Install
 
 ```bash
