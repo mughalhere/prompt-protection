@@ -1,4 +1,5 @@
 import { EXEC_SINKS, EXFIL_SINKS } from './sinks.js';
+import type { FailMode } from '../types.js';
 import type { GuardPolicy, PolicyAction, PolicyContext } from './types.js';
 
 const SEVERITY: Record<PolicyAction, number> = { allow: 0, flag: 1, confirm: 2, block: 3 };
@@ -80,11 +81,24 @@ export interface PolicyOutcome {
   policy?: string;
 }
 
-/** Evaluates every policy; the most severe verdict wins, ties go to list order. */
-export function evaluatePolicies(policies: readonly GuardPolicy[], ctx: PolicyContext): PolicyOutcome {
+/**
+ * Evaluates every policy; the most severe verdict wins, ties go to list order.
+ * A throwing policy blocks under `failMode: 'closed'` and is skipped under `'open'`.
+ */
+export function evaluatePolicies(
+  policies: readonly GuardPolicy[],
+  ctx: PolicyContext,
+  failMode: FailMode = 'closed',
+): PolicyOutcome {
   const fired: Array<{ id: string; action: PolicyAction }> = [];
   for (const policy of policies) {
-    const verdict = policy.evaluate(ctx);
+    let verdict: PolicyAction | null;
+    try {
+      verdict = policy.evaluate(ctx);
+    } catch {
+      if (failMode === 'open') continue;
+      verdict = 'block';
+    }
     if (verdict !== null && verdict !== 'allow') fired.push({ id: policy.id, action: verdict });
   }
   fired.sort((a, b) => SEVERITY[b.action] - SEVERITY[a.action]);
