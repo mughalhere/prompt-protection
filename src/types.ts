@@ -195,6 +195,11 @@ export interface ProtectionEvent {
 
 export interface ProtectionLogger {
   log(event: ProtectionEvent): void | Promise<void>;
+  /**
+   * Optional: receives the raw scanned content alongside the event so a sink can
+   * hash it itself. Called instead of `log` when present. Raw text never reaches `log`.
+   */
+  logWithContent?(event: ProtectionEvent, content: string): void | Promise<void>;
 }
 
 export interface LoggingOptions {
