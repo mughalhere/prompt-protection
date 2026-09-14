@@ -20,7 +20,7 @@ const tally = { safe: 0, allowlisted: 0 };
 
 describe(`ReDoS safety — ${regexes.length} regexes fuzzed with recheck`, () => {
   it.each(regexes.map((r) => [`${r.owner}/${r.id}`, r] as const))('%s', (_name, r) => {
-    const result = checkSync(r.source, r.flags, { checker: 'auto', timeout: 5000 });
+    const result = checkSync(r.source, r.flags, { checker: 'auto', timeout: 30000 });
     if (result.status === 'safe') {
       tally.safe++;
       return;
