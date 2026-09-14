@@ -126,3 +126,6 @@ export function extractIdentifiers(text: string): Identifier[] {
 
   return out.sort((a, b) => a.index - b.index || a.kind.localeCompare(b.kind));
 }
+
+/** Every regex this module runs on untrusted text; consumed by the ReDoS safety suite. */
+export const IDENTIFIER_REGEXES = { URL_RE, EMAIL_RE, HOST_RE, TOKEN_RE, PHONE_RE, TRAILING_PUNCT_RE } as const;

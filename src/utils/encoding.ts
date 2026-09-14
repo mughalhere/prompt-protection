@@ -70,3 +70,6 @@ export function decodeObfuscation(text: string): string {
 
   return result;
 }
+
+/** Regexes this module runs on untrusted text; consumed by the ReDoS safety suite. */
+export const ENCODING_REGEXES = { PERCENT_RE } as const;
