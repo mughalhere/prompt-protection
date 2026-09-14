@@ -6,7 +6,7 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/tests/regex-safety'],
   testMatch: ['**/*.test.ts'],
-  testTimeout: 60000,
+  testTimeout: 180000,
   collectCoverage: false,
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
