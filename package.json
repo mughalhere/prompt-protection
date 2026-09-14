@@ -1,7 +1,7 @@
 {
   "name": "prompt-protection",
-  "version": "2.0.1",
-  "description": "Prompt injection detection and LLM firewall for Node.js and browsers. Blocks jailbreaks, data exfiltration, and system prompt leaks. 126 rules, zero dependencies, TypeScript-first.",
+  "version": "3.0.0",
+  "description": "Agent security runtime for Node.js and browsers: provenance-tracked tool-call guard (CaMeL-style), spotlighting, fuzzy canaries, and hybrid rules + embedded ML detection for prompt injection. Zero dependencies, TypeScript-first, published benchmarks.",
   "license": "MIT",
   "author": "mughalhere",
   "homepage": "https://mughalhere.github.io/prompt-protection/",
@@ -14,6 +14,14 @@
   },
   "keywords": [
     "prompt-injection",
+    "agent-security",
+    "tool-call-guard",
+    "taint-tracking",
+    "spotlighting",
+    "canary-token",
+    "camel",
+    "mcp-security",
+    "ai-agents",
     "llm-security",
     "jailbreak",
     "ai-safety",
@@ -118,6 +126,56 @@
         "types": "./dist/adapters/vercel.d.cts",
         "default": "./dist/adapters/vercel.cjs"
       }
+    },
+    "./lite": {
+      "import": {
+        "types": "./dist/lite.d.ts",
+        "default": "./dist/lite.js"
+      },
+      "require": {
+        "types": "./dist/lite.d.cts",
+        "default": "./dist/lite.cjs"
+      }
+    },
+    "./guard": {
+      "import": {
+        "types": "./dist/guard/index.d.ts",
+        "default": "./dist/guard/index.js"
+      },
+      "require": {
+        "types": "./dist/guard/index.d.cts",
+        "default": "./dist/guard/index.cjs"
+      }
+    },
+    "./spotlight": {
+      "import": {
+        "types": "./dist/spotlight/index.d.ts",
+        "default": "./dist/spotlight/index.js"
+      },
+      "require": {
+        "types": "./dist/spotlight/index.d.cts",
+        "default": "./dist/spotlight/index.cjs"
+      }
+    },
+    "./canary": {
+      "import": {
+        "types": "./dist/canary/index.d.ts",
+        "default": "./dist/canary/index.js"
+      },
+      "require": {
+        "types": "./dist/canary/index.d.cts",
+        "default": "./dist/canary/index.cjs"
+      }
+    },
+    "./ml": {
+      "import": {
+        "types": "./dist/ml/index.d.ts",
+        "default": "./dist/ml/index.js"
+      },
+      "require": {
+        "types": "./dist/ml/index.d.cts",
+        "default": "./dist/ml/index.cjs"
+      }
     }
   },
   "files": [
@@ -140,7 +198,8 @@
     "lint:fix": "eslint src tests --ext .ts --fix",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build && npm run test && npm run typecheck",
-    "bench": "npm run build && node bench/run.mjs"
+    "bench": "npm run build && node bench/run.mjs",
+    "size": "node bench/lib/size.mjs"
   },
   "peerDependencies": {
     "@anthropic-ai/sdk": ">=0.20.0",

@@ -1,4 +1,7 @@
-export { analyzePrompt, verifyPrompt, stripPrompt, scanToolDefinition } from './api.js';
+export { analyzePrompt, verifyPrompt, stripPrompt, scanToolDefinition, computeSeverity } from './api.js';
+export { analyzePromptWith } from './core/analyze.js';
+export { mlClassifier, createClassifier, predict, fuseVerdict, ML_RULE_ID } from './ml/index.js';
+export { normalize } from './normalizer.js';
 export { verifyPromptAsync } from './async.js';
 export { analyzeOutput } from './output.js';
 export { PromptInjectionError } from './error.js';
@@ -34,6 +37,8 @@ export type {
   AnalysisResult,
   AnalyzeOptions,
   AnalyzeRoles,
+  MlContribution,
+  MlMode,
   ChatMessage,
   ToolDefinition,
   PromptInput,
@@ -51,3 +56,13 @@ export type {
 } from './types.js';
 
 export type { ProtectionSession, ProtectionSessionOptions } from './session.js';
+export type { NormalizeResult } from './normalizer.js';
+export type { AnalyzeFn } from './core/analyze.js';
+export type { Classifier, ClassifierMeta, ClassifierThresholds, ModelMeta } from './ml/types.js';
+
+// Spotlighting + canaries (v3)
+export { spotlight, unspotlight, spotlightInstruction } from './spotlight/index.js';
+export { createCanary, injectCanary, detectCanary, promptSimilarity } from './canary/index.js';
+export type { SpotlightMode, SpotlightOptions, SpotlightResult } from './spotlight/index.js';
+export type { CreateCanaryOptions, InjectCanaryOptions, DetectCanaryOptions } from './canary/index.js';
+export type { Canary, CanaryDetection, CanaryVariant, PromptSimilarity } from './types.js';
