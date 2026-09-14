@@ -12,8 +12,8 @@ what the library can prove about itself and how it plugs into standards and fram
   `toolCallId`, `policy`, `reasons`, `sink` and value-free `flows`. `fallbackToSync` is a
   deprecated alias of `failMode: 'open'`.
 - **ReDoS proof.** Every shipped regex (148) is fuzzed with `recheck` in CI (`npm run test:redos`);
-  `vulnerable` fails, `unknown` passes only through a justified allowlist. The first run found 28
-  polynomial patterns in 3.0.0 — all rewritten to linear forms with no bench regression.
+  `vulnerable` fails, `unknown` passes only through a justified allowlist. The fuzzer found 29
+  polynomial patterns in 3.0.0 — all rewritten to linear forms with no bench regression; the allowlist is empty.
 - **ATR interop** (`prompt-protection/atr`, `prompt-protection/atr/yaml`). `loadAtrRules` compiles
   `agent-threat-rules` YAML (regex / contains / exact / starts_with) into `customRules`, honouring
   `scan_target`, `agent_source` (spec §5.1), status and the enforce lane; AND / named / behavioural
@@ -40,7 +40,7 @@ what the library can prove about itself and how it plugs into standards and fram
   block-recall, per-scenario breakdown, `--json`; new gate benign utility ≥ 85 %.
 
 ### Rules
-- `RULES_VERSION` 2026.09.15 — 28 patterns rewritten for linear-time matching (see ReDoS proof);
+- `RULES_VERSION` 2026.09.15 — 29 patterns rewritten for linear-time matching (see ReDoS proof);
   semantics preserved, benchmark unchanged.
 
 ### Deferred
