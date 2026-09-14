@@ -86,7 +86,7 @@ export async function createProtectionMcpServer(
 
   const server = new Server({
     name: 'prompt-protection',
-    version: '3.0.0',
+    version: '3.1.0',
   });
 
   server.registerTool(
