@@ -5,4 +5,5 @@ export { compileCondition, escapeRegExp, isSupportedOperator } from './compile.j
 export type { CompileOutcome } from './compile.js';
 export { AGENT_SOURCE_COMPAT, sourceCompatible } from './compat.js';
 export { RULES_VERSION } from '../patterns/version.js';
+export { RULE_MAPPINGS, withMappings } from '../patterns/mappings.js';
 export type * from './types.js';
