@@ -114,6 +114,19 @@ The library fails **closed**. If anything inside it throws — a rule, a policy,
 | LLM adapter (`verifyPromptAsync`) throws | rejects — nothing passes | sync verdict stands | openai-agents-js guardrails fail open on unexpected results ([#1810](https://github.com/openai/openai-agents-js/issues/1810), [#1816](https://github.com/openai/openai-agents-js/issues/1816), [#1803](https://github.com/openai/openai-agents-js/issues/1803)) |
 | Logger throws | verdict unchanged, `onLoggerError` called | same | Vercel AI SDK `onToolExecutionStart` swallows throws, so it cannot deny ([#15842](https://github.com/vercel/ai/issues/15842)) — use `toolApproval` / `wrapTools` |
 
+## Runtime compatibility
+
+Verified in CI on every push (`scripts/compat/`):
+
+| Runtime | How it is proven |
+|---|---|
+| Node 20 / 22 / 24 | full test suite + bench gate |
+| Bun (latest) | `bun scripts/compat/smoke.mjs` — rules verdict, guard decision, canary detection against the built package |
+| Deno 2 | `deno run --allow-read scripts/compat/smoke.mjs` |
+| Edge / browser | `node --experimental-vm-modules scripts/compat/no-globals.mjs` evaluates `dist/lite.js`, `dist/guard/index.js`, `dist/index.js` and `dist/canary/index.js` in a bare `vm` context with **no** `process`, `Buffer`, `require`, `setTimeout` or `fetch`, and a linker that rejects every import. Only `TextEncoder`, `atob`, `crypto` and core ECMAScript are available — the same surface Cloudflare Workers, Vercel Edge and browsers give you. |
+
+The library makes no network calls and reads no environment: `grep -rE "fetch\(|XMLHttpRequest|sendBeacon" dist/` returns nothing.
+
 ## Install
 
 ```bash
