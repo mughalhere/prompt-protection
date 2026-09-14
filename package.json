@@ -206,6 +206,26 @@
         "types": "./dist/atr/yaml.d.cts",
         "default": "./dist/atr/yaml.cjs"
       }
+    },
+    "./audit": {
+      "import": {
+        "types": "./dist/audit.d.ts",
+        "default": "./dist/audit.js"
+      },
+      "require": {
+        "types": "./dist/audit.d.cts",
+        "default": "./dist/audit.cjs"
+      }
+    },
+    "./otel": {
+      "import": {
+        "types": "./dist/otel/index.d.ts",
+        "default": "./dist/otel/index.js"
+      },
+      "require": {
+        "types": "./dist/otel/index.d.cts",
+        "default": "./dist/otel/index.cjs"
+      }
     }
   },
   "files": [
@@ -239,7 +259,8 @@
     "express": ">=4.0.0",
     "openai": ">=4.0.0",
     "react": ">=17.0.0",
-    "yaml": ">=2.0.0"
+    "yaml": ">=2.0.0",
+    "@opentelemetry/api": ">=1.4.0"
   },
   "peerDependenciesMeta": {
     "@anthropic-ai/sdk": {
@@ -261,6 +282,9 @@
       "optional": true
     },
     "yaml": {
+      "optional": true
+    },
+    "@opentelemetry/api": {
       "optional": true
     }
   },
