@@ -88,7 +88,7 @@ Latency: rule scan p99 about 0.1 ms, guard `checkToolCall` p99 about 3 ms with 6
 
 ## Datasets
 
-[`datasets/`](datasets/) is CC-BY-4.0 and disjoint from the test fixtures. `attacks.jsonl` has 130 rows across nine categories and 14 languages. `benign-hard.jsonl` has 155 benign prompts carrying trigger vocabulary, in NotInject's four categories plus developer jargon and security documentation. `agent-flows.jsonl` has 100 tool-call scenarios with the expected guard decision and the reason. `node datasets/validate.mjs` checks schema, uniqueness and disjointness from the fixtures.
+[`datasets/`](datasets/) is CC-BY-4.0 and disjoint from the test fixtures. It is also on the Hugging Face Hub as [promptprotection/agent-security-datasets](https://huggingface.co/datasets/promptprotection/agent-security-datasets), with a card built from the benchmark results. `attacks.jsonl` has 130 rows across nine categories and 14 languages. `benign-hard.jsonl` has 155 benign prompts carrying trigger vocabulary, in NotInject's four categories plus developer jargon and security documentation. `agent-flows.jsonl` has 100 tool-call scenarios with the expected guard decision and the reason. `node datasets/validate.mjs` checks schema, uniqueness and disjointness from the fixtures.
 
 ## Limitations
 
