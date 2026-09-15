@@ -3,6 +3,11 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
   entry: [
     'src/index.ts',
+    'src/lite.ts',
+    'src/guard/index.ts',
+    'src/spotlight/index.ts',
+    'src/canary/index.ts',
+    'src/ml/index.ts',
     'src/middleware/express.ts',
     'src/middleware/nextjs.ts',
     'src/react/usePromptProtection.ts',

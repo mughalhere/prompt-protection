@@ -6,6 +6,7 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/patterns/index.ts',  // barrel re-export, no executable functions
+    '!src/ml/weights.ts',      // generated model weights
   ],
   coverageThreshold: {
     global: {

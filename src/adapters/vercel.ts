@@ -1,5 +1,7 @@
 import { verifyPrompt } from '../api.js';
 import { analyzeOutput } from '../output.js';
+import { ToolCallBlockedError } from '../guard/errors.js';
+import type { Guard, GuardDecision } from '../guard/types.js';
 import type { LanguageModelMiddleware } from 'ai';
 import type { VerifyOptions, OutputAnalysisOptions } from '../types.js';
 
@@ -12,6 +14,31 @@ export interface PromptProtectionMiddlewareOptions extends VerifyOptions {
   scanOutput?: boolean;
   /** Options for the output scan when `scanOutput` is true. */
   outputOptions?: OutputAnalysisOptions;
+  /**
+   * Tool-call guard. Tool results in the prompt are tainted on the way in;
+   * tool calls in the response are checked on the way out. The middleware
+   * sees calls but cannot stop the SDK executing them, so pair it with
+   * `tools: guard.wrapTools(tools)` or `toolApproval: guard.vercelToolApproval()`.
+   */
+  guard?: Guard;
+  /** What to do with a blocked tool call: replace it with a refusal text part, or throw. Default: 'refuse'. */
+  onBlock?: 'refuse' | 'throw';
+}
+
+interface ToolResultPart {
+  type?: string;
+  toolCallId?: string;
+  toolName?: string;
+  output?: { type?: string; value?: unknown };
+  result?: unknown;
+}
+
+interface ToolCallPart {
+  type?: string;
+  toolCallId?: string;
+  toolName?: string;
+  input?: unknown;
+  args?: unknown;
 }
 
 /**
@@ -36,6 +63,43 @@ function extractUserText(prompt: unknown): string {
   return chunks.join('\n');
 }
 
+/** Registers every `tool-result` part of the prompt as an untrusted source. */
+function taintToolResults(prompt: unknown, guard: Guard): void {
+  if (!Array.isArray(prompt)) return;
+  for (const message of prompt as Array<{ role?: string; content?: unknown }>) {
+    if (message.role !== 'tool' || !Array.isArray(message.content)) continue;
+    for (const part of message.content as ToolResultPart[]) {
+      if (part.type !== 'tool-result') continue;
+      const value = part.output !== undefined ? part.output.value : part.result;
+      const name = part.toolName ?? 'tool';
+      guard.taint(name, value, part.toolCallId !== undefined ? { id: part.toolCallId } : {});
+    }
+  }
+}
+
+function parseArgs(part: ToolCallPart): unknown {
+  const raw = part.input !== undefined ? part.input : part.args;
+  if (typeof raw !== 'string') return raw ?? {};
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return raw;
+  }
+}
+
+function checkPart(part: ToolCallPart, guard: Guard): GuardDecision {
+  return guard.checkToolCall({
+    toolName: part.toolName ?? 'tool',
+    args: parseArgs(part),
+    ...(part.toolCallId !== undefined ? { toolCallId: part.toolCallId } : {}),
+  });
+}
+
+function refusalText(decision: GuardDecision): string {
+  const why = decision.policy ?? decision.reasons[0] ?? 'policy';
+  return `[prompt-protection] Tool call \`${decision.toolName}\` was blocked (${why}).`;
+}
+
 /**
  * Vercel AI SDK middleware that blocks malicious prompts before the model call.
  *
@@ -50,38 +114,86 @@ function extractUserText(prompt: unknown): string {
  *
  * `transformParams` runs `verifyPrompt` on the user text and throws
  * `PromptInjectionError` on a block, rejecting the generate/stream call. With
- * `scanOutput`, `wrapGenerate` additionally scans the completion.
+ * `scanOutput`, `wrapGenerate` additionally scans the completion. With `guard`,
+ * tool results are tainted and proposed tool calls are checked (advisory —
+ * enforce with `guard.wrapTools` / `guard.vercelToolApproval`).
  */
 export function promptProtectionMiddleware(
   options: PromptProtectionMiddlewareOptions = {},
 ): LanguageModelMiddleware {
-  const { scanOutput, outputOptions, ...verifyOptions } = options;
+  const { scanOutput, outputOptions, guard, onBlock = 'refuse', ...verifyOptions } = options;
 
   const middleware: LanguageModelMiddleware = {
     transformParams: ({ params }) => {
-      const text = extractUserText((params as { prompt?: unknown }).prompt);
+      const prompt = (params as { prompt?: unknown }).prompt;
+      if (guard) taintToolResults(prompt, guard);
+      const text = extractUserText(prompt);
       if (text.length > 0) verifyPrompt(text, verifyOptions);
       return Promise.resolve(params);
     },
   };
 
-  if (scanOutput) {
+  if (scanOutput || guard) {
     middleware.wrapGenerate = async ({ doGenerate }) => {
       const result = await doGenerate();
-      const parts = Array.isArray(result.content) ? result.content : [];
-      const text = parts
-        .filter((p): p is { type: 'text'; text: string } => (p as { type?: string }).type === 'text')
-        .map((p) => p.text)
-        .join('\n');
-      if (text.length > 0) {
-        const scan = analyzeOutput(text, outputOptions);
-        if (scan.action === 'block') {
-          throw new Error(
-            `prompt-protection: model output blocked (score ${scan.score}, ${scan.threats.join(', ')})`,
-          );
+      const parts: unknown[] = Array.isArray(result.content) ? [...result.content] : [];
+
+      if (guard) {
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i] as ToolCallPart;
+          if (part.type !== 'tool-call') continue;
+          const decision = checkPart(part, guard);
+          if (decision.action !== 'block') continue;
+          if (onBlock === 'throw') throw new ToolCallBlockedError(decision);
+          parts[i] = { type: 'text', text: refusalText(decision) };
         }
       }
-      return result;
+
+      if (scanOutput) {
+        const text = parts
+          .filter((p): p is { type: 'text'; text: string } => (p as { type?: string }).type === 'text')
+          .map((p) => p.text)
+          .join('\n');
+        if (text.length > 0) {
+          const scan = analyzeOutput(text, outputOptions);
+          if (scan.action === 'block') {
+            throw new Error(
+              `prompt-protection: model output blocked (score ${scan.score}, ${scan.threats.join(', ')})`,
+            );
+          }
+        }
+      }
+
+      return guard ? { ...result, content: parts as typeof result.content } : result;
+    };
+  }
+
+  if (guard) {
+    middleware.wrapStream = async ({ doStream }) => {
+      const streamed = await doStream();
+      const transform = new TransformStream<Record<string, unknown>, Record<string, unknown>>({
+        transform(chunk, controller) {
+          if (chunk.type !== 'tool-call') {
+            controller.enqueue(chunk);
+            return;
+          }
+          const decision = checkPart(chunk as ToolCallPart, guard);
+          if (decision.action !== 'block') {
+            controller.enqueue(chunk);
+            return;
+          }
+          if (onBlock === 'throw') {
+            controller.error(new ToolCallBlockedError(decision));
+            return;
+          }
+          const id = `pp-refusal-${(chunk as ToolCallPart).toolCallId ?? 'call'}`;
+          controller.enqueue({ type: 'text-start', id });
+          controller.enqueue({ type: 'text-delta', id, delta: refusalText(decision) });
+          controller.enqueue({ type: 'text-end', id });
+        },
+      });
+      const stream = (streamed.stream as unknown as ReadableStream<Record<string, unknown>>).pipeThrough(transform);
+      return { ...streamed, stream: stream as unknown as typeof streamed.stream };
     };
   }
 

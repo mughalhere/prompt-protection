@@ -1,0 +1,10 @@
+# Pinned for Python 3.13 / macOS arm64 (verified install 2026-09-14)
+scikit-learn==1.9.1
+numpy==2.5.3
+scipy==1.18.1
+pandas==3.0.5
+pyarrow==25.0.1
+datasets==5.0.1
+datasketch==2.0.0
+PyYAML==6.0.3
+huggingface_hub==1.31.0

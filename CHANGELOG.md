@@ -1,5 +1,76 @@
 # Changelog
 
+## [3.0.0] - 2026-09-14
+
+Category change, not a rule change. 2.x was a regex scanner; 3.0 is an agent security
+runtime whose primary mechanisms are not pattern matching. Every number below comes from
+`bench/results.json` and `training/REPORT.md`, including the bad ones.
+
+### Added
+- **Tool-call guard** (`prompt-protection/guard`, `createGuard`). CaMeL-style provenance:
+  tool results are labelled untrusted (`guard.taint`), user-named destinations are trusted
+  (`guard.trust` / `analyzeUserTurn`), and every model-proposed call is checked
+  (`guard.checkToolCall`) before execution. Flows are approximated across the model
+  boundary by identifier tracking (URLs, hosts, emails, paths, tokens), exact substring and
+  word/char shingle containment. Default policies block untrusted data reaching network /
+  email / message / exec / file-write sinks, require confirmation for payment sinks, flag a
+  sink call in the same turn as an injection-scored source, and enforce `guard.plan()`
+  tool allow-lists. `guard.wrapTools()` enforces at execution; `guard.vercelToolApproval()`
+  maps decisions onto the Vercel AI SDK `toolApproval` hook.
+- **Spotlighting** (`prompt-protection/spotlight`): `spotlight` / `unspotlight` /
+  `spotlightInstruction` in delimit, datamark and encode modes (arXiv 2403.14720). Composes
+  with the guard: datamarked results are unmarked before flow detection.
+- **Canaries** (`prompt-protection/canary`): `createCanary`, `injectCanary`, `detectCanary`
+  with exact / normalized / spaced / base64 / hex / reversed / partial variants, plus
+  `promptSimilarity` (shingle containment of the system prompt in the output).
+  `analyzeOutput` accepts `canary` and `systemPrompt` and reports `result.canary`.
+- **Embedded ML classifier** (`prompt-protection/ml`): hashed char 3–5-gram + word 1–2-gram
+  logistic regression, 65,536 int8 buckets (33 KB gz), FNV-1a hashing reproduced bit-for-bit
+  between Python training and JS inference (64 golden vectors under test). Exposed as
+  `mlClassifier`, `predict`, and `analyzePrompt(text, { ml: 'escalate' | 'hybrid' })`.
+  **Off by default** — see Known limitations.
+- **`prompt-protection/lite`**: rules-only entry (20 KB gz) for size-sensitive browsers.
+- **Datasets** (`datasets/`, CC-BY-4.0): 130 regex-evading attacks, 155 trigger-word benign
+  prompts in NotInject's categories, 100 agent tool-call flows with expected decisions.
+- **Benchmark**: regex / ml / hybrid side by side over local, published and external sets
+  (NotInject, in-the-wild sample), agent-flow agreement, bundle-size gate. Runs in CI.
+- **MCP server** tools `register_source`, `check_tool_call`, `spotlight_text`, `detect_canary`.
+- **Output rule `out-markdown-image-beacon`** (weight 8, medium precision — blocks on its own): a
+  markdown image whose URL carries a ≥16-char opaque query value — the zero-click exfil beacon the
+  existing `out-markdown-exfil-link` rule only caught when the parameter was literally named
+  `token`/`secret`. Found by the new output bench row `out-010`. Known trade-off: a signed CDN image
+  URL echoed in model output will trip it; exclude with `allowlistRules: ['out-markdown-image-beacon']`.
+- **Demo**: "Agent Guard" tab (user turn → tainted tool result → proposed call → decision) and the
+  embedded model's probability shown next to the rules verdict.
+- **Vercel middleware** `guard` and `onBlock` options: taints `tool-result` parts, checks
+  `tool-call` parts in generate and stream (advisory — enforce with `wrapTools`).
+
+### Changed (breaking)
+- `ThreatCategory` gains `'data-flow'`; `ProtectionEvent.type` gains `tool-call.*` and
+  `direction` gains `'tool-call'` (exhaustive switches need a case).
+- `AnalysisResult.ml?`, `OutputAnalysisResult.canary?` added. `computeSeverity` moves to
+  `src/core/analyze.ts` (still re-exported from the root).
+- MCP server version 3.0.0. Package description/keywords no longer lead with a rule count.
+- Sink inference: `http_*` tool names classify as `network` (previously `message` via `post`).
+
+### Known limitations (measured)
+- **Regex rules over-defend.** 19.4% false positives on `datasets/benign-hard.jsonl`
+  (questions about prompt injection, fiction, "admin access" in benign use) and 14.6% recall
+  on `datasets/attacks.jsonl`, which was written to evade proximity matching. NotInject
+  over-defence accuracy is 97.1%. These are now CI-gated at baseline and ratcheted down.
+- **The embedded model does not generalise yet.** 3-fold CV F1 0.98 in-distribution, but
+  leave-one-dataset-out F1 0.53 and in-the-wild AUROC 0.67; recall 19% on our attacks set at
+  24.5% in-the-wild FPR. Two training rounds: adding hackaprompt (7.8k attacks after dedupe)
+  raised recall and false positives together and left cross-dataset F1 flat. Hashed n-grams
+  do not transfer across jailbreak genres. Shipped for transparency and so the pipeline is
+  reproducible; `ml` defaults to `'off'` until a model clears the external bench
+  (in-the-wild recall ≥ 80% at an FPR clearly below the rules'). Enable with `{ ml: 'escalate' }`.
+- **The guard is a policy layer, not an isolation boundary.** It cannot see flows through
+  the model's hidden state, paraphrased content with no shared identifiers, or sources it
+  was never told about. A recipient lifted from a tool result ("reply to them") is
+  indistinguishable from an attacker address and blocks by default; call `guard.trust()`
+  or swap in a confirm policy. One agent-flow row (`af-037`) is a documented miss.
+
 ## [2.0.1] - 2026-09-08
 
 Benchmark-integrity release. No rule or API changes — the detection behaviour of

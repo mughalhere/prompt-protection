@@ -9,7 +9,7 @@ describe('createProtectionMcpServer', () => {
     expect(typeof server.close).toBe('function');
   });
 
-  it('registers the three scanning tools', async () => {
+  it('registers the scanning and agent-security tools', async () => {
     const server = await createProtectionMcpServer();
     // The SDK exposes registered tools on the underlying server capabilities;
     // registering is validated by connecting an in-memory transport pair.
@@ -25,7 +25,15 @@ describe('createProtectionMcpServer', () => {
 
     const tools = await client.listTools();
     const names = tools.tools.map((t) => t.name).sort();
-    expect(names).toEqual(['scan_output', 'scan_prompt', 'scan_tool_definition']);
+    expect(names).toEqual([
+      'check_tool_call',
+      'detect_canary',
+      'register_source',
+      'scan_output',
+      'scan_prompt',
+      'scan_tool_definition',
+      'spotlight_text',
+    ]);
 
     await client.close();
     await server.close();

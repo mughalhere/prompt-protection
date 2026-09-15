@@ -55,7 +55,7 @@
 <table>
 <thead><tr><th>Tool</th><th>Language</th><th>Model</th><th>Latency</th><th>Privacy</th><th>Cost</th></tr></thead>
 <tbody>
-<tr><td><strong>prompt-protection</strong></td><td>TS / JS</td><td>In-process, rules</td><td>Sub-ms</td><td>Nothing leaves</td><td>Free (MIT)</td></tr>
+<tr><td><strong>prompt-protection</strong></td><td>TS / JS</td><td>In-process: provenance-tracked tool-call guard, spotlighting, canaries, rules + embedded ML (off by default)</td><td>Sub-ms scan, ~3 ms guard</td><td>Nothing leaves</td><td>Free (MIT)</td></tr>
 <tr><td>Rebuff</td><td>Python / JS</td><td>Hybrid: heuristics + LLM + vector DB</td><td>Mixed</td><td>Depends on mode</td><td>OSS + hosted</td></tr>
 <tr><td>LLM Guard</td><td>Python</td><td>In-process, ML models</td><td>10s–100s ms</td><td>Nothing leaves</td><td>Free (MIT)</td></tr>
 <tr><td>Lakera Guard</td><td>API (any)</td><td>Hosted classifier</td><td>Network RTT</td><td>Prompts sent to Lakera</td><td>Commercial</td></tr>
