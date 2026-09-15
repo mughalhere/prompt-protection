@@ -53,7 +53,7 @@ against the published list.
 - **Semantic paraphrase without shared identifiers.** Tainted prose rewritten so it shares no URL, email, path, token or 6-word shingle with its source is invisible to the guard.
 - **Encodings the normaliser does not undo** (rot13, chunk reordering, translation) defeat containment.
 - **Perfect recipient intent.** "Reply to them" leaves the recipient derived from the source, the same shape as attacker exfil; the default blocks and the harness should `trust()` the sender or install a confirm policy.
-- **Attacks without a sink** — persuasion, misinformation, content policy — are out of scope.
+- **Attacks without a sink**: persuasion, misinformation, content policy, are out of scope.
 
 ## Failure semantics
 

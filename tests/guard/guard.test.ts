@@ -215,7 +215,7 @@ describe('spotlight composition', () => {
 });
 
 describe('latency', () => {
-  it('checkToolCall stays under 50 ms p99 with 64 sources of ~3 KB (sanity bound; ~3 ms locally, ~16 ms on 2-vCPU CI under coverage — bench holds the real number)', () => {
+  it('checkToolCall stays under 50 ms p99 with 64 sources of ~3 KB (sanity bound; ~3 ms locally, ~16 ms on 2-vCPU CI under coverage, bench holds the real number)', () => {
     const guard = createGuard();
     const para = 'Quarterly notes and vendor updates for the platform team. '.repeat(50);
     for (let i = 0; i < 64; i++) guard.taint(`doc_${i}`, `${para} https://vendor${i}.example/report`);

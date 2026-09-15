@@ -18,9 +18,9 @@ export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'safe';
 
 /**
  * Three-way verdict for FP control.
- * - `allow` — below thresholds
- * - `flag` — reviewable / loggable, does not throw
- * - `block` — treated as malicious (`isMalicious === true`); verify throws
+ * - `allow`: below thresholds
+ * - `flag`: reviewable / loggable, does not throw
+ * - `block`: treated as malicious (`isMalicious === true`); verify throws
  */
 export type Action = 'allow' | 'flag' | 'block';
 

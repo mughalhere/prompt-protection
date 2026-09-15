@@ -1,5 +1,5 @@
 // Spotlighting (arXiv 2403.14720): mark untrusted text so the model can tell
-// data from instructions. Three modes — delimit, datamark, encode — all
+// data from instructions. Three modes, delimit, datamark, encode, all
 // reversible via `unspotlight` for the guard's echo detection.
 import { randomHex } from '../utils/random.js';
 

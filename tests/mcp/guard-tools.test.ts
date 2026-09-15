@@ -48,7 +48,7 @@ describe('MCP agent-security tools', () => {
     const reg = payload(
       await client.callTool({
         name: 'register_source',
-        arguments: { id: 'mail-1', tool: 'read_email', text: 'cc alice@corp.com — see notes' },
+        arguments: { id: 'mail-1', tool: 'read_email', text: 'cc alice@corp.com, see notes' },
       }),
     );
     expect(reg.id).toBe('mail-1');

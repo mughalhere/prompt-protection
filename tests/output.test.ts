@@ -110,7 +110,7 @@ describe('analyzeOutput', () => {
 
     it('does not flag benign "act as" in hypothetical context', () => {
       const result = analyzeOutput('You can think of it as: act as a proxy between client and server.');
-      // Low-weight single match — should not breach threshold
+      // Low-weight single match, should not breach threshold
       expect(result.score).toBeLessThan(50);
     });
   });

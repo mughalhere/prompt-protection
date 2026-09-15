@@ -103,7 +103,7 @@ export async function createProtectionMcpServer(
     'scan_tool_definition',
     {
       description:
-        'Scan a tool/function definition (name, description, parameter schema) for tool poisoning — hidden instructions, concealment directives, or exfiltration embedded in the metadata. Call before trusting a newly discovered tool.',
+        'Scan a tool/function definition (name, description, parameter schema) for tool poisoning, hidden instructions, concealment directives, or exfiltration embedded in the metadata. Call before trusting a newly discovered tool.',
       inputSchema: {
         name: z.string().optional(),
         description: z.string().optional(),
