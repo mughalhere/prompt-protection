@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DATASETS = ROOT / "datasets"
 STAGING = ROOT / "training" / "hf_staging"
 FILES = ["attacks.jsonl", "benign-hard.jsonl", "agent-flows.jsonl"]
+DEFAULT_REPO = "promptprotection/agent-security-datasets"  # the Hugging Face organisation
 
 
 def pct(x: float | None) -> str:
@@ -57,11 +58,23 @@ def stage() -> None:
     print(f"staged {len(FILES)} files + card in {STAGING}")
 
 
-def upload(repo: str) -> None:
+def upload(repo: str | None) -> None:
     from huggingface_hub import HfApi  # dev-time dependency
 
     api = HfApi()
-    api.create_repo(repo, repo_type="dataset", exist_ok=True)
+    if repo is None:
+        repo = DEFAULT_REPO
+    try:
+        api.create_repo(repo, repo_type="dataset", exist_ok=True)
+    except Exception as err:  # noqa: BLE001
+        if "403" not in str(err):
+            raise
+        namespace = repo.split("/", 1)[0]
+        raise SystemExit(
+            f"403 creating {repo}. The token has no write rights on the '{namespace}' namespace.\n"
+            "Fix: huggingface.co/settings/tokens -> edit the token -> Organization permissions -> "
+            f"add '{namespace}' with Repos write. Or pass --repo <your-username>/<name> to publish under your own account."
+        ) from err
     api.upload_folder(folder_path=str(STAGING), repo_id=repo, repo_type="dataset")
     print(f"uploaded to https://huggingface.co/datasets/{repo}")
 
@@ -69,7 +82,7 @@ def upload(repo: str) -> None:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--upload", action="store_true", help="upload staged folder (needs HF_TOKEN)")
-    ap.add_argument("--repo", default="prompt-protection/agent-security-datasets")
+    ap.add_argument("--repo", default=None, help="<namespace>/<name>; default promptprotection/agent-security-datasets")
     args = ap.parse_args()
     stage()
     if args.upload:
