@@ -13,3 +13,5 @@ demo/.vite/
 
 # Private promotion notes — never published, never committed
 /docs/promotion/
+training/.venv/
+training/data/
