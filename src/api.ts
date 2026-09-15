@@ -31,7 +31,7 @@ function flattenToolDefinition(tool: ToolDefinition): string {
     try {
       parts.push(JSON.stringify(schema));
     } catch {
-      /* circular or non-serialisable schema — skip it */
+      /* circular or non-serialisable schema, skip it */
     }
   }
   return parts.join('\n');
@@ -39,7 +39,7 @@ function flattenToolDefinition(tool: ToolDefinition): string {
 
 /**
  * Scans a tool / function **definition** (name, description, parameter schema)
- * for poisoning — hidden instructions, concealment directives, exfiltration, and
+ * for poisoning, hidden instructions, concealment directives, exfiltration, and
  * injection embedded in tool metadata that an agent reads but the user never
  * sees. Uses the tool-poisoning rule set plus injection/exfiltration rules.
  *

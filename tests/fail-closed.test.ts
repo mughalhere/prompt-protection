@@ -4,7 +4,7 @@ import { verifyPromptAsync } from '../src/async';
 import { PromptInjectionError } from '../src/error';
 import type { ProtectionEvent } from '../src/types';
 
-/** A regex whose `.source` getter throws — the scorer reads it when compiling allowlist patterns. */
+/** A regex whose `.source` getter throws, the scorer reads it when compiling allowlist patterns. */
 function faultyPattern(): RegExp {
   return new Proxy(/x/, {
     get(target, prop, receiver) {

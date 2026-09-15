@@ -35,7 +35,7 @@ for (const r of rows) console.log(`${r.entry.padEnd(36)}${kb(r.raw)} ${kb(r.gz)}
 
 const core = rows.find((r) => r.entry === CORE);
 if (!core) {
-  console.error(`size: dist/${CORE} not found — run the build first`);
+  console.error(`size: dist/${CORE} not found, run the build first`);
   process.exit(1);
 }
 if (core.gz > FAIL_BYTES) {
@@ -43,6 +43,6 @@ if (core.gz > FAIL_BYTES) {
   process.exit(1);
 }
 if (core.gz > WARN_BYTES) {
-  console.warn(`size: warning — dist/${CORE} is ${core.gz} B gz, over the ${WARN_BYTES} B target`);
+  console.warn(`size: warning, dist/${CORE} is ${core.gz} B gz, over the ${WARN_BYTES} B target`);
 }
 console.log(`size: dist/${CORE} ${core.gz} B gz (ceiling ${FAIL_BYTES})`);

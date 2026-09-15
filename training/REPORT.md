@@ -1,4 +1,4 @@
-# Training report — prompt-protection v3 embedded classifier
+# Training report, prompt-protection v3 embedded classifier
 
 Shipped: **65536 buckets**, dense int8 (`src/ml/weights.ts`). Selection rule: >=1.0 pp LODO-F1 gain AND <=80 KB gz int8, else smallest; measured LODO-F1 gain big vs small = +0.00 pp.
 
@@ -30,14 +30,14 @@ Export sizes: `weights.ts` 87994 B (41364 B gz); raw int8 65536 B (33696 B gz).
 
 | source | N | pos | recall | precision | F1 | FPR | AUROC | note |
 |---|---|---|---|---|---|---|---|---|
-| benign_dolly | 5367 | 0 | — | 0.0000 | — | 0.41% | — | benign-only source: FPR is the number |
-| benign_gutenberg | 1356 | 0 | — | 0.0000 | — | 1.03% | — | benign-only source: FPR is the number |
-| benign_oasst | 4358 | 0 | — | 0.0000 | — | 3.12% | — | benign-only source: FPR is the number |
-| benign_tatoeba | 2254 | 0 | — | 0.0000 | — | 0.53% | — | benign-only source: FPR is the number |
-| benign_wikitext | 2234 | 0 | — | 0.0000 | — | 0.04% | — | benign-only source: FPR is the number |
+| benign_dolly | 5367 | 0 |, | 0.0000 |, | 0.41% |, | benign-only source: FPR is the number |
+| benign_gutenberg | 1356 | 0 |, | 0.0000 |, | 1.03% |, | benign-only source: FPR is the number |
+| benign_oasst | 4358 | 0 |, | 0.0000 |, | 3.12% |, | benign-only source: FPR is the number |
+| benign_tatoeba | 2254 | 0 |, | 0.0000 |, | 0.53% |, | benign-only source: FPR is the number |
+| benign_wikitext | 2234 | 0 |, | 0.0000 |, | 0.04% |, | benign-only source: FPR is the number |
 | deepset | 574 | 210 | 0.1381 | 0.9667 | 0.2417 | 0.27% | 0.7635 |  |
-| gandalf | 892 | 892 | 0.8969 | 1.0000 | 0.9456 | — | — |  |
-| hackaprompt | 7070 | 7070 | 0.2537 | 1.0000 | 0.4048 | — | — |  |
+| gandalf | 892 | 892 | 0.8969 | 1.0000 | 0.9456 |, |, |  |
+| hackaprompt | 7070 | 7070 | 0.2537 | 1.0000 | 0.4048 |, |, |  |
 | jackhhao | 572 | 1 | 1.0000 | 0.0185 | 0.0364 | 9.28% | 0.9650 | <50 pos: excluded from headline |
 | spml | 7165 | 5624 | 0.1353 | 0.9896 | 0.2381 | 0.52% | 0.7263 | drop-only: labels relative to a paired system prompt; reported separately, not in headline |
 
@@ -76,9 +76,9 @@ Headline LODO F1 (mean over sources with ≥50 positives, excluding drop-only): 
 | set | N | pos | @block: recall | @block: precision | @block: FPR | @block: F1 | @flag: recall | @flag: FPR | @flag: F1 | AUROC | float @block F1 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | in_the_wild | 14477 | 1356 | 0.4963 | 0.1732 | 24.48% | 0.2568 | 0.7087 | 46.85% | 0.2271 | 0.6660 | 0.2559 |
-| notinject | 339 | 0 | — | 0.0000 | 7.67% | — | — | 20.35% | — | — | — |
-| local_attacks | 130 | 130 | 0.1923 | 1.0000 | — | 0.3226 | 0.3308 | — | 0.4971 | — | 0.3226 |
-| local_benign_hard | 155 | 0 | — | 0.0000 | 8.39% | — | — | 14.84% | — | — | — |
+| notinject | 339 | 0 |, | 0.0000 | 7.67% |, |, | 20.35% |, |, |, |
+| local_attacks | 130 | 130 | 0.1923 | 1.0000 |, | 0.3226 | 0.3308 |, | 0.4971 |, | 0.3226 |
+| local_benign_hard | 155 | 0 |, | 0.0000 | 8.39% |, |, | 14.84% |, |, |, |
 
 NotInject over-defence accuracy (1 − FPR): **92.33% at block**, **79.65% at flag**.
 

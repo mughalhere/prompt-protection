@@ -18,7 +18,7 @@ const allowed = new Map(allowlist.map((e) => [`${e.flags}/${e.source}`, e]));
 const regexes = collectRegexes();
 const tally = { safe: 0, allowlisted: 0 };
 
-describe(`ReDoS safety — ${regexes.length} regexes fuzzed with recheck`, () => {
+describe(`ReDoS safety, ${regexes.length} regexes fuzzed with recheck`, () => {
   it.each(regexes.map((r) => [`${r.owner}/${r.id}`, r] as const))('%s', (_name, r) => {
     const result = checkSync(r.source, r.flags, { checker: 'auto', timeout: 30000 });
     if (result.status === 'safe') {
@@ -27,12 +27,12 @@ describe(`ReDoS safety — ${regexes.length} regexes fuzzed with recheck`, () =>
     }
     if (result.status === 'vulnerable') {
       const attack = 'attack' in result ? JSON.stringify(result.attack).slice(0, 200) : '';
-      throw new Error(`VULNERABLE ${r.owner}/${r.id} /${r.source}/${r.flags} — ${result.complexity?.summary ?? ''} ${attack}`);
+      throw new Error(`VULNERABLE ${r.owner}/${r.id} /${r.source}/${r.flags}, ${result.complexity?.summary ?? ''} ${attack}`);
     }
     const entry = allowed.get(`${r.flags}/${r.source}`);
     if (!entry) {
       const kind = 'error' in result ? JSON.stringify(result.error) : 'unknown';
-      throw new Error(`UNKNOWN (not allowlisted) ${r.owner}/${r.id} /${r.source}/${r.flags} — ${kind}`);
+      throw new Error(`UNKNOWN (not allowlisted) ${r.owner}/${r.id} /${r.source}/${r.flags}, ${kind}`);
     }
     tally.allowlisted++;
   });

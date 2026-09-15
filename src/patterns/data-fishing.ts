@@ -12,7 +12,7 @@ export const dataFishingRules: PatternRule[] = [
   {
     id: 'fishing-ask-password',
     category: 'data-fishing',
-    // Interrogative credential asks — requires a privileged qualifier to avoid
+    // Interrogative credential asks, requires a privileged qualifier to avoid
     // benign "what's the password for my wifi?" style prompts
     pattern:
       /(what('?s|\s+is)|tell\s+me|reveal|share)\s+(me\s+)?(the\s+)?(root|admin|system|master|superuser|database|db|server)\s+password(s)?|((what('?s|\s+is)|tell\s+me|reveal|share)\s+(me\s+)?(the\s+)?password(s)?\s+(to|for|of)\s+(the\s+)?(root|admin|system|master|superuser|database|db|server|privileged))/,

@@ -35,7 +35,7 @@ export interface UsePromptProtectionResult {
 
 /**
  * React hook for client-side prompt protection.
- * Runs fully offline — zero network calls.
+ * Runs fully offline, zero network calls.
  * Flagged prompts set `result.action` to `'flag'` but do not throw.
  *
  * @example
