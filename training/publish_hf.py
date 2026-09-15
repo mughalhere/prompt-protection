@@ -57,10 +57,13 @@ def stage() -> None:
     print(f"staged {len(FILES)} files + card in {STAGING}")
 
 
-def upload(repo: str) -> None:
+def upload(repo: str | None) -> None:
     from huggingface_hub import HfApi  # dev-time dependency
 
     api = HfApi()
+    if repo is None:
+        # Default to the logged-in user's namespace; an org namespace needs explicit --repo.
+        repo = f"{api.whoami()['name']}/prompt-protection-datasets"
     api.create_repo(repo, repo_type="dataset", exist_ok=True)
     api.upload_folder(folder_path=str(STAGING), repo_id=repo, repo_type="dataset")
     print(f"uploaded to https://huggingface.co/datasets/{repo}")
@@ -69,7 +72,7 @@ def upload(repo: str) -> None:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--upload", action="store_true", help="upload staged folder (needs HF_TOKEN)")
-    ap.add_argument("--repo", default="prompt-protection/agent-security-datasets")
+    ap.add_argument("--repo", default=None, help="<namespace>/<name>; defaults to <your-username>/prompt-protection-datasets")
     args = ap.parse_args()
     stage()
     if args.upload:
