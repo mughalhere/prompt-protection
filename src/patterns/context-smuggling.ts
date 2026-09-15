@@ -76,7 +76,7 @@ export const contextSmugglingRules: PatternRule[] = [
   {
     id: 'smuggling-real-question',
     category: 'context-smuggling',
-    // "my real / actual question is" — meta-admission of smuggling
+    // "my real / actual question is", meta-admission of smuggling
     pattern:
       /\b(my\s+(real|actual|main|true)\s+(question|request|problem|issue)\s+is|what\s+i\s+(really|actually)\s+(need|want)\s+is|the\s+(real|actual|main)\s+reason\s+i('?m|\s+am)\s+(asking|here)\s+is)/i,
     weight: 4,

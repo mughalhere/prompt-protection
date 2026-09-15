@@ -7,20 +7,20 @@ generalisation rather than memorisation. JSONL, one object per line, UTF-8.
 
 ## Files
 
-### `agent-flows.jsonl` — tool-call guard scenarios (100: 50 attack / 50 benign)
+### `agent-flows.jsonl`, tool-call guard scenarios (100: 50 attack / 50 benign)
 Each row is a full agent turn: the user's instruction, the tool results (`sources`, which
 may carry an injection), the tool `call` the model wants to make, an explicit `sinks` map
 (tool → `network|email|message|file-write|exec|payment|none`), and the expected guard
 decision. Fields: `id, label, scenario, user, sources[], call{toolName,args}, sinks,
 expect (block|flag|allow), expect_reason, notes`.
 
-### `benign-hard.jsonl` — over-defense discipline (155, all `label:0`)
+### `benign-hard.jsonl`, over-defense discipline (155, all `label:0`)
 Legitimate prompts that *contain* injection trigger vocabulary ("ignore", "override",
 "jailbreak", "system prompt"). Categories: `common-query, technique-query,
 virtual-creation, multilingual, dev-jargon, security-docs`. A guard that blocks these is
 over-defending. Fields: `id, label, category, text, triggers[]`.
 
-### `attacks.jsonl` — regex-evading attacks (130, all `label:1`)
+### `attacks.jsonl`, regex-evading attacks (130, all `label:1`)
 Attacks a keyword scanner tends to miss: paraphrased overrides with no canonical phrase,
 persona jailbreaks with no trigger words, encoding/obfuscation (base64, homoglyph,
 zero-width, ROT13, hex, spaced), indirect injections embedded in realistic
@@ -50,4 +50,4 @@ Licensed **CC-BY-4.0** (see `LICENSE`). If you use this corpus, please cite:
 ## Contributing
 Add rows that keep each file's schema and stay disjoint from the fixtures; prefer techniques
 a pure-regex scanner would miss for `attacks`, and realistic legitimate uses of trigger
-vocabulary for `benign-hard`. Run the validator before opening a PR — it must print `OK`.
+vocabulary for `benign-hard`. Run the validator before opening a PR, it must print `OK`.

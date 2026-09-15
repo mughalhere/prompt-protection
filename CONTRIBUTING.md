@@ -58,7 +58,7 @@ Open the appropriate file in `src/patterns/`. Add a new `PatternRule` object:
 | 5–6 | Moderate signal, possible false positives |
 | 1–4 | Weak signal, use with caution |
 
-A single rule at weight ≥ 8 crosses the default threshold (35) and will block the prompt. At weight 6 a single rule scores ~33 — below the threshold. Two weight-6 rules score ~48 — above. Design weights accordingly.
+A single rule at weight ≥ 8 crosses the default threshold (35) and will block the prompt. At weight 6 a single rule scores ~33, below the threshold. Two weight-6 rules score ~48: above. Design weights accordingly.
 
 ### 2. Test the regex against the normalizer
 
@@ -112,7 +112,7 @@ All 3 must pass before opening a PR.
 - Use `\s+` instead of ` ` to handle collapsed whitespace
 - Use `\b` word boundaries to avoid partial matches
 - Keep `.{0,N}` spans small (≤ 40 chars) to avoid catastrophic backtracking
-- Avoid lookaheads/lookbehinds unless necessary — they are supported but add complexity
+- Avoid lookaheads/lookbehinds unless necessary: they are supported but add complexity
 - Test your regex against both the attack and common benign phrases before submitting
 
 ## Reporting False Positives
@@ -121,15 +121,15 @@ If a legitimate prompt is being blocked, open a [pattern request issue](https://
 
 ## Pull Request Guidelines
 
-1. One logical change per PR (new rule, bug fix, refactor — not mixed)
+1. One logical change per PR (new rule, bug fix, refactor, not mixed)
 2. PR title: `feat(patterns): add rule for X`, `fix: handle Y edge case`, etc.
 3. Include the `analyzePrompt()` output for any new or changed prompts in the PR description
 4. Do not lower the coverage thresholds in `jest.config.cjs`
 
 ## Code Style
 
-- TypeScript strict mode — no `any` without justification
-- No comments explaining *what* the code does — only *why* when non-obvious
+- TypeScript strict mode: no `any` without justification
+- No comments explaining *what* the code does, only *why* when non-obvious
 - Run `npm run lint:fix` before committing
 
 ## Maintainers: `main`, CI, and npm

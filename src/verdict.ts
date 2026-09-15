@@ -37,7 +37,7 @@ export function resolveAction(
   const wouldBlock = score >= threshold;
 
   if (wouldBlock) {
-    // Empty matches + threshold 0 (or similar) — preserve legacy "everything blocked" behaviour
+    // Empty matches + threshold 0 (or similar), preserve legacy "everything blocked" behaviour
     if (matches.length === 0 || precisionAllowsBlock(matches)) {
       return 'block';
     }

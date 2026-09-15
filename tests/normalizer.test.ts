@@ -59,7 +59,7 @@ describe('normalizer', () => {
 
     it('does not decode short base64-like strings', () => {
       const { normalized } = normalize('the code is: abc123');
-      // Should not crash — homoglyphs will transform digits (1→i, 3→e)
+      // Should not crash, homoglyphs will transform digits (1→i, 3→e)
       expect(normalized).toContain('the code is:');
     });
   });

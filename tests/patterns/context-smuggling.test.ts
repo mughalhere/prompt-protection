@@ -156,7 +156,7 @@ describe('context-smuggling patterns', () => {
   });
 
   // ------------------------------------------------------------------ //
-  // Combined score test — smuggling amplifies data-fishing
+  // Combined score test, smuggling amplifies data-fishing
   // ------------------------------------------------------------------ //
   describe('combined score: smuggling + content rule', () => {
     it('flags as malicious when smuggling pivot + harmful content both trigger', () => {

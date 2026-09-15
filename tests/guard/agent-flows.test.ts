@@ -54,7 +54,7 @@ describe('agent-flows.jsonl (data-driven)', () => {
         if (d.action === 'block') benignBlocked++;
       }
       if (d.action !== row.expect && row.known_miss !== undefined) {
-        knownMisses.push(`${row.id}: expected ${row.expect} got ${d.action} — ${row.known_miss}`);
+        knownMisses.push(`${row.id}: expected ${row.expect} got ${d.action}, ${row.known_miss}`);
       } else if (d.action !== row.expect) {
         mismatches.push(
           `${row.id}: expected ${row.expect} (${row.expect_reason}) got ${d.action}` +

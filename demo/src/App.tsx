@@ -148,7 +148,7 @@ function OutputScoreMeter({ score, severity, isSuspicious }: { score: number; se
       </div>
       <div className={styles.scoreSubtext}>
         {isSuspicious
-          ? 'Output flagged — LLM response may be compromised'
+          ? 'Output flagged, LLM response may be compromised'
           : 'Output appears clean'}
       </div>
     </div>
@@ -284,7 +284,7 @@ export default function App() {
             <span className={styles.shield}>🛡️</span>
             <div>
               <h1 className={styles.title}>prompt-protection</h1>
-              <p className={styles.subtitle}>Detect and strip malicious LLM prompts — zero dependencies</p>
+              <p className={styles.subtitle}>Detect and strip malicious LLM prompts, zero dependencies</p>
             </div>
           </div>
           <div className={styles.headerLinks}>
@@ -403,7 +403,7 @@ export default function App() {
                     <div className={styles.section}>
                       <div className={styles.sectionTitle}>Embedded model (advisory, off by default)</div>
                       <p className={styles.panelHint}>
-                        P(malicious) = {mlProbability.toFixed(3)} — does not affect the verdict above; enable with{' '}
+                        P(malicious) = {mlProbability.toFixed(3)}, does not affect the verdict above; enable with{' '}
                         <code>{"{ ml: 'escalate' }"}</code>.
                       </p>
                     </div>

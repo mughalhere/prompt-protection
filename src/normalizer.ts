@@ -24,7 +24,7 @@ function buildIndexMap(original: string, normalized: string): number[] {
 
   for (let normIdx = 0; normIdx < normalized.length; normIdx++) {
     // Once the original is exhausted (e.g. decode-appended content with no
-    // counterpart), every remaining char is a miss — clamp in O(1) instead of
+    // counterpart), every remaining char is a miss, clamp in O(1) instead of
     // rescanning the whole tail per char. Produces the same value the forward
     // scan would (Math.min(origIdx, length-1) with origIdx past the end).
     if (origIdx >= origLower.length) {
@@ -47,7 +47,7 @@ function buildIndexMap(original: string, normalized: string): number[] {
       map.push(found);
       origIdx = found + 1;
     } else {
-      // Decoded/appended content with no original counterpart — clamp to last known
+      // Decoded/appended content with no original counterpart, clamp to last known
       map.push(Math.max(0, Math.min(origIdx, original.length - 1)));
     }
   }

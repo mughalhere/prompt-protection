@@ -2,13 +2,13 @@
 
 ## Scope
 
-This package is a **policy layer** inside your process — a provenance-tracked tool-call guard plus detection heuristics. It is not an isolation boundary. The guard cannot see flows through the model's hidden state, paraphrased content that shares no identifiers with its source, or sources you never registered; the rules can be bypassed by novel phrasing. Do not use it as your sole defence. The full model is in [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
+This package is a **policy layer** inside your process, a provenance-tracked tool-call guard plus detection heuristics. It is not an isolation boundary. The guard cannot see flows through the model's hidden state, paraphrased content that shares no identifiers with its source, or sources you never registered; the rules can be bypassed by novel phrasing. Do not use it as your sole defence. The full model is in [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 
 Actions are three-way (`allow` / `flag` / `block`; the guard adds `requiresConfirmation`) so medium-confidence hits can be reviewed without being treated as definitive blocks. Flagged traffic should still be monitored via the optional logger or the audit log.
 
 ## Failure semantics
 
-The library **fails closed**. Any internal throw — a rule, a policy, a sink resolver, a classifier adapter — yields `block` with a synthetic `internal-error` match and `result.error` set, and the logged event carries the error. `failMode: 'open'` opts a call into pass-through with the error still reported. A throwing logger never changes a verdict. Details and a comparison table are in the README under "Failure semantics".
+The library **fails closed**. Any internal throw: a rule, a policy, a sink resolver, a classifier adapter, yields `block` with a synthetic `internal-error` match and `result.error` set, and the logged event carries the error. `failMode: 'open'` opts a call into pass-through with the error still reported. A throwing logger never changes a verdict. Details and a comparison table are in the README under "Failure semantics".
 
 ## Regular-expression safety
 
@@ -28,7 +28,7 @@ transitive packages.
   `@modelcontextprotocol/sdk`, `ai`, `yaml`, `@opentelemetry/api`) is marked
   `optional: true` in `peerDependenciesMeta`, so npm does not install them on
   your behalf. Each is needed only by the matching adapter, middleware, hook,
-  MCP server, ATR YAML loader or OpenTelemetry bridge — and each of those loads
+  MCP server, ATR YAML loader or OpenTelemetry bridge, and each of those loads
   it via a lazy dynamic `import()` at call time.
 - Every release publishes a CycloneDX SBOM (`sbom.cdx.json`) as a GitHub
   release asset alongside the npm provenance attestation.
@@ -67,7 +67,7 @@ rather than suppressing the alert classes outright, so that a genuinely
 malicious future dependency still trips them.
 
 If you find a scanner alert that points at code inside `dist/`, that is a real
-finding — please report it using the process below.
+finding: please report it using the process below.
 
 ## Reporting a Vulnerability
 
@@ -88,6 +88,6 @@ We will respond within 72 hours and aim to publish a fix within 7 days for criti
 |---|---|
 | 3.1.x | all |
 | 3.0.x | critical guard bypasses for 90 days after 3.1.0 |
-| ≤ 2.x | none — upgrade |
+| ≤ 2.x | none, upgrade |
 
 Rule-pack changes are pinned: `RULES_VERSION` (exported from the root) changes whenever any rule id, pattern, weight or precision changes, and `tests/patterns/rules-version.test.ts` fails if a rule changes without it.

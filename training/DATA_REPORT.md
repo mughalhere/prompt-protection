@@ -1,4 +1,4 @@
-# Data report — prompt-protection v3 training corpus
+# Data report, prompt-protection v3 training corpus
 
 Generated 2026-09-14 by `make fetch mine-benign dedupe` (seed 42). Licences verified live from the
 Hugging Face dataset card (`HfApi.dataset_info(...).card_data.license`; for a licence list the first
@@ -12,11 +12,11 @@ allowlisted entry is recorded). Raw numbers: `data/raw/fetch_summary.json`, `dat
 | deepset | deepset/prompt-injections | apache-2.0 | train | 662 | 662 | 263 / 399 | 0 | 11 | 11 | 640 | 241 / 399 | |
 | jackhhao | jackhhao/jailbreak-classification | apache-2.0 | train | 1306 | 1306 | 666 / 640 | 20 | 0 | **647** | 639 | **1 / 638** | jailbreak half ≈ in_the_wild (finding 1) |
 | gandalf | Lakera/gandalf_ignore_instructions | mit | train | 1000 | 1000 | 1000 / 0 | 1 | 0 | 0 | 999 | 999 / 0 | all three splits, all attacks |
-| spml | reshabhs/SPML_Chatbot_Prompt_Injection | mit | train | 16011 | 8000 (stratified) | 6266 / 1734 | 21 | 6 | 0 | 7973 | 6262 / 1711 | `lodo_drop_only: true` — labels are relative to a paired system prompt; many positives read benign standalone. In the final fit, LODO fold reported separately. |
-| in_the_wild | TrustAIRLab/in-the-wild-jailbreak-prompts (`jailbreak_2023_12_25` + `regular_2023_12_25`) | mit | eval | 15140 | 15140 | 1405 / 13735 | 662 | — | — | 14478 | 1356 / 13122 | |
-| notinject | leolee99/NotInject (three splits) | mit | eval | 339 | 339 | 0 / 339 | 0 | — | — | 339 | 0 / 339 | over-defence set, eval only |
+| spml | reshabhs/SPML_Chatbot_Prompt_Injection | mit | train | 16011 | 8000 (stratified) | 6266 / 1734 | 21 | 6 | 0 | 7973 | 6262 / 1711 | `lodo_drop_only: true`, labels are relative to a paired system prompt; many positives read benign standalone. In the final fit, LODO fold reported separately. |
+| in_the_wild | TrustAIRLab/in-the-wild-jailbreak-prompts (`jailbreak_2023_12_25` + `regular_2023_12_25`) | mit | eval | 15140 | 15140 | 1405 / 13735 | 662 |, |, | 14478 | 1356 / 13122 | |
+| notinject | leolee99/NotInject (three splits) | mit | eval | 339 | 339 | 0 / 339 | 0 |, |, | 339 | 0 / 339 | over-defence set, eval only |
 
-## Mined benign (all label 0, role train) — `mine_benign.py`
+## Mined benign (all label 0, role train), `mine_benign.py`
 
 Selection: rows containing ≥1 trigger word (ignore, instruction(s), override, cancel, system, prompt, forget,
 disregard, pretend, act as, role, bypass, reveal, secret, password, admin, developer mode, jailbreak, rules)
@@ -36,9 +36,9 @@ are taken first, then the cap is filled at random. Every candidate is checked ag
 deepset/jackhhao/spml negatives) = 23% of all negatives. Dominant words: `system` (wiki 1039, gutenberg 363,
 oasst 192), `role` (wiki 815), `secret` (gutenberg 300), `prompt` (oasst 124), `act as` (oasst 43, wiki 50),
 `pretend` (gutenberg 40, oasst 33), `password` (oasst 21). Every wikitext pick is trigger-bearing because
-111k candidates contained far more than 2,500 such paragraphs — by design (oversample), noted for LODO.
+111k candidates contained far more than 2,500 such paragraphs, by design (oversample), noted for LODO.
 
-Language spread — oasst (top): en 1199, es 852, ru 539, de 340, fr 310, zh 278, th 237, pt-BR 200, ca 188, uk 165,
+Language spread: oasst (top): en 1199, es 852, ru 539, de 340, fr 310, zh 278, th 237, pt-BR 200, ca 188, uk 165,
 it 125, pl 100, ja 94 (+7 more). tatoeba: rus 230, ita 221, por 194, fra 191, nld 186, eng 183, fin 172, swe 168,
 pol 168, ara 155, hin 115, ind 107, urd 67, kor 60, cmn_Hans 50, cmn_Hant 44, jpn 43 (+ arq, yue, arz).
 
@@ -58,11 +58,11 @@ are inserted first so any train row colliding with an eval row is dropped from t
 
 | hf_id | licence (card) | status | why |
 |---|---|---|---|
-| hackaprompt/hackaprompt-dataset | mit | **skipped** (config kept, cap 50000) | HF `gated: auto` — needs an HF token; none in env / `~/.cache/huggingface/token`. `hf auth login` then `make fetch` includes it (label = `correct == true`, no benign rows). |
+| hackaprompt/hackaprompt-dataset | mit | **skipped** (config kept, cap 50000) | HF `gated: auto`, needs an HF token; none in env / `~/.cache/huggingface/token`. `hf auth login` then `make fetch` includes it (label = `correct == true`, no benign rows). |
 | xTRam1/safe-guard-prompt-injection | none | excluded | seeded from jackhhao → train leakage; no licence on card |
-| JasperLS/prompt-injections | none | excluded | no licence; identical row/label counts to deepset (546/116, 343/203) — it is the deepset upstream copy |
+| JasperLS/prompt-injections | none | excluded | no licence; identical row/label counts to deepset (546/116, 343/203), it is the deepset upstream copy |
 | qualifire/prompt-injections-benchmark | cc-by-nc-4.0 | excluded | non-commercial licence fails allowlist; also gated |
-| Deysi/prompt-injection | — | excluded | repo not found (401/404 from `dataset_info`, 2026-09-14) |
+| Deysi/prompt-injection |, | excluded | repo not found (401/404 from `dataset_info`, 2026-09-14) |
 | Helsinki-NLP/tatoeba, tatoeba, deepmind/pg19 | cc-by-2.0 / apache-2.0 | not usable | script-based datasets (`datasets` ≥ 4 refuses loading scripts); pg19 has no parquet convert. tatoeba_mt's parquet convert used instead. |
 | manu/project_gutenberg | none | excluded | no licence field on card |
 | Helsinki-NLP/opus-100 | unknown | excluded | licence `unknown` |
@@ -70,7 +70,7 @@ are inserted first so any train row colliding with an eval row is dropped from t
 ## Findings worth acting on
 
 1. **jackhhao jailbreaks ≈ in-the-wild jailbreaks.** 647 of 666 jackhhao positives are near-duplicates (Jaccard ≥ 0.8)
-   of TrustAIRLab eval rows — both scraped from the same DAN/jailbreak community posts. After cross-split removal
+   of TrustAIRLab eval rows: both scraped from the same DAN/jailbreak community posts. After cross-split removal
    jackhhao contributes 1 positive; its benign half is kept. in_the_wild is therefore a genuinely held-out set.
 2. **Class balance now 27% positive** (was 73%). The 20,050 negatives span imperative instructions (dolly), chat
    prompts in ~30 languages (oasst), short multilingual sentences (tatoeba), encyclopaedic and fiction prose.
