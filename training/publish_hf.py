@@ -67,12 +67,14 @@ def upload(repo: str | None) -> None:
     try:
         api.create_repo(repo, repo_type="dataset", exist_ok=True)
     except Exception as err:  # noqa: BLE001
-        if "403" not in str(err) or repo != DEFAULT_REPO:
+        if "403" not in str(err):
             raise
-        # Token lacks org rights: fall back to the logged-in user's own namespace.
-        repo = f"{api.whoami()['name']}/prompt-protection-datasets"
-        print(f"no rights on {DEFAULT_REPO}; falling back to {repo}")
-        api.create_repo(repo, repo_type="dataset", exist_ok=True)
+        namespace = repo.split("/", 1)[0]
+        raise SystemExit(
+            f"403 creating {repo}. The token has no write rights on the '{namespace}' namespace.\n"
+            "Fix: huggingface.co/settings/tokens -> edit the token -> Organization permissions -> "
+            f"add '{namespace}' with Repos write. Or pass --repo <your-username>/<name> to publish under your own account."
+        ) from err
     api.upload_folder(folder_path=str(STAGING), repo_id=repo, repo_type="dataset")
     print(f"uploaded to https://huggingface.co/datasets/{repo}")
 
@@ -80,7 +82,7 @@ def upload(repo: str | None) -> None:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--upload", action="store_true", help="upload staged folder (needs HF_TOKEN)")
-    ap.add_argument("--repo", default=None, help="<namespace>/<name>; defaults to promptprotection/agent-security-datasets, falling back to your own namespace on 403")
+    ap.add_argument("--repo", default=None, help="<namespace>/<name>; default promptprotection/agent-security-datasets")
     args = ap.parse_args()
     stage()
     if args.upload:
