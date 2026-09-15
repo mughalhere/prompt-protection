@@ -1,0 +1,171 @@
+import type { IdentifierKind } from '../utils/identifiers.js';
+import type { ShingleSet } from '../utils/shingle.js';
+import type {
+  Action,
+  AnalysisResult,
+  AnalyzeOptions,
+  LoggingOptions,
+  ThreatCategory,
+} from '../types.js';
+import type { ProtectionSession, ProtectionSessionOptions } from '../session.js';
+
+/** Where a tool's side effects land. `none` marks read-only tools. */
+export type SinkKind = 'network' | 'email' | 'message' | 'file-write' | 'exec' | 'payment' | 'none';
+
+/** How a tool-result fragment was detected inside a tool-call argument. */
+export type FlowKind = 'exact' | 'identifier' | 'content';
+
+export interface Flow {
+  kind: FlowKind;
+  /** For `identifier` flows: what kind of identifier matched (`handle` = verbatim destination value). */
+  identifierKind?: IdentifierKind | 'handle';
+  /** `TaintedSource.id` of the source the argument fragment came from. */
+  sourceId: string;
+  /** Tool that produced the source. */
+  sourceTool: string;
+  /** Dotted path of the argument leaf, e.g. `args.url` or `args.items[0].to`. */
+  path: string;
+  /** Matched identifier or a preview of the matched fragment. */
+  value: string;
+  /** 0–1 confidence; `exact` 1.0, `identifier` 0.9, `content` = containment ratio. */
+  strength: number;
+}
+
+export interface SourceInjection {
+  score: number;
+  action: Action;
+  categories: ThreatCategory[];
+  mlProbability?: number;
+}
+
+export interface TaintedSource {
+  id: string;
+  tool: string;
+  /** Stringified tool result (truncated to `maxSourceChars`). */
+  text: string;
+  normalized: string;
+  shingles: ShingleSet;
+  /** Lowercased identifier values (→ kind) from raw, defanged and decoded text. */
+  identifiers: Map<string, IdentifierKind>;
+  injection: SourceInjection;
+  /** Value of the guard's turn counter when the source was registered. */
+  turn: number;
+  timestamp: number;
+}
+
+export interface ToolCall {
+  toolName: string;
+  args: unknown;
+  toolCallId?: string;
+}
+
+export interface GuardDecision {
+  action: Action;
+  /** True when a `confirm` policy fired: `action` is `flag` and a human should approve. */
+  requiresConfirmation: boolean;
+  toolName: string;
+  toolCallId?: string;
+  sink: SinkKind;
+  flows: Flow[];
+  /** Ids of every policy that fired, highest severity first. */
+  reasons: string[];
+  /** The policy that decided the action, when any fired. */
+  policy?: string;
+  /** Scan of the argument text itself, with synthetic `data-flow` matches for flows. */
+  argsAnalysis: AnalysisResult;
+}
+
+export type PolicyAction = 'allow' | 'flag' | 'confirm' | 'block';
+
+export interface PolicyContext {
+  call: ToolCall;
+  sink: SinkKind;
+  flows: Flow[];
+  /** Every registered source, oldest first. */
+  sources: readonly TaintedSource[];
+  /** Sources registered during the current turn. */
+  turnSources: readonly TaintedSource[];
+  argsAnalysis: AnalysisResult;
+  /** Tool allowlist from `guard.plan()`, or null when unlocked. */
+  plan: ReadonlySet<string> | null;
+  /** The call names ≥1 destination (recipient/URL/account) and the user authored all of them. */
+  destinationTrusted: boolean;
+  sourceById: (id: string) => TaintedSource | undefined;
+}
+
+export interface GuardPolicy {
+  id: string;
+  /** Return the action this policy demands, or `null` when it does not apply. */
+  evaluate(ctx: PolicyContext): PolicyAction | null;
+}
+
+export type SinkResolver = (toolName: string) => SinkKind | undefined;
+
+export type SpotlightMode = 'delimit' | 'datamark' | 'encode';
+
+export interface GuardSpotlightOptions {
+  mode: SpotlightMode;
+  /** Fixed marker; generated per guard when omitted. */
+  marker?: string;
+}
+
+export interface GuardOptions extends LoggingOptions {
+  /** Reuse an existing session; the guard creates one otherwise. */
+  session?: ProtectionSession;
+  /** Options for the guard-owned session and for argument scans. */
+  analyzeOptions?: ProtectionSessionOptions;
+  /** Tool name → sink. A map falls back to the defaults for unlisted tools. */
+  sinks?: Record<string, SinkKind> | SinkResolver;
+  /** Replaces the default policy list. */
+  policies?: GuardPolicy[];
+  /** Word-shingle containment needed for a `content` flow. Default 0.5. */
+  minContainment?: number;
+  /** Char-shingle containment fallback for short or code-like leaves. Default 0.6. */
+  minCharContainment?: number;
+  /** Ring-buffer limits. Defaults 64 sources / 200 000 chars. */
+  maxSources?: number;
+  maxSourceChars?: number;
+  /** Identifiers the user is known to have authored (pre-trusted). */
+  trustedIdentifiers?: string[];
+  /** Spotlight tool results returned through `wrapTools`. */
+  spotlight?: SpotlightMode | GuardSpotlightOptions;
+}
+
+export interface TaintOptions {
+  /** Stable id (e.g. a tool-call id); re-registering the same id is a no-op. */
+  id?: string;
+}
+
+export type ToolApprovalOutcome =
+  | 'not-applicable'
+  | { type: 'approved' | 'denied' | 'user-approval'; reason?: string };
+
+export interface ToolApprovalInput {
+  toolCall: { toolName: string; input: unknown; toolCallId?: string };
+}
+
+/** Minimal tool shape shared by the Vercel AI SDK and MCP-style tool maps. */
+export interface WrappableTool {
+  execute?: (input: unknown, options?: unknown) => unknown;
+}
+
+export interface Guard {
+  /** Registers a tool result as untrusted and scores it for injection. */
+  taint(source: string, value: unknown, options?: TaintOptions): TaintedSource;
+  /** Marks identifiers and text the user authored as trusted (never a flow). */
+  trust(text: string): void;
+  /** Scores the user turn through the session and trusts its content. */
+  analyzeUserTurn(prompt: string, options?: AnalyzeOptions): AnalysisResult;
+  checkToolCall(call: ToolCall): GuardDecision;
+  /** Locks the tool set for Plan-Then-Execute; `null` unlocks. */
+  plan(allowedTools: readonly string[] | null): void;
+  /** Wraps `execute` so calls are checked first and results tainted after. */
+  wrapTools<T extends Record<string, WrappableTool>>(tools: T): T;
+  /** Approval function for the Vercel AI SDK `toolApproval` option. */
+  vercelToolApproval(): (input: ToolApprovalInput) => ToolApprovalOutcome;
+  nextTurn(): void;
+  clear(): void;
+  readonly session: ProtectionSession;
+  readonly sources: readonly TaintedSource[];
+  readonly turn: number;
+}
