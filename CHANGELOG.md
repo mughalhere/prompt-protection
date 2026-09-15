@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.1.1] - 2026-09-15
+
+Registry metadata only. No code, rule or behaviour changes; `RULES_VERSION` is unchanged.
+
+### Added
+- `mcpName` in `package.json` and a root `server.json`, so the bundled MCP server can be listed in the
+  [MCP registry](https://registry.modelcontextprotocol.io) as `io.github.mughalhere/prompt-protection`.
+  `server.json` ships in the npm tarball, which is how the registry verifies ownership of the package.
+
+### Fixed
+- The README listed three MCP tools. The server has exposed seven since 3.0: `scan_prompt`,
+  `scan_tool_definition`, `scan_output`, `register_source`, `check_tool_call`, `spotlight_text` and
+  `detect_canary`.
+
 ## [3.1.0] - 2026-09-15
 
 Production-grade release: nothing in the detection or guard semantics changes; what changes is
