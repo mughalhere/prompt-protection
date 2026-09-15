@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DATASETS = ROOT / "datasets"
 STAGING = ROOT / "training" / "hf_staging"
 FILES = ["attacks.jsonl", "benign-hard.jsonl", "agent-flows.jsonl"]
+DEFAULT_REPO = "promptprotection/agent-security-datasets"  # the Hugging Face organisation
 
 
 def pct(x: float | None) -> str:
@@ -62,9 +63,16 @@ def upload(repo: str | None) -> None:
 
     api = HfApi()
     if repo is None:
-        # Default to the logged-in user's namespace; an org namespace needs explicit --repo.
+        repo = DEFAULT_REPO
+    try:
+        api.create_repo(repo, repo_type="dataset", exist_ok=True)
+    except Exception as err:  # noqa: BLE001
+        if "403" not in str(err) or repo != DEFAULT_REPO:
+            raise
+        # Token lacks org rights: fall back to the logged-in user's own namespace.
         repo = f"{api.whoami()['name']}/prompt-protection-datasets"
-    api.create_repo(repo, repo_type="dataset", exist_ok=True)
+        print(f"no rights on {DEFAULT_REPO}; falling back to {repo}")
+        api.create_repo(repo, repo_type="dataset", exist_ok=True)
     api.upload_folder(folder_path=str(STAGING), repo_id=repo, repo_type="dataset")
     print(f"uploaded to https://huggingface.co/datasets/{repo}")
 
@@ -72,7 +80,7 @@ def upload(repo: str | None) -> None:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--upload", action="store_true", help="upload staged folder (needs HF_TOKEN)")
-    ap.add_argument("--repo", default=None, help="<namespace>/<name>; defaults to <your-username>/prompt-protection-datasets")
+    ap.add_argument("--repo", default=None, help="<namespace>/<name>; defaults to promptprotection/agent-security-datasets, falling back to your own namespace on 403")
     args = ap.parse_args()
     stage()
     if args.upload:
