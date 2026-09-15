@@ -1,6 +1,7 @@
 {
   "name": "prompt-protection",
-  "version": "3.1.0",
+  "version": "3.1.1",
+  "mcpName": "io.github.mughalhere/prompt-protection",
   "description": "Agent security runtime for Node.js and browsers: provenance-tracked tool-call guard (CaMeL-style), spotlighting, fuzzy canaries, and hybrid rules + embedded ML detection for prompt injection. Zero dependencies, TypeScript-first, published benchmarks.",
   "license": "MIT",
   "author": "mughalhere",
@@ -236,6 +237,7 @@
   },
   "files": [
     "dist",
+    "server.json",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"

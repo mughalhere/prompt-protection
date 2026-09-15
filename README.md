@@ -657,7 +657,9 @@ Ships an MCP server so an agent can scan its own inputs, tool definitions, and o
 }
 ```
 
-Exposes `scan_prompt`, `scan_tool_definition`, and `scan_output`. Embed it in your own server via `createProtectionMcpServer()` from `prompt-protection/mcp`.
+Seven tools. `scan_prompt`, `scan_tool_definition` and `scan_output` scan text. `register_source` and `check_tool_call` put the [tool-call guard](#architecture) behind MCP, so a client can label an untrusted tool result and then ask whether a proposed call is safe; `check_tool_call` also accepts inline `sources` for a stateless check. `spotlight_text` and `detect_canary` expose the marking and leak-detection helpers. Verdicts carry rule ids and policy names, never the matched text.
+
+Embed it in your own server via `createProtectionMcpServer()` from `prompt-protection/mcp`. The server is listed in the [MCP registry](https://registry.modelcontextprotocol.io) as `io.github.mughalhere/prompt-protection`.
 
 ### Vercel AI SDK
 
