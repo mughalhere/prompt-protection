@@ -11,11 +11,11 @@
 
 **[Live Demo →](https://mughalhere.github.io/prompt-protection/)**
 
-## What it is, and is not
+## What it is, and what it isn't
 
-Prompt injection is not a text-classification problem you can regex your way out of. The attacks that matter in agents are *consequences*: a URL lifted from an email lands in an outbound request, an attendee address from a calendar entry becomes a `send_email` recipient, a payload in a README ends up in `exec`. 3.0 moves the primary mechanism from matching text to **tracking where data came from and refusing to let untrusted data reach a dangerous sink**, the capability model from Google DeepMind's CaMeL (arXiv 2503.18813), ported to a JavaScript tool-calling loop without a custom interpreter.
+Prompt injection stopped being a text-classification problem the moment models started calling tools. The damage in an agent is a consequence, not a sentence: a URL lifted from an email ends up in an outbound request, an attendee address from a calendar entry becomes the recipient of `send_email`, a payload in a README lands in `exec`. Version 3 tracks where data came from and refuses to let untrusted data reach a dangerous sink. That is the capability model from Google DeepMind's CaMeL paper (arXiv 2503.18813), ported to a JavaScript tool-calling loop without the custom interpreter.
 
-It is a **policy layer**, not an isolation boundary. It cannot see a flow through the model's hidden state, a paraphrase that shares no identifiers with its source, or a source you never registered. The [Limitations](#limitations) section lists exactly what it misses, with the dataset rows that prove it.
+It is a policy layer inside your process. It is not an isolation boundary. It cannot see a flow that passes through the model's hidden state, a paraphrase that shares no identifiers with its source, or a source you never registered. The [Limitations](#limitations) section lists what it misses, with the dataset rows that show it.
 
 ## 60-second agent quickstart
 
@@ -55,17 +55,17 @@ model proposes tool call ──▶ sink class ──▶ flow detection (exact / 
                        explicit map or name heuristics                          plan() allow-list · user-trusted destinations
 ```
 
-Default policies, in order: `plan-violation` → `injection-source-flow` (a blocked-scoring source flowing anywhere) → `untrusted-to-exfil-sink` (network / email / message) → `untrusted-to-exec` (exec / file-write) → `untrusted-to-payment` (confirm) → `injection-then-sink` (an injection-scored source and a sink call in the same turn, no shared flow, flag) → `args-injection` (the arguments themselves score as injection, flag). Every step maps onto the pattern catalogue in *Design Patterns for Securing LLM Agents* (arXiv 2506.08837): Action-Selector via `plan()`, Plan-Then-Execute, Context-Minimisation via spotlighting.
+The default policies run in this order. `plan-violation` blocks any tool outside the `plan()` allow-list. `injection-source-flow` blocks when a source that itself scored as injection flows anywhere. `untrusted-to-exfil-sink` blocks untrusted data reaching network, email or messaging tools, and `untrusted-to-exec` does the same for exec and file writes. `untrusted-to-payment` asks for confirmation. `injection-then-sink` flags a sink call made in the same turn as an injection-scored source even when no flow was detected, because paraphrase is exactly the case the flow detectors miss. `args-injection` flags when the arguments themselves read as injection. Each of these is one of the patterns in *Design Patterns for Securing LLM Agents* (arXiv 2506.08837): Action-Selector via `plan()`, Plan-Then-Execute, Context-Minimisation via spotlighting.
 
-**Spotlighting** (`prompt-protection/spotlight`, arXiv 2403.14720) marks untrusted spans, delimit, datamark, or base64-encode, and hands you the system-prompt sentence that tells the model what the marker means. `wrapTools({ spotlight: 'datamark' })` shows the model marked text while the guard taints the original, and unmarks arguments before flow detection so a copied span still matches.
+Spotlighting (`prompt-protection/spotlight`, arXiv 2403.14720) marks untrusted spans by delimiting, datamarking or base64-encoding them, and gives you the system-prompt sentence that tells the model what the marker means. With `wrapTools({ spotlight: 'datamark' })` the model sees marked text while the guard taints the original, and arguments are unmarked before flow detection so a copied span still matches.
 
-**Canaries** (`prompt-protection/canary`) inject a token into the system prompt and detect it in output in exact, normalized, spaced, base64, hex, reversed and partial forms, plus shingle similarity between the output and the system prompt. Verbatim canaries alone were shown ineffective against paraphrase (arXiv 2506.19109); similarity closes part of that gap, not all of it.
+Canaries (`prompt-protection/canary`) put a token in the system prompt and look for it in the output in exact, normalized, spaced, base64, hex, reversed and partial forms. There is also a shingle-similarity check between the output and the system prompt. Plain verbatim canaries were shown to fail against paraphrase (arXiv 2506.19109). Similarity closes part of that gap. Not all of it.
 
-**Detection** is still there for text that has to be scored: 106 input rules, 21 output rules, 9 tool-poisoning rules, and an embedded 33 KB int8 n-gram classifier (`prompt-protection/ml`), off by default, see below. `prompt-protection/lite` is the rules-only entry at 20 KB gzipped.
+Detection is still there for text that has to be scored: 106 input rules, 21 output rules, 9 tool-poisoning rules, and an embedded 33 KB int8 n-gram classifier (`prompt-protection/ml`) that is off by default for reasons the benchmark section explains. `prompt-protection/lite` is the rules-only entry at 20 KB gzipped.
 
 ## Benchmark
 
-All numbers are produced by `npm run bench` against the shipped build and written to [`bench/results.json`](bench/results.json); the same run is a CI gate. Recall and FP rate are shown as **regex / ml / hybrid**. The shipped default is regex.
+`npm run bench` runs the shipped build against every set below and writes [`bench/results.json`](bench/results.json). The same run is a CI gate. Recall and false-positive rate are shown as regex / ml / hybrid; the shipped default is regex.
 
 | Set | Licence | N (attack/benign) | Recall | False-positive rate |
 |---|---|---|---|---|
@@ -78,31 +78,33 @@ All numbers are produced by `npm run bench` against the shipped build and writte
 | Output scan, canary variants, system-prompt similarity, credential/PII/relay rules | MIT | 18 (10/8) | 100% | 0% |
 | **Agent flows**, `datasets/agent-flows.jsonl`, 100 tool-call scenarios | CC-BY-4.0 | 100 (50/50) | agreement **100%** on 99 scored rows, 1 documented miss · attack block-recall 82% · benign FPR 4% | |
 
-**Read it as a report, not a scoreboard.** NotInject over-defence accuracy is 97.1%, the rules rarely fire on short benign queries that merely contain "ignore" or "instruction". But on our own hard-negative set they false-positive on **19.4%** of benign text: questions *about* prompt injection, fiction, "grant admin access on Netflix". And they catch only **14.6%** of the attacks we wrote to avoid canonical phrases. That is the ceiling of pattern matching, measured, and it is why the primary mechanism moved to provenance. Both numbers are CI-gated at their current baseline and ratcheted down from here.
+Some of these numbers are bad, and they are here on purpose. On NotInject the rules do well: 97.1% of short benign queries that merely contain "ignore" or "instruction" pass through. On the hard-negative set I wrote myself they false-positive on 19.4% of benign text. Questions *about* prompt injection, fiction, "grant admin access on Netflix" all trip them. They catch 14.6% of the attacks written to avoid canonical phrases. That is what pattern matching tops out at, and it is why provenance is the primary mechanism now. Both figures are CI gates at their current baseline; they can only go down from here.
 
-The in-the-wild "regular" set is noisy (it includes SEO prompts that begin "Please ignore all previous instructions"), so its FP column overstates; it is kept because it is external and unmodified.
+The in-the-wild "regular" set is noisy. It includes SEO prompts that open with "Please ignore all previous instructions", so its false-positive column overstates. I kept it because it is external and unmodified.
 
-**The embedded model is shipped for transparency, not for use yet.** Trained on Apache/MIT datasets (deepset, gandalf, hackaprompt, SPML plus ~17k mined benign rows) with a reproducible pipeline ([`training/REPORT.md`](training/REPORT.md)): 3-fold CV F1 0.98 in-distribution, but leave-one-dataset-out F1 **0.53** and in-the-wild AUROC 0.67. Adding hackaprompt in the second training round raised recall on unseen attacks (4% → 19% on our set) and raised false positives with it (in-the-wild FPR 17% → 24%). A bag of hashed n-grams does not transfer across jailbreak genres, so `ml` defaults to `'off'`. Enable with `analyzePrompt(text, { ml: 'escalate' })`. Python and JS produce identical features and logits on 64 golden vectors under test; the weights are 33 KB gzipped.
+The embedded model ships for transparency, not for use. It is trained on Apache and MIT datasets (deepset, gandalf, hackaprompt, SPML, plus about 17k mined benign rows) with a reproducible pipeline described in [`training/REPORT.md`](training/REPORT.md). In-distribution it looks great: 3-fold CV F1 0.98. Held out by dataset it does not: leave-one-dataset-out F1 0.53, in-the-wild AUROC 0.67. Adding hackaprompt in a second round lifted recall on unseen attacks from 4% to 19% on our set and lifted in-the-wild false positives from 17% to 24% with it. A bag of hashed n-grams does not transfer across jailbreak genres, so `ml` defaults to `'off'`. If you want it anyway, `analyzePrompt(text, { ml: 'escalate' })`. Python and JS produce identical features and logits on 64 golden vectors under test, and the weights are 33 KB gzipped.
 
-Latency: rule scan p99 ≈ 0.1 ms; guard `checkToolCall` p99 ≈ 3 ms with 64 registered sources; classifier ≈ 0.15 ms. Bundle: core 64.9 KB gz (weights included), `lite` 20 KB, `guard` 67.1 KB.
+Latency: rule scan p99 about 0.1 ms, guard `checkToolCall` p99 about 3 ms with 64 registered sources, classifier about 0.15 ms. Bundle: core 65 KB gzipped with the weights included, `lite` 20 KB, `guard` 67 KB.
 
 ## Datasets
 
-[`datasets/`](datasets/) is published under CC-BY-4.0 and disjoint from the test fixtures: `attacks.jsonl` (130, nine categories, 14 languages), `benign-hard.jsonl` (155 trigger-word benign prompts in NotInject's four categories plus dev jargon and security docs), `agent-flows.jsonl` (100 tool-call scenarios with expected guard decisions and the reason). `node datasets/validate.mjs` checks schema, uniqueness and fixture disjointness.
+[`datasets/`](datasets/) is CC-BY-4.0 and disjoint from the test fixtures. `attacks.jsonl` has 130 rows across nine categories and 14 languages. `benign-hard.jsonl` has 155 benign prompts carrying trigger vocabulary, in NotInject's four categories plus developer jargon and security documentation. `agent-flows.jsonl` has 100 tool-call scenarios with the expected guard decision and the reason. `node datasets/validate.mjs` checks schema, uniqueness and disjointness from the fixtures.
 
 ## Limitations
 
-- **Semantic paraphrase.** Tainted prose rewritten with no shared identifiers or 6-word shingles is invisible to the guard. `injection-then-sink` catches the same-turn case only when the source itself scores as injection, `af-037` in the agent-flows set is the documented miss.
-- **Recipient ambiguity.** "Reply to them" leaves the recipient derived from the tool result, which is the same flow shape as attacker exfil. The default blocks; call `guard.trust(sender)` first or replace `untrusted-to-exfil-sink` with a confirm policy (`af-065`, `af-072`).
-- **Unregistered sources, internal exfiltration, hidden state.** The guard only knows what you `taint()`; a tool that leaks on its own side, or a flow the model carries without copying text, is out of reach.
-- **Encodings `normalize()` does not undo** (rot13, chunk reordering, translation) defeat containment.
-- **Rule over-defence and the model's generalisation gap**, see the benchmark section; both are measured and gated, neither is solved.
+Semantic paraphrase. Tainted prose rewritten so it shares no identifiers and no six-word shingles with its source is invisible to the guard. `injection-then-sink` covers the same-turn case only when the source itself scores as injection; `af-037` in the agent-flows set is the documented miss.
 
----
+Recipient ambiguity. "Reply to them" leaves the recipient derived from the tool result, which has the same flow shape as attacker exfiltration. The default blocks. Call `guard.trust(sender)` first, or swap `untrusted-to-exfil-sink` for a confirm policy (`af-065`, `af-072`).
+
+Unregistered sources, internal exfiltration, hidden state. The guard only knows what you `taint()`. A tool that leaks on its own side, or a flow the model carries without copying text, is out of reach.
+
+Encodings the normaliser does not undo (rot13, chunk reordering, translation) defeat containment.
+
+Rule over-defence and the model's generalisation gap are covered in the benchmark section. Both are measured and gated. Neither is solved.
 
 ## Standards: ATR, OWASP, ATLAS
 
-`prompt-protection/atr` loads [Agent Threat Rules](https://github.com/Agent-Threat-Rule/agent-threat-rules) packs, the Sigma-style open standard adopted by Microsoft, Cisco, MISP and SigmaHQ, as `customRules`, and emits findings in the ATR `ScanResult` shape:
+`prompt-protection/atr` loads [Agent Threat Rules](https://github.com/Agent-Threat-Rule/agent-threat-rules) packs as `customRules` and emits findings in the ATR `ScanResult` shape. ATR is the Sigma-style open standard for agent threats, adopted by Microsoft, Cisco, MISP and SigmaHQ.
 
 ```ts
 import { loadAtrRules, toAtrFindings } from 'prompt-protection/atr';
@@ -113,7 +115,7 @@ const result = analyzePrompt(text, { customRules: rules });
 const findings = toAtrFindings(result);   // { matches: [{ rule_id: 'ATR-2026-00001', severity, confidence, … }], engine: { rules_version } }
 ```
 
-Engine behaviour follows the spec's mandatory rules (no short-circuit, `scan_target` and `agent_source` filtering, draft/deprecated skipped, enforce lane) and is verified by `tests/atr/conformance.test.ts`. Conditions the engine cannot express faithfully, `condition: all`, named/behavioural formats, PCRE-only syntax: are **skipped with a reason in `report`**, never approximated. Native rules carry OWASP LLM Top 10 (2025) and MITRE ATLAS ids in `mappings`; coverage is CI-floored and ratcheted. We scan normalised text while the reference engine scans raw, so zero-width and case-sensitive ATR rules behave differently; `docs/ATR.md` lists the deltas.
+The engine follows the spec's mandatory behaviours (no short-circuit, `scan_target` and `agent_source` filtering, draft and deprecated rules skipped, the enforce lane) and `tests/atr/conformance.test.ts` checks each one. Conditions the engine cannot express faithfully are skipped with a reason in `report`, never approximated: `condition: all`, the named and behavioural formats, PCRE-only syntax. Native rules carry OWASP LLM Top 10 (2025) and MITRE ATLAS ids in `mappings`, with a CI floor on coverage. One real difference from the reference engine: we scan normalised text while it scans raw, so zero-width and case-sensitive ATR rules behave differently here. `docs/ATR.md` lists the deltas.
 
 ## Observability
 
@@ -129,7 +131,7 @@ const logger = await createOtelLogger();          // span events + pp.decisions 
 
 ## Composing with policy-as-code (Vercel AI SDK)
 
-`prompt-protection/adapters/vercel-guardrail` implements the GuardrailProvider shape proposed in [vercel/ai#13434](https://github.com/vercel/ai/issues/13434), pre-call decision, approval context, hash-chained receipts, and composes with `@ai-sdk/policy-opa`:
+`prompt-protection/adapters/vercel-guardrail` implements the GuardrailProvider shape proposed in [vercel/ai#13434](https://github.com/vercel/ai/issues/13434): a pre-call decision, context for the approval card, and hash-chained receipts. It composes with `@ai-sdk/policy-opa`:
 
 ```ts
 import { createGuardrailProvider, composeToolApproval } from 'prompt-protection/adapters/vercel-guardrail';
@@ -144,17 +146,17 @@ await generateText({
 
 ## Failure semantics
 
-Every shipped regex: 148 across input, output and tool rules, sink heuristics, identifier extraction and normalisation, is fuzzed with [`recheck`](https://makenowjust-labs.github.io/recheck/) in CI (`npm run test:redos`). Result at 3.1.0: 148 safe, 0 allowlisted, 0 vulnerable. The first run found 28 quadratic-or-worse patterns in 3.0.0 and one more once the fuzzer was given time; all 29 were rewritten, and no bench number moved.
+Every shipped regex is fuzzed with [`recheck`](https://makenowjust-labs.github.io/recheck/) in CI (`npm run test:redos`). That is 148 of them, across the input, output and tool rules, the sink heuristics, identifier extraction and normalisation. At 3.1.0 the result is 148 safe, 0 allowlisted, 0 vulnerable. The first run found 28 quadratic-or-worse patterns in 3.0.0 and one more once the fuzzer had enough time. I rewrote all 29 and no benchmark number moved.
 
-The library fails **closed**. If anything inside it throws: a rule, a policy, a sink resolver, a classifier adapter, the verdict is `block` with a synthetic `internal-error` match and `result.error` set, and the logger receives the event with `error`. Set `failMode: 'open'` to let input through instead (the error is still reported). A throwing *logger* never changes a verdict.
+The library fails closed. If anything inside it throws (a rule, a policy, a sink resolver, a classifier adapter) the verdict is `block`, with a synthetic `internal-error` match and `result.error` set, and the logger receives the event with `error`. Set `failMode: 'open'` to let input through instead; the error is still reported. A logger that throws never changes a verdict.
 
 | Fault | prompt-protection (default) | `failMode: 'open'` | For comparison |
 |---|---|---|---|
-| Rule / allowlist regex throws | `block`, rule `internal-error` | `allow`, `error` set |, |
-| Guard policy throws | `block`, `policy` = the faulty policy id | policy skipped |, |
-| Sink resolver throws | `block`, `policy: 'internal-error'` | `allow`, `error` set |, |
+| Rule / allowlist regex throws | `block`, rule `internal-error` | `allow`, `error` set | n/a |
+| Guard policy throws | `block`, `policy` = the faulty policy id | policy skipped | n/a |
+| Sink resolver throws | `block`, `policy: 'internal-error'` | `allow`, `error` set | n/a |
 | LLM adapter (`verifyPromptAsync`) throws | rejects, nothing passes | sync verdict stands | openai-agents-js guardrails fail open on unexpected results ([#1810](https://github.com/openai/openai-agents-js/issues/1810), [#1816](https://github.com/openai/openai-agents-js/issues/1816), [#1803](https://github.com/openai/openai-agents-js/issues/1803)) |
-| Logger throws | verdict unchanged, `onLoggerError` called | same | Vercel AI SDK `onToolExecutionStart` swallows throws, so it cannot deny ([#15842](https://github.com/vercel/ai/issues/15842)), use `toolApproval` / `wrapTools` |
+| Logger throws | verdict unchanged, `onLoggerError` called | same | Vercel AI SDK `onToolExecutionStart` swallows throws, so it cannot deny ([#15842](https://github.com/vercel/ai/issues/15842)); use `toolApproval` / `wrapTools` |
 
 ## Runtime compatibility
 
@@ -163,9 +165,9 @@ Verified in CI on every push (`scripts/compat/`):
 | Runtime | How it is proven |
 |---|---|
 | Node 20 / 22 / 24 | full test suite + bench gate |
-| Bun (latest) | `bun scripts/compat/smoke.mjs`, rules verdict, guard decision, canary detection against the built package |
+| Bun (latest) | `bun scripts/compat/smoke.mjs`: rules verdict, guard decision, canary detection against the built package |
 | Deno 2 | `deno run --allow-read scripts/compat/smoke.mjs` |
-| Edge / browser | `node --experimental-vm-modules scripts/compat/no-globals.mjs` evaluates `dist/lite.js`, `dist/guard/index.js`, `dist/index.js` and `dist/canary/index.js` in a bare `vm` context with **no** `process`, `Buffer`, `require`, `setTimeout` or `fetch`, and a linker that rejects every import. Only `TextEncoder`, `atob`, `crypto` and core ECMAScript are available, the same surface Cloudflare Workers, Vercel Edge and browsers give you. |
+| Edge / browser | `node --experimental-vm-modules scripts/compat/no-globals.mjs` evaluates `dist/lite.js`, `dist/guard/index.js`, `dist/index.js` and `dist/canary/index.js` in a bare `vm` context with no `process`, `Buffer`, `require`, `setTimeout` or `fetch`, and a linker that rejects every import. Only `TextEncoder`, `atob`, `crypto` and core ECMAScript are available, the same surface Cloudflare Workers, Vercel Edge and browsers give you. |
 
 The library makes no network calls and reads no environment: `grep -rE "fetch\(|XMLHttpRequest|sendBeacon" dist/` returns nothing.
 
