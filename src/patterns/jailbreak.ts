@@ -20,7 +20,7 @@ export const jailbreakRules: PatternRule[] = [
   {
     id: 'jailbreak-no-restrictions',
     category: 'jailbreak',
-    pattern: /(pretend|act|behave|imagine|assume)\s+(as\s+if\b|like\b|that\b|you\s+have\b|there\s+are\b)?\s*.{0,30}no\s+(rules?|restrictions?|limits?|guidelines?|constraints?|filters?|ethics?)/,
+    pattern: /(pretend|act|behave|imagine|assume)\s+(?:(?:as\s+if|like|that)\s+)?(?:you\s+(?:have|are|had)|there\s+(?:are|is|were)|i\s+have|we\s+have)\s+(?:an?\s+\w+\s+with\s+)?no\s+(rules?|restrictions?|limits?|guidelines?|constraints?|filters?|ethics?)/,
     weight: 10,
     precision: 'high',
     description: 'No restrictions roleplay',
@@ -116,7 +116,7 @@ export const jailbreakRules: PatternRule[] = [
   {
     id: 'jailbreak-fictional-instructions',
     category: 'jailbreak',
-    pattern: /(in\s+a\s+story|in\s+fiction|fictional(ly)?|as\s+a\s+story)[,.\s]+.{0,60}(instructions?\s+are|tell\s+me\s+how\s+to|describe\s+how\s+to)/,
+    pattern: /(in\s+a\s+story|in\s+fiction|fictional(ly)?|as\s+a\s+story)\b[\s\S]{0,60}?\b(instructions?\s+are|tell\s+me\s+how\s+to|describe\s+how\s+to)/,
     weight: 8,
     precision: 'medium',
     description: 'Fictional framing for instructions',
@@ -140,7 +140,7 @@ export const jailbreakRules: PatternRule[] = [
   {
     id: 'jailbreak-aim-pliny',
     category: 'jailbreak',
-    pattern: /\b(AIM\s+prompt|pliny|jailbreak\s+prompt\s+library|dan\s+\d+\.?\d*)\b/i,
+    pattern: /\b(AIM\s+prompt|pliny|jailbreak\s+prompt\s+library|dan\s+\d+(?:\.\d+)?)\b/i,
     weight: 8,
     precision: 'high',
     description: 'Named jailbreak prompt families',

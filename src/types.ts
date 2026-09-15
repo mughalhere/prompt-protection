@@ -40,6 +40,32 @@ export interface PatternRule {
   description: string;
   /** Default `medium`. Lone `low` rules cannot alone produce `block`. */
   precision?: RulePrecision;
+  /** Framework identifiers this rule maps to (ATR / OWASP / ATLAS). Ids only, never prose. */
+  mappings?: RuleMappings;
+  /** Present when the rule was compiled from an external rule format. */
+  origin?: RuleOrigin;
+}
+
+export interface RuleMappings {
+  atr?: string[];
+  owaspLlm?: string[];
+  owaspAsi?: string[];
+  owaspAst?: string[];
+  atlas?: string[];
+  attack?: string[];
+  cve?: string[];
+}
+
+export interface RuleOrigin {
+  format: 'atr';
+  ruleId: string;
+  ruleVersion?: number;
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'informational';
+  tags: { category: string; subcategory?: string; confidence?: RulePrecision; scan_target?: 'mcp' | 'skill' | 'runtime' };
+  conditionIndex: number;
+  conditionCount: number;
+  field: string;
+  operator: string;
 }
 
 export interface PatternMatch {
@@ -48,6 +74,23 @@ export interface PatternMatch {
   /** Position in the original (pre-normalisation) string */
   startIndex: number;
   endIndex: number;
+}
+
+/** What to do when the library itself throws: block (default) or let the input through. */
+export type FailMode = 'closed' | 'open';
+
+export interface AnalysisError {
+  code: 'internal-error';
+  message: string;
+}
+
+/** Compact description of one provenance flow, safe for logs (no argument values). */
+export interface FlowSummary {
+  kind: 'exact' | 'identifier' | 'content';
+  sourceId: string;
+  sourceTool: string;
+  path: string;
+  strength: number;
 }
 
 export interface AnalysisResult {
@@ -64,6 +107,8 @@ export interface AnalysisResult {
   normalizedPrompt: string;
   /** Per-sentence scores, only present when options.sentenceAnalysis is true */
   sentenceScores?: Array<{ sentence: string; score: number }>;
+  /** Set when analysis itself failed and the verdict came from `failMode`. */
+  error?: AnalysisError;
   /** Embedded-classifier verdict; absent when no model is wired or `ml: 'off'`. */
   ml?: MlContribution;
 }
@@ -135,6 +180,14 @@ export interface ProtectionEvent {
   direction: 'input' | 'output' | 'tool-call';
   /** Tool name for `tool-call.*` events. */
   toolName?: string;
+  toolCallId?: string;
+  /** Guard policy that decided a `tool-call.*` event, and every policy that fired. */
+  policy?: string;
+  reasons?: string[];
+  sink?: string;
+  flows?: FlowSummary[];
+  /** Present when the verdict came from `failMode` after an internal error. */
+  error?: string;
   /** Present only when `includeContent` is true */
   promptPreview?: string;
   contentPreview?: string;
@@ -142,6 +195,11 @@ export interface ProtectionEvent {
 
 export interface ProtectionLogger {
   log(event: ProtectionEvent): void | Promise<void>;
+  /**
+   * Optional: receives the raw scanned content alongside the event so a sink can
+   * hash it itself. Called instead of `log` when present. Raw text never reaches `log`.
+   */
+  logWithContent?(event: ProtectionEvent, content: string): void | Promise<void>;
 }
 
 export interface LoggingOptions {
@@ -193,6 +251,8 @@ export interface AnalyzeOptions extends LoggingOptions {
   maxInputLength?: number;
   /** Embedded-classifier fusion mode. Default `'escalate'`; ignored by the `lite` entry. */
   ml?: MlMode;
+  /** Verdict when analysis throws internally. Default `'closed'` → block. */
+  failMode?: FailMode;
 }
 
 export type VerifyOptions = AnalyzeOptions;
@@ -211,6 +271,7 @@ export interface AIAdapter {
 export interface AsyncVerifyOptions extends VerifyOptions {
   adapter: AIAdapter;
   /** If adapter throws, fall back to the sync result. Default: false */
+  /** @deprecated Use `failMode: 'open'`. Kept as an alias. */
   fallbackToSync?: boolean;
 }
 
@@ -233,11 +294,15 @@ export interface OutputAnalysisResult {
   threats: ThreatCategory[];
   /** Present only when `canary` or `systemPrompt` was passed. */
   canary?: CanaryDetection;
+  /** Set when the scan itself failed and the verdict came from `failMode`. */
+  error?: AnalysisError;
 }
 
 export interface OutputAnalysisOptions extends LoggingOptions {
   /** 0–100 block cutoff, default 40 (higher than input to reduce false positives) */
   threshold?: number;
+  /** Verdict when the scan throws internally. Default `'closed'` → block. */
+  failMode?: FailMode;
   /**
    * Optional flag band for output. When omitted, only allow/block (same as input 1.6 style).
    */

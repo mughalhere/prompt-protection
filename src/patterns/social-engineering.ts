@@ -36,7 +36,7 @@ export const socialEngineeringRules: PatternRule[] = [
   {
     id: 'social-trust-me-authorized',
     category: 'social-engineering',
-    pattern: /trust\s+me\s*[,.]?\s*(i\s+am|i'?m)\s+(an?\s+)?(developer|engineer|researcher|employee)\s*(of\s+|from\s+|at\s+)?(anthropic|openai|google|meta|microsoft)/,
+    pattern: /trust\s+me[\s,.]*(i\s+am|i'?m)\s+(an?\s+)?(developer|engineer|researcher|employee)(?:\s+(?:of|from|at))?\s+(anthropic|openai|google|meta|microsoft)/,
     weight: 8,
     precision: 'high',
     description: 'Trust me, I work at [AI company]',
@@ -60,7 +60,7 @@ export const socialEngineeringRules: PatternRule[] = [
   {
     id: 'social-training-scenario',
     category: 'social-engineering',
-    pattern: /(this\s+is\s+a\s+)?(training|test|simulation|evaluation|assessment)\s+(exercise|scenario|mode|run)\s*.{0,50}(respond\s+without|ignore|bypass)/,
+    pattern: /(this\s+is\s+a\s+)?(training|test|simulation|evaluation|assessment)\s+(exercise|scenario|mode|run)\b[\s\S]{0,50}?\b(respond\s+without|ignore|bypass)/,
     weight: 7,
     precision: 'medium',
     description: 'Fake training/test scenario',
