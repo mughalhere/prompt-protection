@@ -1,4 +1,4 @@
-# prompt-protection v3 training config — datasets, licences, hyperparameters.
+# prompt-protection v3 training config, datasets, licences, hyperparameters.
 # Licence policy: fetch.py hard-fails unless the HF dataset card's `license`
 # is in `licence_allowlist` (override with --force, which writes a warning).
 
@@ -55,7 +55,7 @@ datasets:
     hf_id: hackaprompt/hackaprompt-dataset
     role: train
     licence: mit
-    gated: true            # "auto" gated on HF — needs HF_TOKEN; fetch.py skips with a warning if absent
+    gated: true            # "auto" gated on HF, needs HF_TOKEN; fetch.py skips with a warning if absent
     subsets: [{config: default, split: train}]
     text_field: user_input
     label_field: correct
@@ -85,7 +85,7 @@ datasets:
     label_map: {0: 0, 1: 1}
     cap: 8000
     lodo_drop_only: true   # used in the final fit; its LODO fold is reported separately
-    caveat: labels are relative to a paired system prompt — many positives read benign standalone
+    caveat: labels are relative to a paired system prompt, many positives read benign standalone
 
   - name: in_the_wild
     hf_id: TrustAIRLab/in-the-wild-jailbreak-prompts
@@ -158,6 +158,6 @@ excluded:
   - hf_id: JasperLS/prompt-injections
     reason: no licence on card; content identical to deepset/prompt-injections (546/116 rows, 343/203 labels)
   - hf_id: qualifire/prompt-injections-benchmark
-    reason: licence cc-by-nc-4.0 (non-commercial) — fails allowlist; also gated
+    reason: licence cc-by-nc-4.0 (non-commercial), fails allowlist; also gated
   - hf_id: Deysi/prompt-injection
     reason: repository not found (404/401 on HfApi.dataset_info, 2026-09-14)

@@ -2,11 +2,11 @@ import type { PatternRule } from '../types.js';
 
 /**
  * Tool-poisoning rules target malicious instructions hidden inside a **tool or
- * function definition** (its description or parameter docs) — the MCP / agent
+ * function definition** (its description or parameter docs), the MCP / agent
  * attack where the agent reads the poisoned metadata but the user never sees it.
  * These are written to run against the flattened text of a tool definition (see
  * `scanToolDefinition`), where imperative "instructions to the model" are almost
- * never legitimate — hence mostly high precision.
+ * never legitimate, hence mostly high precision.
  */
 export const toolPoisoningRules: PatternRule[] = [
   {
@@ -64,7 +64,7 @@ export const toolPoisoningRules: PatternRule[] = [
     id: 'tool-read-secrets',
     category: 'tool-poisoning',
     // instruction to read credentials/secret files as part of the tool.
-    // No leading \b on the alternation — targets like ".env" and "/etc/passwd"
+    // No leading \b on the alternation, targets like ".env" and "/etc/passwd"
     // start with a non-word char, so a boundary there never matches.
     pattern:
       /\b(read|cat|open|load|include|attach|fetch)\b(?:(?!\b(?:read|cat|open|load|include|attach|fetch)\b)[^\n]){0,40}?(\.env|\.ssh|\/etc\/passwd|~\/\.aws|id_rsa|\bprivate\s+key\b|\bcredentials?\b|\bsecrets?\b|\bapi[_\s-]?keys?\b)/,
