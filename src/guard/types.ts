@@ -4,6 +4,7 @@ import type {
   Action,
   AnalysisResult,
   AnalyzeOptions,
+  FailMode,
   LoggingOptions,
   ThreatCategory,
 } from '../types.js';
@@ -129,11 +130,27 @@ export interface GuardOptions extends LoggingOptions {
   trustedIdentifiers?: string[];
   /** Spotlight tool results returned through `wrapTools`. */
   spotlight?: SpotlightMode | GuardSpotlightOptions;
+  /** Verdict when the guard itself throws: `'closed'` (default) blocks, `'open'` allows. */
+  failMode?: FailMode;
 }
 
 export interface TaintOptions {
   /** Stable id (e.g. a tool-call id); re-registering the same id is a no-op. */
   id?: string;
+}
+
+export interface MemoryWriteOptions extends TaintOptions {
+  /** `reject-blocked` (default) refuses to store injection-scored results; `annotate` stores and reports. */
+  policy?: 'reject-blocked' | 'annotate';
+}
+
+export interface MemoryWriteResult {
+  source: TaintedSource;
+  action: Action;
+  /** Whether the caller should persist the value. */
+  store: boolean;
+  /** Spotlit form of the text when the guard has `spotlight` configured — persist this, not the raw text. */
+  spotlit?: string;
 }
 
 export type ToolApprovalOutcome =
@@ -163,6 +180,13 @@ export interface Guard {
   wrapTools<T extends Record<string, WrappableTool>>(tools: T): T;
   /** Approval function for the Vercel AI SDK `toolApproval` option. */
   vercelToolApproval(): (input: ToolApprovalInput) => ToolApprovalOutcome;
+  /**
+   * Taints a tool result that is about to be persisted to agent memory (OWASP ASI06).
+   * `store` is false when the source scores as injection under `reject-blocked`.
+   */
+  taintMemoryWrite(source: string, value: unknown, options?: MemoryWriteOptions): MemoryWriteResult;
+  /** Most recent decision for a tool-call id (ring of 64), for approval UIs and receipts. */
+  lastDecision(toolCallId: string): GuardDecision | undefined;
   nextTurn(): void;
   clear(): void;
   readonly session: ProtectionSession;

@@ -1,10 +1,12 @@
 import { analyzePrompt } from '../api.js';
-import { computeSeverity } from '../core/analyze.js';
+import { computeSeverity, failedAnalysis } from '../core/analyze.js';
 import { emitToolCallLog } from '../logging.js';
 import type {
   Action,
   AnalysisResult,
   AnalyzeOptions,
+  FailMode,
+  FlowSummary,
   LoggingOptions,
   PatternMatch,
   PatternRule,
@@ -36,8 +38,47 @@ export interface CheckContext {
   turn: number;
   analyzeOptions: AnalyzeOptions;
   logging: LoggingOptions;
+  failMode: FailMode;
   /** Applied to each leaf before flow detection (spotlight removal). */
   unmark?: (leaf: string) => string;
+}
+
+function summarizeFlows(flows: Flow[]): FlowSummary[] {
+  return flows.map((f) => ({ kind: f.kind, sourceId: f.sourceId, sourceTool: f.sourceTool, path: f.path, strength: f.strength }));
+}
+
+/** Decision + log when the guard itself throws; block unless `failMode` is `'open'`. */
+function failedDecision(err: unknown, call: ToolCall, ctx: CheckContext): GuardDecision {
+  const threshold = ctx.analyzeOptions.threshold ?? DEFAULT_THRESHOLD;
+  const argsAnalysis = failedAnalysis(err, ctx.failMode, threshold);
+  let sink: SinkKind = 'none';
+  try {
+    sink = ctx.resolveSink(call.toolName);
+  } catch {
+    /* resolver is one of the things that may have thrown */
+  }
+  const decision: GuardDecision = {
+    action: argsAnalysis.action,
+    requiresConfirmation: false,
+    toolName: call.toolName,
+    ...(call.toolCallId !== undefined ? { toolCallId: call.toolCallId } : {}),
+    sink,
+    flows: [],
+    reasons: ['internal-error'],
+    policy: 'internal-error',
+    argsAnalysis,
+  };
+  emitToolCallLog({ ...decision, flows: [] }, '', ctx.logging);
+  return decision;
+}
+
+/** Pure decision function; state is passed in so `createGuard` stays thin. */
+export function checkToolCall(call: ToolCall, ctx: CheckContext): GuardDecision {
+  try {
+    return runCheck(call, ctx);
+  } catch (err) {
+    return failedDecision(err, call, ctx);
+  }
 }
 
 function toAction(action: PolicyAction): Action {
@@ -67,8 +108,7 @@ function withFlowMatches(result: AnalysisResult, flows: Flow[], action: Action, 
   };
 }
 
-/** Pure decision function; state is passed in so `createGuard` stays thin. */
-export function checkToolCall(call: ToolCall, ctx: CheckContext): GuardDecision {
+function runCheck(call: ToolCall, ctx: CheckContext): GuardDecision {
   const leaves = collectLeaves(call.args).map((leaf) =>
     ctx.unmark ? { ...leaf, value: ctx.unmark(leaf.value) } : leaf,
   );
@@ -89,7 +129,7 @@ export function checkToolCall(call: ToolCall, ctx: CheckContext): GuardDecision 
     plan: ctx.plan,
     destinationTrusted,
     sourceById: (id) => ctx.index.get(id),
-  });
+  }, ctx.failMode);
 
   const action = toAction(outcome.action);
   const threshold = ctx.analyzeOptions.threshold ?? DEFAULT_THRESHOLD;
@@ -105,7 +145,7 @@ export function checkToolCall(call: ToolCall, ctx: CheckContext): GuardDecision 
     argsAnalysis: withFlowMatches(rawArgs, flows, action, threshold),
   };
 
-  emitToolCallLog(decision, argsText, ctx.logging);
+  emitToolCallLog({ ...decision, flows: summarizeFlows(flows) }, argsText, ctx.logging);
   return decision;
 }
 

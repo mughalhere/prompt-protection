@@ -87,3 +87,6 @@ export function applyHomoglyphs(text: string): string {
   }
   return result;
 }
+
+/** Regexes this module runs on untrusted text; consumed by the ReDoS safety suite. */
+export const UNICODE_REGEXES = { UNICODE_TAGS_RE, BIDI_RE, WHITESPACE_RE } as const;

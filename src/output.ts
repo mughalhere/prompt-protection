@@ -2,7 +2,7 @@ import { normalizeUnicode } from './utils/unicode.js';
 import { decodeObfuscation } from './utils/encoding.js';
 import { score } from './scorer.js';
 import { OUTPUT_RULES } from './patterns/index.js';
-import { computeSeverity } from './core/analyze.js';
+import { computeSeverity, failedAnalysis } from './core/analyze.js';
 import { resolveAction } from './verdict.js';
 import { emitOutputLog } from './logging.js';
 import {
@@ -131,6 +131,7 @@ export function analyzeOutput(
   options: OutputAnalysisOptions = {},
 ): OutputAnalysisResult {
   const threshold = options.threshold ?? DEFAULT_OUTPUT_THRESHOLD;
+  try {
   const rules = buildOutputRuleSet(options);
 
   const cap = options.maxInputLength ?? DEFAULT_MAX_INPUT_LENGTH;
@@ -164,4 +165,18 @@ export function analyzeOutput(
   emitOutputLog(result, output, options);
 
   return result;
+  } catch (err) {
+    const failed = failedAnalysis(err, options.failMode ?? 'closed', threshold);
+    const result: OutputAnalysisResult = {
+      score: failed.score,
+      severity: failed.severity,
+      isSuspicious: failed.action !== 'allow',
+      action: failed.action,
+      matches: failed.matches,
+      threats: [],
+      ...(failed.error ? { error: failed.error } : {}),
+    };
+    emitOutputLog(result, output, options);
+    return result;
+  }
 }

@@ -2,9 +2,21 @@
 
 ## Scope
 
-This package is a **detection layer** — it is not a guaranteed security boundary. It uses pattern matching and heuristics that can be bypassed by sufficiently novel attacks. Do not use it as your sole defence against adversarial inputs.
+This package is a **policy layer** inside your process — a provenance-tracked tool-call guard plus detection heuristics. It is not an isolation boundary. The guard cannot see flows through the model's hidden state, paraphrased content that shares no identifiers with its source, or sources you never registered; the rules can be bypassed by novel phrasing. Do not use it as your sole defence. The full model is in [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 
-Version 1.7+ returns three-way actions (`allow` / `flag` / `block`) so medium-confidence hits can be reviewed without being treated as definitive blocks. Flagged traffic should still be monitored via the optional logger.
+Actions are three-way (`allow` / `flag` / `block`; the guard adds `requiresConfirmation`) so medium-confidence hits can be reviewed without being treated as definitive blocks. Flagged traffic should still be monitored via the optional logger or the audit log.
+
+## Failure semantics
+
+The library **fails closed**. Any internal throw — a rule, a policy, a sink resolver, a classifier adapter — yields `block` with a synthetic `internal-error` match and `result.error` set, and the logged event carries the error. `failMode: 'open'` opts a call into pass-through with the error still reported. A throwing logger never changes a verdict. Details and a comparison table are in the README under "Failure semantics".
+
+## Regular-expression safety
+
+Every regex the library runs on untrusted text (148 at 3.1.0) is fuzzed with [`recheck`](https://makenowjust-labs.github.io/recheck/) in CI (`npm run test:redos`). A `vulnerable` verdict fails the build; an `unknown` verdict passes only through `tests/regex-safety/allowlist.json`, which requires a written justification per entry. 3.1.0 rewrote 29 patterns that the fuzzer found polynomial; the allowlist is empty.
+
+## No telemetry
+
+The library makes no network calls, reads no environment variables, and touches no filesystem. It runs unchanged in a `vm` context with no `process`, `Buffer`, `require` or `fetch` (`npm run compat`). Nothing about your prompts, tool results or decisions leaves your process unless you wire a logger to a sink of your own.
 
 ## Supply chain
 
@@ -12,11 +24,14 @@ Version 1.7+ returns three-way actions (`allow` / `flag` / `block`) so medium-co
 transitive packages.
 
 - `package.json` declares no `dependencies` and no `optionalDependencies`.
-- The four peer dependencies (`@anthropic-ai/sdk`, `openai`, `express`, `react`)
-  are all marked `optional: true` in `peerDependenciesMeta`, so npm does not
-  install them on your behalf. They are only needed if you use the matching
-  adapter, middleware, or React hook — each of which loads them via a lazy
-  dynamic `import()` at call time.
+- Every peer dependency (`@anthropic-ai/sdk`, `openai`, `express`, `react`,
+  `@modelcontextprotocol/sdk`, `ai`, `yaml`, `@opentelemetry/api`) is marked
+  `optional: true` in `peerDependenciesMeta`, so npm does not install them on
+  your behalf. Each is needed only by the matching adapter, middleware, hook,
+  MCP server, ATR YAML loader or OpenTelemetry bridge — and each of those loads
+  it via a lazy dynamic `import()` at call time.
+- Every release publishes a CycloneDX SBOM (`sbom.cdx.json`) as a GitHub
+  release asset alongside the npm provenance attestation.
 - The published tarball contains `dist/`, `README.md`, `LICENSE`, and
   `CHANGELOG.md` only. It contains no `eval`, no `Function` constructor, no
   `fetch`/`XMLHttpRequest`, no `child_process`, and no filesystem access.
@@ -69,4 +84,10 @@ We will respond within 72 hours and aim to publish a fix within 7 days for criti
 
 ## Supported Versions
 
-Only the latest release receives security fixes.
+| Version | Security fixes |
+|---|---|
+| 3.1.x | all |
+| 3.0.x | critical guard bypasses for 90 days after 3.1.0 |
+| ≤ 2.x | none — upgrade |
+
+Rule-pack changes are pinned: `RULES_VERSION` (exported from the root) changes whenever any rule id, pattern, weight or precision changes, and `tests/patterns/rules-version.test.ts` fails if a rule changes without it.

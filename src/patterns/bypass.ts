@@ -36,7 +36,7 @@ export const bypassRules: PatternRule[] = [
   {
     id: 'bypass-hypothetically',
     category: 'security-bypass',
-    pattern: /hypothetically\s*(speaking\s*)?[,.]?\s*(how\s+(would|do|could|can|to)|what\s+(are\s+the\s+)?(steps?|ways?|methods?))\s*(to\s+|one\s+could\s+)?/,
+    pattern: /hypothetically(?:\s+speaking)?[\s,.]*(how\s+(would|do|could|can|to)|what\s+(are\s+the\s+)?(steps?|ways?|methods?))(?:\s+(?:to|one\s+could)\b)?/,
     weight: 8,
     precision: 'medium',
     description: 'Hypothetical framing for harmful instructions',
@@ -44,7 +44,7 @@ export const bypassRules: PatternRule[] = [
   {
     id: 'bypass-for-educational',
     category: 'security-bypass',
-    pattern: /for\s+(educational|research|academic|scientific|informational)\s+purposes?\s*.{0,80}(how\s+to\s+(make|build|create|synthesize|hack|crack|exploit|attack))/,
+    pattern: /for\s+(educational|research|academic|scientific|informational)\s+purposes?\b[\s\S]{0,80}?\b(how\s+to\s+(make|build|create|synthesize|hack|crack|exploit|attack))/,
     weight: 7,
     precision: 'medium',
     description: 'Educational framing for harmful instructions',
@@ -52,7 +52,7 @@ export const bypassRules: PatternRule[] = [
   {
     id: 'bypass-as-fiction',
     category: 'security-bypass',
-    pattern: /as\s+a?\s*(fictional|hypothetical|theoretical)\s+(character|ai|scenario|story|example)\s*.{0,50}(ignore|bypass|without\s+(restriction|filter|limit))/,
+    pattern: /as\s+(?:a\s+)?(fictional|hypothetical|theoretical)\s+(character|ai|scenario|story|example)\b[\s\S]{0,50}?\b(ignore|bypass|without\s+(restriction|filter|limit))/,
     weight: 7,
     precision: 'medium',
     description: 'Fictional framing to bypass safety',

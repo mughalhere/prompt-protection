@@ -1,6 +1,6 @@
 {
   "name": "prompt-protection",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Agent security runtime for Node.js and browsers: provenance-tracked tool-call guard (CaMeL-style), spotlighting, fuzzy canaries, and hybrid rules + embedded ML detection for prompt injection. Zero dependencies, TypeScript-first, published benchmarks.",
   "license": "MIT",
   "author": "mughalhere",
@@ -22,6 +22,12 @@
     "camel",
     "mcp-security",
     "ai-agents",
+    "owasp-agentic",
+    "audit-log",
+    "fail-closed",
+    "opentelemetry",
+    "agent-threat-rules",
+    "atr",
     "llm-security",
     "jailbreak",
     "ai-safety",
@@ -127,6 +133,16 @@
         "default": "./dist/adapters/vercel.cjs"
       }
     },
+    "./adapters/vercel-guardrail": {
+      "import": {
+        "types": "./dist/adapters/vercel-guardrail.d.ts",
+        "default": "./dist/adapters/vercel-guardrail.js"
+      },
+      "require": {
+        "types": "./dist/adapters/vercel-guardrail.d.cts",
+        "default": "./dist/adapters/vercel-guardrail.cjs"
+      }
+    },
     "./lite": {
       "import": {
         "types": "./dist/lite.d.ts",
@@ -176,6 +192,46 @@
         "types": "./dist/ml/index.d.cts",
         "default": "./dist/ml/index.cjs"
       }
+    },
+    "./atr": {
+      "import": {
+        "types": "./dist/atr/index.d.ts",
+        "default": "./dist/atr/index.js"
+      },
+      "require": {
+        "types": "./dist/atr/index.d.cts",
+        "default": "./dist/atr/index.cjs"
+      }
+    },
+    "./atr/yaml": {
+      "import": {
+        "types": "./dist/atr/yaml.d.ts",
+        "default": "./dist/atr/yaml.js"
+      },
+      "require": {
+        "types": "./dist/atr/yaml.d.cts",
+        "default": "./dist/atr/yaml.cjs"
+      }
+    },
+    "./audit": {
+      "import": {
+        "types": "./dist/audit.d.ts",
+        "default": "./dist/audit.js"
+      },
+      "require": {
+        "types": "./dist/audit.d.cts",
+        "default": "./dist/audit.cjs"
+      }
+    },
+    "./otel": {
+      "import": {
+        "types": "./dist/otel/index.d.ts",
+        "default": "./dist/otel/index.js"
+      },
+      "require": {
+        "types": "./dist/otel/index.d.cts",
+        "default": "./dist/otel/index.cjs"
+      }
     }
   },
   "files": [
@@ -199,15 +255,20 @@
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build && npm run test && npm run typecheck",
     "bench": "npm run build && node bench/run.mjs",
-    "size": "node bench/lib/size.mjs"
+    "size": "node bench/lib/size.mjs",
+    "test:redos": "jest --config jest.redos.config.cjs",
+    "compat": "node scripts/compat/smoke.mjs && node --experimental-vm-modules scripts/compat/no-globals.mjs",
+    "sbom": "cyclonedx-npm --omit dev --output-format JSON --output-file sbom.cdx.json"
   },
   "peerDependencies": {
     "@anthropic-ai/sdk": ">=0.20.0",
+    "@modelcontextprotocol/sdk": ">=1.0.0",
+    "@opentelemetry/api": ">=1.4.0",
+    "ai": ">=4.0.0",
     "express": ">=4.0.0",
     "openai": ">=4.0.0",
     "react": ">=17.0.0",
-    "@modelcontextprotocol/sdk": ">=1.0.0",
-    "ai": ">=4.0.0"
+    "yaml": ">=2.0.0"
   },
   "peerDependenciesMeta": {
     "@anthropic-ai/sdk": {
@@ -227,11 +288,19 @@
     },
     "ai": {
       "optional": true
+    },
+    "yaml": {
+      "optional": true
+    },
+    "@opentelemetry/api": {
+      "optional": true
     }
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
+    "@cyclonedx/cyclonedx-npm": "^6.0.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "@opentelemetry/api": "^1.9.1",
     "@testing-library/react": "^16.0.0",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.0",
@@ -248,10 +317,12 @@
     "prettier": "^3.3.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
+    "recheck": "^4.5.0",
     "ts-jest": "^29.1.0",
     "ts-node": "^10.9.2",
     "tsup": "^8.5.1",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "yaml": "^2.9.1"
   },
   "bin": {
     "prompt-protection-mcp": "./dist/mcp/bin.cjs"

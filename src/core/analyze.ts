@@ -10,6 +10,7 @@ import type { Classifier } from '../ml/types.js';
 import type {
   AnalysisResult,
   AnalyzeOptions,
+  FailMode,
   PatternRule,
   PromptInput,
   SeverityLevel,
@@ -71,6 +72,7 @@ export function buildRuleSet(options: AnalyzeOptions, base: readonly PatternRule
 export function analyzePromptWith(classifier: Classifier | null): AnalyzeFn {
   return function analyzePrompt(prompt: PromptInput, options: AnalyzeOptions = {}): AnalysisResult {
     const threshold = options.threshold ?? DEFAULT_THRESHOLD;
+    try {
     const rules = buildRuleSet(options);
     const text = capLength(resolvePromptInput(prompt, options.analyzeRoles), options.maxInputLength);
 
@@ -116,6 +118,40 @@ export function analyzePromptWith(classifier: Classifier | null): AnalyzeFn {
     emitInputLog(result, text, options);
 
     return result;
+    } catch (err) {
+      const result = failedAnalysis(err, options.failMode ?? 'closed', threshold);
+      emitInputLog(result, typeof prompt === 'string' ? prompt : '', options);
+      return result;
+    }
+  };
+}
+
+/** Synthetic rule carried by a fail-closed block; `pattern` never matches text. */
+export const INTERNAL_ERROR_RULE: PatternRule = {
+  id: 'internal-error',
+  category: 'prompt-injection',
+  pattern: /(?!)/,
+  weight: 10,
+  precision: 'high',
+  description: 'Analysis failed internally; verdict decided by failMode',
+};
+
+/** Builds the verdict for an internal failure: block when closed, allow when open. */
+export function failedAnalysis(err: unknown, failMode: FailMode, threshold: number): AnalysisResult {
+  const message = err instanceof Error ? err.message : String(err);
+  const error = { code: 'internal-error' as const, message };
+  if (failMode === 'open') {
+    return { score: 0, severity: 'safe', isMalicious: false, action: 'allow', matches: [], categories: [], normalizedPrompt: '', error };
+  }
+  return {
+    score: threshold,
+    severity: computeSeverity(threshold),
+    isMalicious: true,
+    action: 'block',
+    matches: [{ rule: INTERNAL_ERROR_RULE, matchedText: '', startIndex: 0, endIndex: 0 }],
+    categories: [],
+    normalizedPrompt: '',
+    error,
   };
 }
 

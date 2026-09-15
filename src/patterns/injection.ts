@@ -62,7 +62,7 @@ export const injectionRules: PatternRule[] = [
   {
     id: 'injection-system-override',
     category: 'prompt-injection',
-    pattern: /\[?\s*system\s*(prompt|message|instructions?)?\s*\]?\s*[:=]\s*/,
+    pattern: /(?<![\w[])\[?\s{0,3}system(?:\s+(prompt|message|instructions?))?[\s\]]{0,4}[:=]/,
     weight: 8,
     precision: 'high',
     description: 'System prompt override marker',
@@ -94,7 +94,7 @@ export const injectionRules: PatternRule[] = [
   {
     id: 'injection-end-prompt-marker',
     category: 'prompt-injection',
-    pattern: /---+\s*(end\s+of\s+)?(system\s+)?(prompt|instructions?)\s*---+/,
+    pattern: /(?<!-)-{3,}\s{0,3}(end\s+of\s+)?(system\s+)?(prompt|instructions?)\s{0,3}-{3,}/,
     weight: 8,
     precision: 'high',
     description: 'End-of-prompt delimiter injection',
@@ -150,7 +150,7 @@ export const injectionRules: PatternRule[] = [
   {
     id: 'injection-fake-tool-call',
     category: 'prompt-injection',
-    pattern: /["']?(tool_calls?|function_call|tool_use)["']?\s*:\s*\[?\s*\{/,
+    pattern: /["']?(tool_calls?|function_call|tool_use)["']?\s*:[\s[]*\{/,
     weight: 8,
     precision: 'high',
     description: 'Fake tool/function call JSON injection',
@@ -166,7 +166,7 @@ export const injectionRules: PatternRule[] = [
   {
     id: 'injection-translate-then-obey',
     category: 'prompt-injection',
-    pattern: /(translate|decode|decrypt|unscramble)\s+.{0,40}(then|and\s+then)\s+(follow|obey|execute|run|apply)\s+(the\s+)?(instructions?|commands?|directives?)/,
+    pattern: /(translate|decode|decrypt|unscramble)\b[\s\S]{0,40}?\bthen\s+(follow|obey|execute|run|apply)\s+(the\s+)?(instructions?|commands?|directives?)/,
     weight: 8,
     precision: 'high',
     description: 'Translate/decode then obey wrapped instructions',
@@ -174,7 +174,7 @@ export const injectionRules: PatternRule[] = [
   {
     id: 'injection-code-wrap',
     category: 'prompt-injection',
-    pattern: /(in\s+(this|the)\s+(code|json|yaml|xml|markdown)\s*(block|snippet|payload)?|as\s+(json|yaml|xml))\s*[,:]?\s*.{0,40}(ignore|disregard|override|new\s+instructions?)/,
+    pattern: /(in\s+(this|the)\s+(code|json|yaml|xml|markdown)(?:\s+(block|snippet|payload))?|as\s+(json|yaml|xml))\b[\s\S]{0,40}?\b(ignore|disregard|override|new\s+instructions?)/,
     weight: 7,
     precision: 'medium',
     description: 'Code/structured-payload wrapped injection',
@@ -194,7 +194,7 @@ export const injectionRules: PatternRule[] = [
     category: 'prompt-injection',
     // "do what I said before" / "answer what I asked in the previous message"
     pattern:
-      /\b(do|answer|continue|complete|follow|execute|honou?r)\s+(with\s+)?(what|whatever)\s+i\s+(said|asked|requested|wrote)(\s+(before|earlier|previously|above)|\s+.{0,40}?\b(previous|prior|last|earlier)\s+(message|prompt|request|turn|question))\b/,
+      /\b(do|answer|continue|complete|follow|execute|honou?r)\s+(with\s+)?(what|whatever)\s+i\s+(said|asked|requested|wrote)(\s+(before|earlier|previously|above)|[\s\S]{1,40}?\b(previous|prior|last|earlier)\s+(message|prompt|request|turn|question))\b/,
     weight: 6,
     precision: 'medium',
     description: 'Request to act on what the user said/asked in a prior turn',

@@ -1,5 +1,52 @@
 # Changelog
 
+## [3.1.0] - 2026-09-15
+
+Production-grade release: nothing in the detection or guard semantics changes; what changes is
+what the library can prove about itself and how it plugs into standards and frameworks.
+
+### Added
+- **Fail-closed semantics.** Any internal throw yields `block` with a synthetic `internal-error`
+  match and `result.error`; `failMode: 'open'` opts into pass-through with the error still
+  reported. Guard policies that throw block and name themselves; tool-call events carry
+  `toolCallId`, `policy`, `reasons`, `sink` and value-free `flows`. `fallbackToSync` is a
+  deprecated alias of `failMode: 'open'`.
+- **ReDoS proof.** Every shipped regex (148) is fuzzed with `recheck` in CI (`npm run test:redos`);
+  `vulnerable` fails, `unknown` passes only through a justified allowlist. The fuzzer found 29
+  polynomial patterns in 3.0.0 — all rewritten to linear forms with no bench regression; the allowlist is empty.
+- **ATR interop** (`prompt-protection/atr`, `prompt-protection/atr/yaml`). `loadAtrRules` compiles
+  `agent-threat-rules` YAML (regex / contains / exact / starts_with) into `customRules`, honouring
+  `scan_target`, `agent_source` (spec §5.1), status and the enforce lane; AND / named / behavioural
+  conditions are skipped with a reason, never approximated. `toAtrFindings` emits the spec §5.5
+  ScanResult. `PatternRule` gains `mappings` (OWASP LLM 2025 + ATLAS ids for 62/106 input rules,
+  CI-checked coverage floor) and `origin`. `yaml` is an optional peer.
+- **Vercel reference composition** (`prompt-protection/adapters/vercel-guardrail`).
+  `createGuardrailProvider` implements the pre-call decision / approval context / hash-chained
+  receipt shape from vercel/ai#13434 on the provenance guard, with bridges for `toolApproval`,
+  `onToolExecutionEnd` (taints outputs into memory) and `prepareStep` (plan lock + quarantine).
+  `composeToolApproval` merges approval functions with deny > user-approval > approved, for use
+  next to `@ai-sdk/policy-opa` (`examples/vercel-policy-opa/`). Guard gains `taintMemoryWrite`
+  (OWASP ASI06) and `lastDecision`.
+- **Observability.** `prompt-protection/audit`: tamper-evident JSONL audit log (SHA-256 hash chain,
+  content stored as a digest by default, `replayAuditLog` re-verifies). `prompt-protection/otel`:
+  span events / child spans and a `pp.decisions` counter with value-free `pp.*` attributes;
+  `@opentelemetry/api` is an optional peer. `ProtectionLogger.logWithContent` hook.
+- **Runtime compatibility proofs** in CI: Bun, Deno, and a no-Node-globals `vm` evaluation of the
+  bundles (edge/browser proxy). README table; `npm run compat`.
+- **Governance.** `docs/THREAT_MODEL.md`, `ADOPTERS.md`, SECURITY.md sections on failure semantics,
+  regex safety, no telemetry and supported versions; CycloneDX SBOM attached to every GitHub
+  release (`npm run sbom`); `RULES_VERSION` pinning with a digest test; `training/publish_hf.py`.
+- **Bench**: agent-flows report "utility under attack" (benign pass-through) beside attack
+  block-recall, per-scenario breakdown, `--json`; new gate benign utility ≥ 85 %.
+
+### Rules
+- `RULES_VERSION` 2026.09.15 — 29 patterns rewritten for linear-time matching (see ReDoS proof);
+  semantics preserved, benchmark unchanged.
+
+### Deferred
+- Mastra, OpenAI Agents JS, Genkit and LangChain.js adapters: designed (structural types, optional
+  peers) but not shipped in 3.1.0 — the hook shapes need verifying against installed packages first.
+
 ## [3.0.0] - 2026-09-14
 
 Category change, not a rule change. 2.x was a regex scanner; 3.0 is an agent security

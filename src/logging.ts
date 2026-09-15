@@ -1,6 +1,7 @@
 import type {
   Action,
   AnalysisResult,
+  FlowSummary,
   LogLevel,
   LoggingOptions,
   OutputAnalysisResult,
@@ -14,6 +15,11 @@ import type {
 export interface ToolCallEventSource {
   action: Action;
   toolName: string;
+  toolCallId?: string;
+  policy?: string;
+  reasons?: string[];
+  sink?: string;
+  flows?: FlowSummary[];
   argsAnalysis: AnalysisResult;
 }
 
@@ -91,9 +97,9 @@ function shouldLog(action: Action, direction: Direction, options: LoggingOptions
   return levels.includes(actionToLogLevel(action, direction));
 }
 
-function emitSafe(logger: ProtectionLogger, event: ProtectionEvent, options: LoggingOptions): void {
+function emitSafe(logger: ProtectionLogger, event: ProtectionEvent, options: LoggingOptions, content = ''): void {
   try {
-    const result = logger.log(event);
+    const result = logger.logWithContent ? logger.logWithContent(event, content) : logger.log(event);
     if (result !== undefined && typeof result.then === 'function') {
       void result.catch((err: unknown) => {
         options.onLoggerError?.(err);
@@ -123,7 +129,8 @@ export function emitInputLog(
     content,
     options,
   );
-  emitSafe(options.logger, event, options);
+  if (result.error) event.error = result.error.message;
+  emitSafe(options.logger, event, options, content);
 }
 
 /** Emit a protection event for an output analysis result when a logger is configured. */
@@ -145,7 +152,8 @@ export function emitOutputLog(
     content,
     options,
   );
-  emitSafe(options.logger, event, options);
+  if (result.error) event.error = result.error.message;
+  emitSafe(options.logger, event, options, content);
 }
 
 /** Emit a `tool-call.*` event for a guard decision when a logger is configured. */
@@ -169,7 +177,13 @@ export function emitToolCallLog(
     options,
   );
   event.toolName = decision.toolName;
-  emitSafe(options.logger, event, options);
+  if (decision.toolCallId !== undefined) event.toolCallId = decision.toolCallId;
+  if (decision.policy !== undefined) event.policy = decision.policy;
+  if (decision.reasons !== undefined) event.reasons = decision.reasons;
+  if (decision.sink !== undefined) event.sink = decision.sink;
+  if (decision.flows !== undefined) event.flows = decision.flows;
+  if (analysis.error) event.error = analysis.error.message;
+  emitSafe(options.logger, event, options, argsText);
 }
 
 /** Dev convenience logger that writes events to `console`. */
