@@ -51,3 +51,7 @@ Licensed **CC-BY-4.0** (see `LICENSE`). If you use this corpus, please cite:
 Add rows that keep each file's schema and stay disjoint from the fixtures; prefer techniques
 a pure-regex scanner would miss for `attacks`, and realistic legitimate uses of trigger
 vocabulary for `benign-hard`. Run the validator before opening a PR, it must print `OK`.
+
+## Hugging Face
+
+Mirrored at [https://huggingface.co/datasets/promptprotection/agent-security-datasets](https://huggingface.co/datasets/promptprotection/agent-security-datasets). `training/publish_hf.py --upload` republishes from this folder; the dataset card is generated from `bench/results.json`.
