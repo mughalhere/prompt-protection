@@ -25,7 +25,7 @@ describe('injection patterns', () => {
     });
 
     it('does not trigger on general disregard without instruction noun', () => {
-      // "your concern" doesn't match — the noun (instructions/rules/context/etc.) is required
+      // "your concern" doesn't match, the noun (instructions/rules/context/etc.) is required
       expect(trigger('I disregard your concern about the weather')).toBe(false);
     });
   });

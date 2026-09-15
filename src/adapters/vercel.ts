@@ -115,7 +115,7 @@ function refusalText(decision: GuardDecision): string {
  * `transformParams` runs `verifyPrompt` on the user text and throws
  * `PromptInjectionError` on a block, rejecting the generate/stream call. With
  * `scanOutput`, `wrapGenerate` additionally scans the completion. With `guard`,
- * tool results are tainted and proposed tool calls are checked (advisory —
+ * tool results are tainted and proposed tool calls are checked (advisory , 
  * enforce with `guard.wrapTools` / `guard.vercelToolApproval`).
  */
 export function promptProtectionMiddleware(

@@ -135,8 +135,8 @@ function normalizeStatus(s: ToolApprovalStatusLike): { type: string; reason?: st
 }
 
 /**
- * Composes several `toolApproval` functions — e.g. `@ai-sdk/policy-opa` and this
- * provider — into one: denied > user-approval > approved > not-applicable, reasons joined.
+ * Composes several `toolApproval` functions, e.g. `@ai-sdk/policy-opa` and this
+ * provider, into one: denied > user-approval > approved > not-applicable, reasons joined.
  */
 export function composeToolApproval<O>(
   ...fns: Array<(options: O) => ToolApprovalStatusLike | Promise<ToolApprovalStatusLike>>
@@ -194,7 +194,7 @@ export function createGuardrailProvider(guard: Guard, options: GuardrailProvider
       decision === 'allow'
         ? `allow ${ctx.toolName}`
         : `${decision === 'deny' ? 'deny' : 'needs approval'} ${ctx.toolName}: ${d.policy ?? d.reasons[0] ?? 'policy'}` +
-          (context.flows.length > 0 ? ` — ${context.flows.map((f) => `${f.kind} from ${f.sourceTool} → ${f.path}`).join(', ')}` : '');
+          (context.flows.length > 0 ? `, ${context.flows.map((f) => `${f.kind} from ${f.sourceTool} → ${f.path}`).join(', ')}` : '');
     const tail = JSON.stringify({ policy: context.policy, sink: context.sink, flows: context.flows, argsDigest }).slice(0, 1024);
     return { decision, reason: `${human} ${tail}`, context, guard: d };
   }

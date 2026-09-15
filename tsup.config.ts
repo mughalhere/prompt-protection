@@ -47,6 +47,6 @@ export default defineConfig({
   treeshake: true,
   outDir: 'dist',
   banner: {
-    js: '/* prompt-protection — MIT License — https://github.com/mughalhere/prompt-protection */',
+    js: '/* prompt-protection | MIT License | https://github.com/mughalhere/prompt-protection */',
   },
 });

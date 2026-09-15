@@ -161,7 +161,7 @@ export const injectionRules: PatternRule[] = [
     pattern: /(update|replace|set|override)\s+(the\s+)?(policy|policies|safety\s+policy|content\s+policy)\s*(to|with|:)/,
     weight: 9,
     precision: 'high',
-    description: 'Policy puppetry — overwrite safety policy',
+    description: 'Policy puppetry, overwrite safety policy',
   },
   {
     id: 'injection-translate-then-obey',

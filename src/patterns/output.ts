@@ -166,7 +166,7 @@ export const outputRules: PatternRule[] = [
     pattern: /!\[(?:(?!!\[)[^\]\n]){0,200}\]\(\s*https?:\/\/[^)\s?[\]()!]{1,500}\?[^)\s[\]()!]{0,500}?[=&][A-Za-z0-9+/_-]{16,}/,
     weight: 8,
     precision: 'medium',
-    description: 'Markdown image whose URL carries a long opaque query value — the classic zero-click exfil beacon',
+    description: 'Markdown image whose URL carries a long opaque query value, the classic zero-click exfil beacon',
   },
   {
     id: 'out-html-exfil',
