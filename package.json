@@ -326,5 +326,8 @@
   },
   "bin": {
     "prompt-protection-mcp": "./dist/mcp/bin.cjs"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1"
   }
 }
