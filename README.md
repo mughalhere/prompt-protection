@@ -100,6 +100,75 @@ Latency: rule scan p99 ≈ 0.1 ms; guard `checkToolCall` p99 ≈ 3 ms with 64 re
 
 ---
 
+## Standards: ATR, OWASP, ATLAS
+
+`prompt-protection/atr` loads [Agent Threat Rules](https://github.com/Agent-Threat-Rule/agent-threat-rules) packs — the Sigma-style open standard adopted by Microsoft, Cisco, MISP and SigmaHQ — as `customRules`, and emits findings in the ATR `ScanResult` shape:
+
+```ts
+import { loadAtrRules, toAtrFindings } from 'prompt-protection/atr';
+import { parseAtrYaml } from 'prompt-protection/atr/yaml';   // optional `yaml` peer
+
+const { rules, report } = loadAtrRules(await parseAtrYaml(packYaml), { agentSource: 'llm_input', lane: 'enforce' });
+const result = analyzePrompt(text, { customRules: rules });
+const findings = toAtrFindings(result);   // { matches: [{ rule_id: 'ATR-2026-00001', severity, confidence, … }], engine: { rules_version } }
+```
+
+Engine behaviour follows the spec's mandatory rules (no short-circuit, `scan_target` and `agent_source` filtering, draft/deprecated skipped, enforce lane) and is verified by `tests/atr/conformance.test.ts`. Conditions the engine cannot express faithfully — `condition: all`, named/behavioural formats, PCRE-only syntax — are **skipped with a reason in `report`**, never approximated. Native rules carry OWASP LLM Top 10 (2025) and MITRE ATLAS ids in `mappings`; coverage is CI-floored and ratcheted. We scan normalised text while the reference engine scans raw, so zero-width and case-sensitive ATR rules behave differently; `docs/ATR.md` lists the deltas.
+
+## Observability
+
+```ts
+import { createAuditLog, replayAuditLog } from 'prompt-protection/audit';
+const audit = createAuditLog({ sink: (line) => appendFile('decisions.jsonl', line + '\n') });
+analyzePrompt(text, { logger: audit });          // one hash-chained record per decision, content as a digest
+const { valid } = await replayAuditLog(lines);   // false if any record or link was altered
+
+import { createOtelLogger } from 'prompt-protection/otel';   // optional @opentelemetry/api peer
+const logger = await createOtelLogger();          // span events + pp.decisions counter, pp.* attributes, no prompt text
+```
+
+## Composing with policy-as-code (Vercel AI SDK)
+
+`prompt-protection/adapters/vercel-guardrail` implements the GuardrailProvider shape proposed in [vercel/ai#13434](https://github.com/vercel/ai/issues/13434) — pre-call decision, approval context, hash-chained receipts — and composes with `@ai-sdk/policy-opa`:
+
+```ts
+import { createGuardrailProvider, composeToolApproval } from 'prompt-protection/adapters/vercel-guardrail';
+const provider = createGuardrailProvider(guard, { tools: Object.keys(tools) });
+await generateText({
+  model, tools: guard.wrapTools(tools),
+  toolApproval: composeToolApproval(opaToolApproval, provider.toolApproval()),  // deny wins, reasons joined
+  onToolExecutionEnd: provider.onToolExecutionEnd(),   // receipt + taint into memory (ASI06)
+  prepareStep: provider.prepareStep(),                 // drop sink tools after an injection-scored source
+});
+```
+
+## Failure semantics
+
+Every shipped regex — 148 across input, output and tool rules, sink heuristics, identifier extraction and normalisation — is fuzzed with [`recheck`](https://makenowjust-labs.github.io/recheck/) in CI (`npm run test:redos`). Result at 3.1.0: 148 safe, 0 allowlisted, 0 vulnerable. The first run found 28 quadratic-or-worse patterns in 3.0.0 and one more once the fuzzer was given time; all 29 were rewritten, and no bench number moved.
+
+The library fails **closed**. If anything inside it throws — a rule, a policy, a sink resolver, a classifier adapter — the verdict is `block` with a synthetic `internal-error` match and `result.error` set, and the logger receives the event with `error`. Set `failMode: 'open'` to let input through instead (the error is still reported). A throwing *logger* never changes a verdict.
+
+| Fault | prompt-protection (default) | `failMode: 'open'` | For comparison |
+|---|---|---|---|
+| Rule / allowlist regex throws | `block`, rule `internal-error` | `allow`, `error` set | — |
+| Guard policy throws | `block`, `policy` = the faulty policy id | policy skipped | — |
+| Sink resolver throws | `block`, `policy: 'internal-error'` | `allow`, `error` set | — |
+| LLM adapter (`verifyPromptAsync`) throws | rejects — nothing passes | sync verdict stands | openai-agents-js guardrails fail open on unexpected results ([#1810](https://github.com/openai/openai-agents-js/issues/1810), [#1816](https://github.com/openai/openai-agents-js/issues/1816), [#1803](https://github.com/openai/openai-agents-js/issues/1803)) |
+| Logger throws | verdict unchanged, `onLoggerError` called | same | Vercel AI SDK `onToolExecutionStart` swallows throws, so it cannot deny ([#15842](https://github.com/vercel/ai/issues/15842)) — use `toolApproval` / `wrapTools` |
+
+## Runtime compatibility
+
+Verified in CI on every push (`scripts/compat/`):
+
+| Runtime | How it is proven |
+|---|---|
+| Node 20 / 22 / 24 | full test suite + bench gate |
+| Bun (latest) | `bun scripts/compat/smoke.mjs` — rules verdict, guard decision, canary detection against the built package |
+| Deno 2 | `deno run --allow-read scripts/compat/smoke.mjs` |
+| Edge / browser | `node --experimental-vm-modules scripts/compat/no-globals.mjs` evaluates `dist/lite.js`, `dist/guard/index.js`, `dist/index.js` and `dist/canary/index.js` in a bare `vm` context with **no** `process`, `Buffer`, `require`, `setTimeout` or `fetch`, and a linker that rejects every import. Only `TextEncoder`, `atob`, `crypto` and core ECMAScript are available — the same surface Cloudflare Workers, Vercel Edge and browsers give you. |
+
+The library makes no network calls and reads no environment: `grep -rE "fetch\(|XMLHttpRequest|sendBeacon" dist/` returns nothing.
+
 ## Install
 
 ```bash

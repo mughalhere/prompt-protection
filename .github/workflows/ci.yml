@@ -3,8 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  pull_request: # every PR, including stacked ones targeting a feature branch
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -83,9 +82,70 @@ jobs:
       - name: Benchmark
         run: npm run bench
 
+  redos:
+    name: ReDoS safety (recheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Fuzz every shipped regex
+        run: npm run test:redos
+
+  compat-bun:
+    name: Compat — Bun
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - uses: oven-sh/setup-bun@v2
+      - name: Smoke test under Bun
+        run: bun scripts/compat/smoke.mjs
+
+  compat-deno:
+    name: Compat — Deno
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Smoke test under Deno
+        run: deno run --allow-read scripts/compat/smoke.mjs
+
+  compat-edge:
+    name: Compat — no Node globals (edge/browser proxy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - name: Evaluate bundles in a bare vm context
+        run: node --experimental-vm-modules scripts/compat/no-globals.mjs
+
   all-checks-passed:
     name: All checks passed
-    needs: [test, pack, bench]
+    needs: [test, pack, bench, redos, compat-bun, compat-deno, compat-edge]
     runs-on: ubuntu-latest
     steps:
       - name: CI complete

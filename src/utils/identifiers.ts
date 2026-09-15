@@ -16,7 +16,7 @@ interface Span {
 }
 
 const URL_RE = /\bhttps?:\/\/[^\s<>"'`()[\]{}]+/gi;
-const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g;
+const EMAIL_RE = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g;
 const IPV4_RE = /(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])/g;
 const HOST_RE = /(?<![A-Za-z0-9.@/-])(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,24}(?![A-Za-z0-9-])/g;
 const PATH_RE =
@@ -24,7 +24,7 @@ const PATH_RE =
 const TOKEN_RE = /(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])/g;
 const PHONE_RE = /(?<![\d+])\+?\d[\d\s().-]{7,18}\d(?!\d)/g;
 
-const TRAILING_PUNCT_RE = /[.,;:!?'"`)\]}>]+$/;
+const TRAILING_PUNCT_RE = /(?<![.,;:!?'"`)\]}>])[.,;:!?'"`)\]}>]+$/;
 const FILE_EXT_TLDS = new Set([
   'js', 'ts', 'tsx', 'jsx', 'mjs', 'cjs', 'py', 'md', 'txt', 'json', 'yml', 'yaml', 'html',
   'css', 'csv', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'pdf', 'exe', 'sh', 'env', 'lock', 'toml',
@@ -126,3 +126,6 @@ export function extractIdentifiers(text: string): Identifier[] {
 
   return out.sort((a, b) => a.index - b.index || a.kind.localeCompare(b.kind));
 }
+
+/** Every regex this module runs on untrusted text; consumed by the ReDoS safety suite. */
+export const IDENTIFIER_REGEXES = { URL_RE, EMAIL_RE, IPV4_RE, HOST_RE, PATH_RE, TOKEN_RE, PHONE_RE, TRAILING_PUNCT_RE } as const;

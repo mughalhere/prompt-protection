@@ -17,6 +17,7 @@ module.exports = {
     },
   },
   testMatch: ['**/*.test.ts'],
+  testPathIgnorePatterns: ['/node_modules/', '/tests/regex-safety/'],
   moduleNameMapper: {
     '^prompt-protection$': '<rootDir>/src/index.ts',
     '^prompt-protection/(.*)$': '<rootDir>/src/$1',

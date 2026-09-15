@@ -67,7 +67,7 @@ export const toolPoisoningRules: PatternRule[] = [
     // No leading \b on the alternation — targets like ".env" and "/etc/passwd"
     // start with a non-word char, so a boundary there never matches.
     pattern:
-      /\b(read|cat|open|load|include|attach|fetch)\b.{0,40}?(\.env|\.ssh|\/etc\/passwd|~\/\.aws|id_rsa|\bprivate\s+key\b|\bcredentials?\b|\bsecrets?\b|\bapi[_\s-]?keys?\b)/,
+      /\b(read|cat|open|load|include|attach|fetch)\b(?:(?!\b(?:read|cat|open|load|include|attach|fetch)\b)[^\n]){0,40}?(\.env|\.ssh|\/etc\/passwd|~\/\.aws|id_rsa|\bprivate\s+key\b|\bcredentials?\b|\bsecrets?\b|\bapi[_\s-]?keys?\b)/,
     weight: 8,
     precision: 'high',
     description: 'Tool metadata instructing retrieval of credentials or secret files',

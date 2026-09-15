@@ -8,6 +8,7 @@ export const stripPrompt = stripPromptWith(analyzePrompt);
 export { analyzePromptWith, computeSeverity } from './core/analyze.js';
 export { analyzeOutput } from './output.js';
 export { normalize } from './normalizer.js';
+export { RULES_VERSION } from './patterns/version.js';
 export { PromptInjectionError } from './error.js';
 export { resolveAction, precisionAllowsBlock } from './verdict.js';
 export { ALL_RULES, OUTPUT_RULES, TOOL_RULES } from './patterns/index.js';
