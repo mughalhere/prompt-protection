@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.mughalhere/prompt-protection",
+  "title": "prompt-protection",
+  "description": "Agent security tools: scan prompts, tool definitions and model output for injection, and check tool calls against a provenance guard before they run.",
+  "repository": {
+    "url": "https://github.com/mughalhere/prompt-protection",
+    "source": "github"
+  },
+  "websiteUrl": "https://mughalhere.github.io/prompt-protection/",
+  "version": "3.1.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "prompt-protection",
+      "version": "3.1.1",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
