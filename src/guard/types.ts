@@ -149,7 +149,7 @@ export interface MemoryWriteResult {
   action: Action;
   /** Whether the caller should persist the value. */
   store: boolean;
-  /** Spotlit form of the text when the guard has `spotlight` configured — persist this, not the raw text. */
+  /** Spotlit form of the text when the guard has `spotlight` configured, persist this, not the raw text. */
   spotlit?: string;
 }
 

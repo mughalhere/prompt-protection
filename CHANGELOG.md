@@ -13,7 +13,7 @@ what the library can prove about itself and how it plugs into standards and fram
   deprecated alias of `failMode: 'open'`.
 - **ReDoS proof.** Every shipped regex (148) is fuzzed with `recheck` in CI (`npm run test:redos`);
   `vulnerable` fails, `unknown` passes only through a justified allowlist. The fuzzer found 29
-  polynomial patterns in 3.0.0 — all rewritten to linear forms with no bench regression; the allowlist is empty.
+  polynomial patterns in 3.0.0: all rewritten to linear forms with no bench regression; the allowlist is empty.
 - **ATR interop** (`prompt-protection/atr`, `prompt-protection/atr/yaml`). `loadAtrRules` compiles
   `agent-threat-rules` YAML (regex / contains / exact / starts_with) into `customRules`, honouring
   `scan_target`, `agent_source` (spec §5.1), status and the enforce lane; AND / named / behavioural
@@ -40,12 +40,12 @@ what the library can prove about itself and how it plugs into standards and fram
   block-recall, per-scenario breakdown, `--json`; new gate benign utility ≥ 85 %.
 
 ### Rules
-- `RULES_VERSION` 2026.09.15 — 29 patterns rewritten for linear-time matching (see ReDoS proof);
+- `RULES_VERSION` 2026.09.15: 29 patterns rewritten for linear-time matching (see ReDoS proof);
   semantics preserved, benchmark unchanged.
 
 ### Deferred
 - Mastra, OpenAI Agents JS, Genkit and LangChain.js adapters: designed (structural types, optional
-  peers) but not shipped in 3.1.0 — the hook shapes need verifying against installed packages first.
+  peers) but not shipped in 3.1.0, the hook shapes need verifying against installed packages first.
 
 ## [3.0.0] - 2026-09-14
 
@@ -75,22 +75,22 @@ runtime whose primary mechanisms are not pattern matching. Every number below co
   logistic regression, 65,536 int8 buckets (33 KB gz), FNV-1a hashing reproduced bit-for-bit
   between Python training and JS inference (64 golden vectors under test). Exposed as
   `mlClassifier`, `predict`, and `analyzePrompt(text, { ml: 'escalate' | 'hybrid' })`.
-  **Off by default** — see Known limitations.
+  **Off by default**: see Known limitations.
 - **`prompt-protection/lite`**: rules-only entry (20 KB gz) for size-sensitive browsers.
 - **Datasets** (`datasets/`, CC-BY-4.0): 130 regex-evading attacks, 155 trigger-word benign
   prompts in NotInject's categories, 100 agent tool-call flows with expected decisions.
 - **Benchmark**: regex / ml / hybrid side by side over local, published and external sets
   (NotInject, in-the-wild sample), agent-flow agreement, bundle-size gate. Runs in CI.
 - **MCP server** tools `register_source`, `check_tool_call`, `spotlight_text`, `detect_canary`.
-- **Output rule `out-markdown-image-beacon`** (weight 8, medium precision — blocks on its own): a
-  markdown image whose URL carries a ≥16-char opaque query value — the zero-click exfil beacon the
+- **Output rule `out-markdown-image-beacon`** (weight 8, medium precision, blocks on its own): a
+  markdown image whose URL carries a ≥16-char opaque query value, the zero-click exfil beacon the
   existing `out-markdown-exfil-link` rule only caught when the parameter was literally named
   `token`/`secret`. Found by the new output bench row `out-010`. Known trade-off: a signed CDN image
   URL echoed in model output will trip it; exclude with `allowlistRules: ['out-markdown-image-beacon']`.
 - **Demo**: "Agent Guard" tab (user turn → tainted tool result → proposed call → decision) and the
   embedded model's probability shown next to the rules verdict.
 - **Vercel middleware** `guard` and `onBlock` options: taints `tool-result` parts, checks
-  `tool-call` parts in generate and stream (advisory — enforce with `wrapTools`).
+  `tool-call` parts in generate and stream (advisory, enforce with `wrapTools`).
 
 ### Changed (breaking)
 - `ThreatCategory` gains `'data-flow'`; `ProtectionEvent.type` gains `tool-call.*` and
@@ -120,14 +120,14 @@ runtime whose primary mechanisms are not pattern matching. Every number below co
 
 ## [2.0.1] - 2026-09-08
 
-Benchmark-integrity release. No rule or API changes — the detection behaviour of
+Benchmark-integrity release. No rule or API changes: the detection behaviour of
 2.0.0 is untouched. What changes is how honestly the benchmark is reported and
 whether anything mechanically keeps it true.
 
 ### Fixed
 - **The published benchmark number was contaminated by the test fixtures.** 134 of
   the 169 input corpus items were byte-identical to `tests/__fixtures__/`, which
-  `tests/api.test.ts` asserts on in CI — so they could not score wrong while the
+  `tests/api.test.ts` asserts on in CI: so they could not score wrong while the
   build was green. `bench/run.mjs` now partitions the corpus by set-membership
   against the fixtures at runtime and reports three rows: **tuning** (134 items,
   100%/100%/0%), **held-out** (35 items, **75.0% recall / 93.8% precision /
@@ -154,12 +154,12 @@ whether anything mechanically keeps it true.
 
 The agentic-security major. Adds MCP tool-poisoning defence, an MCP server, a
 Vercel AI SDK adapter, and a published, measured detection benchmark. The base
-`npm install prompt-protection` stays **zero runtime dependencies** — the two new
+`npm install prompt-protection` stays **zero runtime dependencies**, the two new
 SDK-backed surfaces are separate subpaths with *optional* peer dependencies.
 
 ### Added
 - **Tool-poisoning detection.** New `tool-poisoning` threat category (9 rules) and
-  `scanToolDefinition(tool)` — scans a tool/function definition (name, description,
+  `scanToolDefinition(tool)`: scans a tool/function definition (name, description,
   parameter schema; OpenAI `parameters` or MCP `inputSchema` shape) for hidden
   instructions, concealment directives ("do not tell the user"), exfiltration, and
   injection embedded in tool metadata. The rules also run on `tool`-role messages
@@ -184,11 +184,11 @@ SDK-backed surfaces are separate subpaths with *optional* peer dependencies.
 - **Performance:** rule regexes are now compiled once and cached (was recompiled per
   `score()` call); `buildIndexMap` no longer rescans the tail on decode-appended input
   (O(n²) → O(n) in the pathological case). These can shift `stripPrompt` span offsets
-  or scores by a hair on unusual inputs — part of why this is a major bump.
+  or scores by a hair on unusual inputs, part of why this is a major bump.
 
 ### Migration
 - Fully backward compatible for the documented API. `ThreatCategory` gained the
-  `tool-poisoning` value — widen any exhaustive switch over it. Adaptive/pathological
+  `tool-poisoning` value: widen any exhaustive switch over it. Adaptive/pathological
   inputs may score marginally differently after the normalizer/scorer changes.
 
 ---
@@ -200,7 +200,7 @@ SDK-backed surfaces are separate subpaths with *optional* peer dependencies.
   declared the export map entry, but `src/adapters/openai.ts` was missing from the
   `tsup` entry list, so `dist/adapters/openai.*` was never built. Importing
   `OpenAIAdapter` from the documented subpath failed at runtime; only the root
-  barrel (`from 'prompt-protection'`) worked. Added the entry — the subpath now
+  barrel (`from 'prompt-protection'`) worked. Added the entry: the subpath now
   emits ESM, CJS, and both declaration formats.
 - `README.md` "How Detection Works" said 94 input regexes; the correct count is 97.
 
@@ -208,12 +208,12 @@ SDK-backed surfaces are separate subpaths with *optional* peer dependencies.
 - npm `description` rewritten to lead with the terms the package is searched by,
   and `keywords` expanded 10 → 20 (`ai-security`, `llm-firewall`, `guardrails`,
   `owasp-llm`, `prompt-security`, `injection-detection`, `chatbot-security`,
-  `llm-safety`, `ai-red-team`, `gpt`). Discoverability only — no runtime effect.
+  `llm-safety`, `ai-red-team`, `gpt`). Discoverability only: no runtime effect.
 - `README.md`: monthly-downloads badge, reworked opening, new FAQ section, and
   links to the new guides on the documentation site.
 
 ### Added
-- Documentation site under `demo/public/docs/` — six static, self-contained pages
+- Documentation site under `demo/public/docs/`: six static, self-contained pages
   covering prompt injection in Node.js, jailbreak detection, OWASP LLM01, output
   scanning, an attack-pattern reference, and a comparison with adjacent tools.
 - Crawlable metadata for the GitHub Pages site: Open Graph and Twitter card tags,
@@ -229,16 +229,16 @@ SDK-backed surfaces are separate subpaths with *optional* peer dependencies.
 
 ## [1.8.2] - 2026-08-10
 
-Supply-chain and tooling maintenance only. **No runtime behaviour changes** — no
+Supply-chain and tooling maintenance only. **No runtime behaviour changes**: no
 rules added or altered, no API changes, all 418 tests pass unchanged.
 
 ### Added
-- `socket.yml` — Socket.dev configuration. Scopes analysis to the files that make
+- `socket.yml`: Socket.dev configuration. Scopes analysis to the files that make
   up the published package and excludes the standalone `demo/` app, which carries
   its own dependency graph and ships nothing. Deliberately leaves the `usesEval`,
   `networkAccess`, `shellAccess`, and `gptSecurity` rules enabled rather than
   suppressing those alert classes.
-- `SECURITY.md` — new "Supply chain" section documenting that the package ships
+- `SECURITY.md`: new "Supply chain" section documenting that the package ships
   zero runtime dependencies, with commands to verify it and a triage table for
   third-party scanner alerts that originate in optional peers or the dev graph.
 
@@ -263,11 +263,11 @@ rules added or altered, no API changes, all 418 tests pass unchanged.
 ## [1.8.0] - 2026-07-28
 
 ### Added
-- **Deferred-reference injection rules** — catches follow-ups that re-invoke a prior turn without repeating the attack:
-  - `injection-process-last-prompt` — "process/run/execute the last/previous prompt/message/request"
-  - `injection-do-what-said-before` — "do what I said before" / "do what I asked in the previous message"
-  - `injection-retry-previous-request` — "retry/re-do my previous request"
-- **`createProtectionSession()`** — opt-in multi-turn correlation
+- **Deferred-reference injection rules**: catches follow-ups that re-invoke a prior turn without repeating the attack:
+  - `injection-process-last-prompt`: "process/run/execute the last/previous prompt/message/request"
+  - `injection-do-what-said-before`: "do what I said before" / "do what I asked in the previous message"
+  - `injection-retry-previous-request`: "retry/re-do my previous request"
+- **`createProtectionSession()`**: opt-in multi-turn correlation
   - Remembers recently blocked prompts (ring buffer, default 5)
   - Escalates deferred-ref follow-ups when prior blocked history exists (`session-correlate-blocked`)
   - `analyze` / `verify` / `strip` / `clear` / `getBlockedHistory`
@@ -284,19 +284,19 @@ rules added or altered, no API changes, all 418 tests pass unchanged.
 ## [1.7.0] - 2026-07-28
 
 ### Added
-- **Three-way actions** — `action: 'allow' | 'flag' | 'block'` on every analysis result
+- **Three-way actions**: `action: 'allow' | 'flag' | 'block'` on every analysis result
   - `isMalicious` remains true only when `action === 'block'` (backward compatible)
   - Optional `flagThreshold` for a review band that logs/flags without throwing
   - `verifyPrompt` / middleware throw only on `block`
-- **Precision gating** — rules tagged `precision: 'high' | 'medium' | 'low'`
+- **Precision gating**: rules tagged `precision: 'high' | 'medium' | 'low'`
   - Lone `low`-precision matches (e.g. soft context-smuggling) can `flag` but cannot alone `block`
-- **Pluggable logging** — `logger`, `logLevels`, `includeContent`, `onLoggerError`
+- **Pluggable logging**: `logger`, `logLevels`, `includeContent`, `onLoggerError`
   - Emits `ProtectionEvent` for input/output blocked/flagged (and optionally allow/clean)
   - `createConsoleLogger()` helper for local debugging
-- **Allowlists** — `allowlistPatterns` / `allowlistRuleIds` exclude known-good spans from scoring
-- **Normalizer hardening** — multi-pass URL/base64 decode, Unicode Tags strip, bidi controls, fullwidth fold
-- **Accurate strip positions** — scorer uses `indexMap` from the normalizer
-- **New detection rules** — ChatML/Llama special tokens, policy puppetry, fake tool calls, many-shot jailbreaks, translate-then-obey, output email/phone PII and markdown/HTML exfil
+- **Allowlists**: `allowlistPatterns` / `allowlistRuleIds` exclude known-good spans from scoring
+- **Normalizer hardening**: multi-pass URL/base64 decode, Unicode Tags strip, bidi controls, fullwidth fold
+- **Accurate strip positions**: scorer uses `indexMap` from the normalizer
+- **New detection rules**: ChatML/Llama special tokens, policy puppetry, fake tool calls, many-shot jailbreaks, translate-then-obey, output email/phone PII and markdown/HTML exfil
 - Middleware `onFlag` callback (Express + Next.js); React hook exposes `action` on results
 - Exports: `Action`, `RulePrecision`, `ProtectionEvent`, `ProtectionLogger`, `LoggingOptions`, `LogLevel`, `createConsoleLogger`, `resolveAction`, `precisionAllowsBlock`
 
@@ -312,19 +312,19 @@ rules added or altered, no API changes, all 418 tests pass unchanged.
 ## [1.6.0] - 2026-07-28
 
 ### Added
-- **Chat message array input** — `analyzePrompt` / `verifyPrompt` / `stripPrompt` / `verifyPromptAsync` accept `PromptInput` (`string | ChatMessage[]`)
+- **Chat message array input**: `analyzePrompt` / `verifyPrompt` / `stripPrompt` / `verifyPromptAsync` accept `PromptInput` (`string | ChatMessage[]`)
   - Default scans untrusted roles only (`user`, `tool`, `function`); override with `analyzeRoles: 'all' | string[]`
   - Express + Next.js middleware accept message arrays in the configured body field
   - React hook `verify` / `strip` / `analyze` accept message arrays
   - New exports: `ChatMessage`, `PromptInput`, `AnalyzeRoles`, `flattenChatMessages`, `isChatMessageArray`, `resolvePromptInput`
-- **Short-form instruction overrides** — catches paraphrases that omit the instruction noun:
-  - `injection-forget-above` — "Forget above.", "Forget everything.", "Forget all that"
-  - `injection-ignore-above-short` — "Ignore above", "Disregard above"
-  - `injection-discard-prior` — "Discard previous instructions/context"
-- **Privileged password fishing** — interrogative credential asks that previously scored as safe:
-  - `fishing-ask-password` — "What's the admin password?", "What is the password to root…"
-  - `fishing-password-to-access` — "password to root access"
-- **Root/admin access requests** — `jailbreak-request-root-access` ("Give me root access")
+- **Short-form instruction overrides**: catches paraphrases that omit the instruction noun:
+  - `injection-forget-above`: "Forget above.", "Forget everything.", "Forget all that"
+  - `injection-ignore-above-short`: "Ignore above", "Disregard above"
+  - `injection-discard-prior`: "Discard previous instructions/context"
+- **Privileged password fishing**: interrogative credential asks that previously scored as safe:
+  - `fishing-ask-password`: "What's the admin password?", "What is the password to root…"
+  - `fishing-password-to-access`: "password to root access"
+- **Root/admin access requests**: `jailbreak-request-root-access` ("Give me root access")
 
 ### Changed
 - Package version bump: `1.5.1` → `1.6.0`
@@ -343,16 +343,16 @@ rules added or altered, no API changes, all 418 tests pass unchanged.
 ## [1.5.0] - 2026-05-21
 
 ### Added
-- **Severity levels** — every `AnalysisResult` now includes `severity: 'critical' | 'high' | 'medium' | 'low' | 'safe'` derived from the 0–100 score, independent of threshold
-- **Output scanning** — new `analyzeOutput(output, options?)` function scans LLM responses for compromise signals:
-  - `system-prompt-leak` — model disclosing its system instructions
-  - `credential-leak` — API keys (OpenAI, GitHub, generic), passwords, env secrets
-  - `injection-relay` — output containing injection patterns targeting downstream systems
-  - `pii-exposure` — SSN and credit card number formats
+- **Severity levels**: every `AnalysisResult` now includes `severity: 'critical' | 'high' | 'medium' | 'low' | 'safe'` derived from the 0–100 score, independent of threshold
+- **Output scanning**: new `analyzeOutput(output, options?)` function scans LLM responses for compromise signals:
+  - `system-prompt-leak`: model disclosing its system instructions
+  - `credential-leak`: API keys (OpenAI, GitHub, generic), passwords, env secrets
+  - `injection-relay`: output containing injection patterns targeting downstream systems
+  - `pii-exposure`: SSN and credit card number formats
   - Returns `OutputAnalysisResult` with `score`, `severity`, `isSuspicious`, `threats`, `matches`
   - Default threshold 40 (higher than input's 35 to reduce false positives on legitimate responses)
   - Skips homoglyph digit→letter substitution so real credential patterns match correctly
-- **OpenAI adapter** — `OpenAIAdapter` for AI-assisted verification via the OpenAI SDK
+- **OpenAI adapter**: `OpenAIAdapter` for AI-assisted verification via the OpenAI SDK
   - Defaults to `gpt-4o-mini`; model and maxTokens are configurable
   - Exported from main index and `prompt-protection/adapters/openai`
   - `openai` added as optional peer dependency
@@ -380,9 +380,9 @@ rules added or altered, no API changes, all 418 tests pass unchanged.
 
 ### Added
 - Initial release
-- `verifyPrompt` — throws `PromptInjectionError` on malicious input
-- `stripPrompt` — removes malicious spans, returns clean prompt
-- `analyzePrompt` — returns full scored analysis without throwing
+- `verifyPrompt`: throws `PromptInjectionError` on malicious input
+- `stripPrompt`: removes malicious spans, returns clean prompt
+- `analyzePrompt`: returns full scored analysis without throwing
 - `verifyPromptAsync` + `AIAdapter` interface for AI-assisted verification
 - 66 detection rules across 6 threat categories (prompt-injection, jailbreak, data-exfiltration, security-bypass, social-engineering, data-fishing)
 - Obfuscation-resistant normalizer (Unicode NFKC, homoglyphs, base64, URL encoding)
@@ -392,4 +392,4 @@ rules added or altered, no API changes, all 418 tests pass unchanged.
 - React hook (`usePromptProtection`)
 - Built-in Claude adapter (`ClaudeAdapter`) using Anthropic SDK
 - Custom rules and per-category disable options
-- Configurable threshold (default: 35 — strict mode)
+- Configurable threshold (default: 35: strict mode)

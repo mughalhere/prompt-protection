@@ -19,7 +19,7 @@ FILES = ["attacks.jsonl", "benign-hard.jsonl", "agent-flows.jsonl"]
 
 
 def pct(x: float | None) -> str:
-    return "—" if x is None else f"{x * 100:.1f}%"
+    return "n/a" if x is None else f"{x * 100:.1f}%"
 
 
 def bench_table() -> str:

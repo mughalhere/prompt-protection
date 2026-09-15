@@ -1,7 +1,7 @@
 # Adopters
 
 Organisations and projects using prompt-protection in production or in published research.
-Add yourself by pull request — one line, alphabetical, link optional:
+Add yourself by pull request: one line, alphabetical, link optional:
 
 | Who | How it is used | Since |
 |---|---|---|

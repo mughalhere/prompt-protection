@@ -131,4 +131,4 @@ if (errors.length) {
   for (const e of errors.slice(0, 50)) console.error('  ' + e);
   process.exit(1);
 }
-console.log('\nOK — all rows valid, ids unique, disjoint from fixtures.');
+console.log('\nOK, all rows valid, ids unique, disjoint from fixtures.');

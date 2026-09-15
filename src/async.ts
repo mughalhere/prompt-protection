@@ -16,7 +16,7 @@ export async function verifyPromptAsync(
   const syncResult = analyzePrompt(prompt, options);
   const text = resolvePromptInput(prompt, options.analyzeRoles);
 
-  // Sync block is authoritative — never let the adapter downgrade it
+  // Sync block is authoritative, never let the adapter downgrade it
   if (syncResult.action === 'block') {
     throw new PromptInjectionError({
       score: syncResult.score,

@@ -12,11 +12,11 @@ HERE = Path(__file__).resolve().parent
 
 
 def f(x, d=4):
-    return "—" if x is None or (isinstance(x, float) and math.isnan(x)) else f"{x:.{d}f}"
+    return "n/a" if x is None or (isinstance(x, float) and math.isnan(x)) else f"{x:.{d}f}"
 
 
 def pct(x):
-    return "—" if x is None or (isinstance(x, float) and math.isnan(x)) else f"{100*x:.2f}%"
+    return "n/a" if x is None or (isinstance(x, float) and math.isnan(x)) else f"{100*x:.2f}%"
 
 
 def main() -> None:
@@ -24,7 +24,7 @@ def main() -> None:
     sizes = json.loads((MODEL_DIR / "export_sizes.json").read_text()) if (MODEL_DIR / "export_sizes.json").exists() else {}
     ship = str(m["selection"]["shipped_buckets"])
     L = []
-    L.append("# Training report — prompt-protection v3 embedded classifier\n")
+    L.append("# Training report, prompt-protection v3 embedded classifier\n")
     L.append(f"Shipped: **{ship} buckets**, dense int8 (`src/ml/weights.ts`). "
              f"Selection rule: {m['selection']['rule']}; measured gain of {m['config']} ")
     L[-1] = (f"Shipped: **{ship} buckets**, dense int8 (`src/ml/weights.ts`). Selection rule: "

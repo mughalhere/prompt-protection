@@ -239,7 +239,7 @@ describe('promptSimilarity', () => {
     expect(sim.longestRun).toBeLessThan(SIMILARITY_RUN_THRESHOLD);
   });
 
-  it('heavy paraphrase (every phrase reworded) scores 0 — documented limitation', () => {
+  it('heavy paraphrase (every phrase reworded) scores 0, documented limitation', () => {
     const out =
       'I am a friendly helper working for a bank; I must keep my setup private, stay courteous, decline questions about rival firms, and stay brief.';
     expect(promptSimilarity(out, SYS)).toEqual({ containment: 0, longestRun: 0 });

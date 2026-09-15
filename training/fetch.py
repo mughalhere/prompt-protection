@@ -86,7 +86,7 @@ def fetch_one(ds: dict, cfg: dict, api: HfApi, force: bool, warnings: list[str])
     # HF `gated` is False, True, "auto" or "manual"; any truthy value needs a token.
     if gated and not get_token():
         summary.update(status=f"skipped (gated={gated}, no HF token)")
-        warnings.append(f"{hf_id}: gated dataset skipped — set HF_TOKEN / `hf auth login` to include it")
+        warnings.append(f"{hf_id}: gated dataset skipped, set HF_TOKEN / `hf auth login` to include it")
         return summary
 
     label_map = ds.get("label_map")

@@ -90,7 +90,7 @@ def featurize(text: str, buckets: int = 65536, max_chars: int = 4000) -> list[tu
 
 
 def build_matrix(hash_rows: list[np.ndarray], buckets: int) -> csr_matrix:
-    """Rows of sign/sqrt(nnz) — the l2-normalised binary vector the runtime scores."""
+    """Rows of sign/sqrt(nnz), the l2-normalised binary vector the runtime scores."""
     indptr = [0]
     indices, data = [], []
     for h in hash_rows:

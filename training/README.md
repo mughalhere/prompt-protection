@@ -37,4 +37,4 @@ needs `hf auth login` (or `HF_TOKEN`); without a token `make fetch` skips it wit
 
 Eval sets (`role: eval`: in-the-wild, NotInject; plus `datasets/`) never enter train; `dedupe.py` and
 `mine_benign.py` drop any train candidate that is an exact/MinHash near-duplicate of an eval row.
-Benign rows come from dolly, oasst1, tatoeba_mt, wikitext-103, Gutenberg — trigger-word rows first.
+Benign rows come from dolly, oasst1, tatoeba_mt, wikitext-103, Gutenberg, trigger-word rows first.

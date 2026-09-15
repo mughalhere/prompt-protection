@@ -22,7 +22,7 @@ Use `parseAtrYaml` from `prompt-protection/atr/yaml` (optional `yaml` peer) to t
 |---|---|
 | `regex` | JavaScript regex, flags `gi` (the scorer's contract). Leading inline `(?i)` / `(?is)` / `(?im)` are stripped; `s` rewrites `.` to `[\s\S]`. |
 | `contains` | escaped literal |
-| `exact` | `^literal$` — anchored to the **whole normalised input**, not a line |
+| `exact` | `^literal$`, anchored to the **whole normalised input**, not a line |
 | `starts_with` | `^literal` |
 
 Rejected as `unsupported-syntax`: PCRE named groups `(?P<…>)`, `\h` `\R` `\K`, atomic groups, possessive quantifiers, `\p{…}` (needs the `u` flag), inline `x` mode. Rejected as `invalid-regex`: anything `new RegExp` refuses.
@@ -34,7 +34,7 @@ Rejected as `unsupported-syntax`: PCRE named groups `(?P<…>)`, `\h` `\R` `\K`,
 | `draft-or-deprecated` | spec: engines skip these (`includeDraft` overrides draft) |
 | `lane-excluded` | `lane: 'enforce'` and maturity is not `stable` |
 | `scan-target-mismatch` / `agent-source-mismatch` | spec §5.2 / §5.1 filters |
-| `and-conditions-unsupported` | `condition: all` with more than one condition — a single `PatternRule` is one regex; we do not fake AND |
+| `and-conditions-unsupported` | `condition: all` with more than one condition, a single `PatternRule` is one regex; we do not fake AND |
 | `named-conditions-unsupported` | named / behavioural / sequence formats (`patterns`, `metric`, `steps`) |
 | `field-not-applicable` | condition targets a field the call site does not carry (`tool_name` on a prompt scan) |
 
@@ -46,7 +46,7 @@ One `PatternRule` per compiled condition, all sharing `id: 'atr:<rule id>'`, so 
 
 ## Semantic differences from the reference engine
 
-- **We scan normalised text.** `normalize()` strips zero-width and bidi characters, folds homoglyphs, decodes base64/percent and lowercases before rules run. ATR rules that target zero-width characters or rely on case cannot fire here — the obfuscation they detect has already been removed, and the same input is caught upstream by the normaliser's own rules. `bench/run.mjs --atr` replays each rule's embedded `test_cases` to quantify this.
+- **We scan normalised text.** `normalize()` strips zero-width and bidi characters, folds homoglyphs, decodes base64/percent and lowercases before rules run. ATR rules that target zero-width characters or rely on case cannot fire here, the obfuscation they detect has already been removed, and the same input is caught upstream by the normaliser's own rules. `bench/run.mjs --atr` replays each rule's embedded `test_cases` to quantify this.
 - **`^` / `$` mean whole-input**, not line boundaries.
 - **Conformance wording.** The ATR conformance corpus is proposed, not ratified. We verify the spec's mandatory engine behaviours with our own suite (`tests/atr/conformance.test.ts`); we do not claim "ATR-certified".
 

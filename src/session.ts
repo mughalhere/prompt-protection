@@ -99,7 +99,7 @@ function escalateWithCorrelation(
  * Creates a stateful protection session that remembers recently blocked prompts
  * and escalates deferred-reference follow-ups (e.g. "process the last prompt").
  *
- * Correlation is opt-in via this factory — free `analyzePrompt` / `verifyPrompt`
+ * Correlation is opt-in via this factory, free `analyzePrompt` / `verifyPrompt`
  * calls remain stateless.
  */
 export function createProtectionSession(

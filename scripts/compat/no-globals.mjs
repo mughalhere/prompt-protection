@@ -15,7 +15,7 @@ async function evaluate(file) {
   const source = readFileSync(join(root, 'dist', file), 'utf8');
   const mod = new vm.SourceTextModule(source, { context, identifier: file });
   await mod.link((specifier) => {
-    throw new Error(`${file} imports "${specifier}" — bundles must be self-contained`);
+    throw new Error(`${file} imports "${specifier}", bundles must be self-contained`);
   });
   await mod.evaluate();
   return mod.namespace;

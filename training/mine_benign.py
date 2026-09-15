@@ -2,7 +2,7 @@
 """Mine licence-clean benign (label 0) rows into data/raw/benign_<name>.jsonl.
 
 Sources and caps live under `benign:` in config.yaml. Rows containing a trigger
-word (`benign.trigger_words`) are selected first — oversampled, never synthesised —
+word (`benign.trigger_words`) are selected first, oversampled, never synthesised , 
 then the cap is filled with a seeded random sample. Every candidate is checked
 against the eval sets (exact + MinHash, same rule as dedupe.py) and dropped on a hit.
 """
@@ -60,7 +60,7 @@ def load_tatoeba(src: dict):
         try:
             p = hf_hub_download(src["hf_id"], f"{pair}/test/0000.parquet", repo_type="dataset",
                                 revision="refs/convert/parquet")
-        except Exception as e:  # noqa: BLE001 — a missing pair is reported, not fatal
+        except Exception as e:  # noqa: BLE001, a missing pair is reported, not fatal
             print(f"  tatoeba {pair}: {type(e).__name__}", file=sys.stderr)
             continue
         df = pd.read_parquet(p)
@@ -147,7 +147,7 @@ def load_eval_lsh(cfg: dict, k: int, perms: int, thr: float) -> tuple[set[str], 
             continue
         path = RAW_DIR / f"{ds['name']}.jsonl"
         if not path.exists():
-            raise SystemExit(f"eval set {path} missing — run fetch.py first")
+            raise SystemExit(f"eval set {path} missing, run fetch.py first")
         with path.open(encoding="utf-8") as fh:
             for line in fh:
                 norm = cheap_norm(json.loads(line)["text"])
