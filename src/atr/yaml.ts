@@ -1,4 +1,8 @@
 /**
+ * @packageDocumentation
+ * @beta Preview tier: may change in a minor release. See docs/API_STABILITY.md.
+ */
+/**
  * YAML entry for ATR rule packs. The `yaml` package is an optional peer,
  * loaded on demand so the core stays dependency-free. Multi-document files
  * (`---`) and folded scalars are handled by the real parser on purpose: a

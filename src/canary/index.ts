@@ -1,3 +1,7 @@
+/**
+ * @packageDocumentation
+ * @beta Preview tier: may change in a minor release. See docs/API_STABILITY.md.
+ */
 // Fuzzy canaries: detect a system-prompt token in model output even when
 // spaced, encoded, reversed or truncated (delta over verbatim-only canaries,
 // arXiv 2506.19109), plus shingle similarity against the system prompt itself.

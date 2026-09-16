@@ -1,6 +1,6 @@
 # prompt-protection
 
-**Agent security runtime for Node.js and browsers.** A provenance-tracked tool-call guard, spotlighting, fuzzy canaries, and hybrid rules + embedded-ML detection for prompt injection, in-process, zero runtime dependencies, with the benchmark numbers published whether they flatter the library or not.
+**A provenance-tracked tool-call guard for JavaScript agents.** Tool results are tainted, destinations the user named are trusted, and every tool call the model proposes is checked before it runs: untrusted data does not reach a network, email, exec, file or payment sink. Fail-closed, in-process, zero runtime dependencies. Text detection, spotlighting and canaries ship as components, with their benchmark numbers published whether they flatter the library or not.
 
 [![CI](https://github.com/mughalhere/prompt-protection/actions/workflows/ci.yml/badge.svg)](https://github.com/mughalhere/prompt-protection/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/prompt-protection?logo=npm)](https://www.npmjs.com/package/prompt-protection)
@@ -61,7 +61,7 @@ Spotlighting (`prompt-protection/spotlight`, arXiv 2403.14720) marks untrusted s
 
 Canaries (`prompt-protection/canary`) put a token in the system prompt and look for it in the output in exact, normalized, spaced, base64, hex, reversed and partial forms. There is also a shingle-similarity check between the output and the system prompt. Plain verbatim canaries were shown to fail against paraphrase (arXiv 2506.19109). Similarity closes part of that gap. Not all of it.
 
-Detection is still there for text that has to be scored: 106 input rules, 21 output rules, 9 tool-poisoning rules, and an embedded 33 KB int8 n-gram classifier (`prompt-protection/ml`) that is off by default for reasons the benchmark section explains. `prompt-protection/lite` is the rules-only entry at 20 KB gzipped.
+Text detection is a component, not the product: 106 input rules, 21 output rules and 9 tool-poisoning rules score text that has to be scored, and the [Benchmark](#benchmark) section says how well. An embedded 33 KB int8 n-gram classifier lives on `prompt-protection/ml` (preview tier, off by default, for reasons the benchmark explains). `prompt-protection/lite` is the rules-only entry at 20 KB gzipped.
 
 ## Benchmark
 
@@ -179,7 +179,9 @@ npm install prompt-protection
 
 ---
 
-## Quick Start
+## Text detection (component)
+
+When there is a string to score rather than a tool call to check: user input before it reaches the model, model output before it reaches the user, a tool definition before it is registered.
 
 ```typescript
 import { verifyPrompt, stripPrompt, analyzePrompt } from 'prompt-protection';
@@ -749,6 +751,16 @@ Yes: no Node built-ins, no bundler required. The [live demo](https://mughalhere.
 Tunable. Use `flagThreshold` for a review band that logs without blocking, raise `threshold` for developer-facing tools, and exclude known-good phrases with `allowlistPatterns` / `allowlistRuleIds`. See [Threshold Tuning](#threshold-tuning).
 
 ---
+
+## Versioning
+
+Three API tiers, defined in [docs/API_STABILITY.md](docs/API_STABILITY.md): **stable** (root entry, `/guard`, `/mcp`, the framework adapters and middlewares; full semver), **preview** (`/ml`, `/atr`, `/audit`, `/otel`, `/canary`, `/spotlight`, `/adapters/vercel-guardrail`, `/lite`; may change in a minor, always listed in the CHANGELOG), **internal** (`/internal`; no contract). `ThreatCategory` and the event unions are open, so new categories arrive in minors. Rules version separately as `RULES_VERSION`.
+
+1.0, 2.0 and 3.0 were cut as majors for milestone reasons. From 4.0 a major means an incompatible change to the stable tier, at least six months apart, with a migration document.
+
+## Migration to 4.0
+
+Import-path changes only; nothing renamed, no behaviour change. See [docs/migrations/v4.md](docs/migrations/v4.md).
 
 ## Contributing
 

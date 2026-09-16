@@ -1,6 +1,6 @@
 import * as lite from '../src/lite';
 import * as root from '../src/index';
-import { analyzePromptWith } from '../src/core/analyze';
+import { analyzePromptWith, computeSeverity } from '../src/internal';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -14,7 +14,7 @@ const corpus = [...lines('malicious.txt'), ...lines('benign.txt')];
 
 describe('lite entry', () => {
   it('exposes the rules-only surface', () => {
-    for (const name of ['analyzePrompt', 'verifyPrompt', 'stripPrompt', 'analyzeOutput', 'normalize']) {
+    for (const name of ['analyzePrompt', 'verifyPrompt', 'stripPrompt', 'analyzeOutput']) {
       expect(typeof (lite as Record<string, unknown>)[name]).toBe('function');
     }
     expect((lite as Record<string, unknown>)['GUARD_VERSION']).toBeUndefined();
@@ -64,11 +64,11 @@ describe('analyzePromptWith', () => {
     expect({ ...on, ml: undefined }).toEqual({ ...off, ml: undefined });
   });
 
-  it('re-exports computeSeverity from the root', () => {
-    expect(root.computeSeverity(0)).toBe('safe');
-    expect(root.computeSeverity(25)).toBe('low');
-    expect(root.computeSeverity(50)).toBe('medium');
-    expect(root.computeSeverity(65)).toBe('high');
-    expect(root.computeSeverity(80)).toBe('critical');
+  it('exports computeSeverity from the internal entry', () => {
+    expect(computeSeverity(0)).toBe('safe');
+    expect(computeSeverity(25)).toBe('low');
+    expect(computeSeverity(50)).toBe('medium');
+    expect(computeSeverity(65)).toBe('high');
+    expect(computeSeverity(80)).toBe('critical');
   });
 });

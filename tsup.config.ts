@@ -4,6 +4,7 @@ export default defineConfig({
   entry: [
     'src/index.ts',
     'src/lite.ts',
+    'src/internal.ts',
     'src/guard/index.ts',
     'src/spotlight/index.ts',
     'src/canary/index.ts',

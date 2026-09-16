@@ -1,5 +1,34 @@
 # Changelog
 
+## [4.0.0] - Unreleased
+
+The surface cut. The guard is the product; text detection is a component; the root entry is the
+stable tier and nothing else. No scoring, guard or rule behaviour changes; `RULES_VERSION` is
+unchanged. Migration: `docs/migrations/v4.md`. Tiers and cadence: `docs/API_STABILITY.md`.
+
+### Changed (breaking)
+- Root entry exports only the stable tier: `analyzePrompt`, `verifyPrompt`, `stripPrompt`,
+  `verifyPromptAsync`, `analyzeOutput`, `scanToolDefinition`, `createProtectionSession`,
+  `createConsoleLogger`, `PromptInjectionError`, `ClaudeAdapter`, `OpenAIAdapter`, `RULES_VERSION`
+  and the types. Engine plumbing (`normalize`, `resolveAction`, `precisionAllowsBlock`,
+  `computeSeverity`, `analyzePromptWith`, `INTERNAL_ERROR_RULE`, message helpers, rule arrays) moves
+  to `prompt-protection/internal`. The classifier moves to `/ml` only; spotlighting and canaries to
+  `/spotlight` and `/canary` only. `/lite` drops the same re-exports.
+- `ThreatCategory`, `ProtectionEvent['type']`, `ProtectionEvent['direction']`, guard `SinkKind` and
+  `FlowKind` are open unions (`| (string & {})`). Exhaustive `switch` with a `never` default no
+  longer compiles; unknown values should be handled as `flag`.
+
+### Added
+- `prompt-protection/internal` entry.
+- `docs/API_STABILITY.md`: stable / preview / internal tiers, open-union rule, release cadence.
+  `tests/api-surface.test.ts` enforces the root export list.
+- `@beta` headers on every preview-tier entry file.
+- Pre-release versions publish under the `next` dist-tag (`publish.yml`).
+
+### Versioning
+- 1.0, 2.0 and 3.0 were cut as majors for milestone reasons. From 4.0 a major is reserved for an
+  incompatible change to the stable tier, at least six months apart, with a migration document.
+
 ## [3.1.1] - 2026-09-15
 
 Registry metadata only. No code, rule or behaviour changes; `RULES_VERSION` is unchanged.
