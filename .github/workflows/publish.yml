@@ -40,7 +40,13 @@ jobs:
       # Auth via OIDC Trusted Publisher — no NPM_TOKEN.
       # Provenance attestations are generated automatically.
       - name: Publish to npm
-        run: npm publish --access public
+        # A pre-release version (4.0.0-rc.1) goes to the `next` dist-tag so `latest` never moves to it.
+        run: |
+          if node -e "process.exit(/-/.test(require('./package.json').version) ? 0 : 1)"; then
+            npm publish --access public --tag next
+          else
+            npm publish --access public
+          fi
 
       - name: Generate CycloneDX SBOM
         run: npm run sbom
