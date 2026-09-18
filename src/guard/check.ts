@@ -12,9 +12,13 @@ import type {
   PatternRule,
   ThreatCategory,
 } from '../types.js';
+import { canonicalJson } from '../utils/canonical.js';
 import { collectLeaves, detectFlows } from './provenance.js';
 import type { FlowThresholds, SourceIndex, TrustState } from './provenance.js';
 import { evaluatePolicies } from './policy.js';
+import type { ApprovalStore } from './approval.js';
+import type { TrustLabel } from './memory.js';
+import type { DecisionReason } from './reasons.js';
 import type { Flow, GuardDecision, GuardPolicy, PolicyAction, SinkKind, ToolCall } from './types.js';
 
 const FLOW_RULE: PatternRule = {
@@ -41,6 +45,12 @@ export interface CheckContext {
   failMode: FailMode;
   /** Applied to each leaf before flow detection (spotlight removal). */
   unmark?: (leaf: string) => string;
+  /** Provenance label of a source id. */
+  labelOf: (sourceId: string) => TrustLabel;
+  /** Sub-agent depth of the guard. */
+  depth: number;
+  /** Approval store; `lookup` runs before policies, `consume` after an approved call passes. */
+  approvals?: Pick<ApprovalStore, 'lookup' | 'consume'>;
 }
 
 function summarizeFlows(flows: Flow[]): FlowSummary[] {
@@ -67,6 +77,7 @@ function failedDecision(err: unknown, call: ToolCall, ctx: CheckContext): GuardD
     reasons: ['internal-error'],
     policy: 'internal-error',
     argsAnalysis,
+    depth: ctx.depth,
   };
   emitToolCallLog({ ...decision, flows: [] }, '', ctx.logging);
   return decision;
@@ -119,6 +130,8 @@ function runCheck(call: ToolCall, ctx: CheckContext): GuardDecision {
 
   const sources = ctx.index.sources;
   const turnSources = sources.filter((s) => s.turn === ctx.turn);
+  // Sync string compare against the confirmed card; hashing never runs on the check path.
+  const approval = ctx.approvals ? ctx.approvals.lookup(call, canonicalJson(call.args)) : null;
   const outcome = evaluatePolicies(ctx.policies, {
     call,
     sink,
@@ -129,20 +142,34 @@ function runCheck(call: ToolCall, ctx: CheckContext): GuardDecision {
     plan: ctx.plan,
     destinationTrusted,
     sourceById: (id) => ctx.index.get(id),
+    labelOf: ctx.labelOf,
+    depth: ctx.depth,
+    approval,
   }, ctx.failMode);
 
-  const action = toAction(outcome.action);
+  let policyAction: PolicyAction = outcome.action;
+  let reasons: DecisionReason[] = outcome.reasons;
+  // An approved, canonical-equal call clears a confirm. A block stays a block.
+  if (approval?.status === 'approved' && policyAction === 'confirm') {
+    policyAction = 'allow';
+    reasons = ['approved', ...reasons];
+    ctx.approvals?.consume(approval.id);
+  }
+
+  const action = toAction(policyAction);
   const threshold = ctx.analyzeOptions.threshold ?? DEFAULT_THRESHOLD;
   const decision: GuardDecision = {
     action,
-    requiresConfirmation: outcome.action === 'confirm',
+    requiresConfirmation: policyAction === 'confirm',
     toolName: call.toolName,
     ...(call.toolCallId !== undefined ? { toolCallId: call.toolCallId } : {}),
     sink,
     flows,
-    reasons: outcome.reasons,
-    ...(outcome.policy !== undefined ? { policy: outcome.policy } : {}),
+    reasons,
+    ...(outcome.policy !== undefined && policyAction !== 'allow' ? { policy: outcome.policy } : {}),
     argsAnalysis: withFlowMatches(rawArgs, flows, action, threshold),
+    depth: ctx.depth,
+    ...(approval !== null ? { approval } : {}),
   };
 
   emitToolCallLog({ ...decision, flows: summarizeFlows(flows) }, argsText, ctx.logging);

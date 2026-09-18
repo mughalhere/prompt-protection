@@ -13,6 +13,9 @@ export {
   paymentConfirm,
   injectionThenSink,
   argsInjection,
+  approvalMismatch,
+  approvalExpired,
+  lineageUntrusted,
 } from './policy.js';
 export type { PolicyOutcome } from './policy.js';
 export { DEFAULT_SINK_PATTERNS, defaultSink, createSinkResolver, EXFIL_SINKS, EXEC_SINKS } from './sinks.js';
@@ -22,19 +25,48 @@ export {
   collectLeaves,
   detectFlows,
   identifierValues,
+  urlPathOf,
   stringifyValue,
   containmentOf,
   defang,
+  keyOf,
   DESTINATION_KEYS,
   DESTINATION_KINDS,
   MIN_DESTINATION_CHARS,
   MIN_EXACT_CHARS,
   MIN_CONTENT_WORDS,
   MIN_CONTENT_CHARS,
+  MIN_URL_PATH_CHARS,
 } from './provenance.js';
 export type { ArgLeaf, IndexedSource, FlowThresholds, TrustState, FlowReport } from './provenance.js';
 export { wrapTools, toApprovalOutcome, createToolApproval } from './wrap.js';
 export type { WrapHooks } from './wrap.js';
+export { DECISION_REASONS, isDecisionReason } from './reasons.js';
+export type { DecisionReason } from './reasons.js';
+export { TRUST_LABEL_RANK, STRONG_EDGE, MIN_EDGE, rankOf, maxLabel, deriveLabel, isMemoryEntry } from './memory.js';
+export type { TrustLabel, LineageKind, LineageEdge, MemoryEntry, MemoryReadResult } from './memory.js';
+export { HandoffError, isTaintHandoff, assertTaintHandoff } from './handoff.js';
+export type { TaintHandoff, HandoffSource } from './handoff.js';
+export {
+  ApprovalMismatchError,
+  createApprovalStore,
+  renderApprovalCard,
+  DEFAULT_APPROVAL_TTL_MS,
+  DEFAULT_APPROVAL_MAX,
+} from './approval.js';
+export type {
+  ApprovalRecord,
+  ApprovalStatus,
+  ApprovalState,
+  ApprovalField,
+  ApprovalFieldKind,
+  ApprovalCard,
+  ApprovalOptions,
+  ApprovalMismatchCode,
+  ApprovalStore,
+} from './approval.js';
+export { canonicalJson, digest, digestSyncWeak, CanonicalJsonError } from '../utils/canonical.js';
+export type { CanonicalJsonErrorCode } from '../utils/canonical.js';
 export type {
   SinkKind,
   FlowKind,
@@ -51,6 +83,8 @@ export type {
   GuardSpotlightOptions,
   GuardOptions,
   TaintOptions,
+  MemoryWriteOptions,
+  MemoryWriteResult,
   ToolApprovalOutcome,
   ToolApprovalInput,
   WrappableTool,

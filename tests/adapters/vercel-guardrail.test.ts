@@ -134,3 +134,17 @@ describe('guard.taintMemoryWrite / lastDecision', () => {
     expect(guard.lastDecision('k1')).toBeUndefined();
   });
 });
+
+describe('approval cards and receipts share one digest', () => {
+  it('card.digest === receipt.argsDigest for the same call', async () => {
+    const guard = createGuard();
+    const provider = createGuardrailProvider(guard, { now: () => new Date(0) });
+    const call = { toolName: 'stripe_transfer', args: { payee: 'acct_1', amount: 10 }, toolCallId: 'x1' };
+    const card = await guard.approvalCard(call);
+    const d = await provider.beforeToolCall({ toolCallId: call.toolCallId, toolName: call.toolName, input: call.args });
+    expect(d.context.argsDigest).toBe(card.digest);
+    const end = provider.onToolExecutionEnd();
+    await end({ toolCall: { toolCallId: call.toolCallId, toolName: call.toolName, input: call.args }, toolOutput: { type: 'tool-result', output: 'ok' } });
+    expect(provider.receipts.at(-1)?.argsDigest).toBe(card.digest);
+  });
+});
