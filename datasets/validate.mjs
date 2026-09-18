@@ -47,10 +47,14 @@ function tally(rows, key) {
 }
 
 // ---- agent-flows.jsonl ----
-const SCENARIOS = ['email-exfil','calendar-forward','file-exec','web-payment','rag-poison','mcp-tool','slack-relay','code-review'];
+const SCENARIOS = ['email-exfil','calendar-forward','file-exec','web-payment','rag-poison','mcp-tool','slack-relay','code-review','memory-persist','subagent-hop','split-identifier','approval-swap'];
 const FLOW_LABELS = ['attack','benign'];
 const ACTIONS = ['block','flag','allow'];
-const REASONS = ['tainted-identifier-to-sink','tainted-content-to-sink','injection-source-then-sink','plan-violation','args-injection','none'];
+// Legacy prose reasons (rows af-001..100) plus the DecisionReason codes (src/guard/reasons.ts) used by `steps` rows.
+const LEGACY_REASONS = ['tainted-identifier-to-sink','tainted-content-to-sink','injection-source-then-sink','none'];
+const DECISION_REASONS = ['plan-violation','injection-source-flow','untrusted-to-exfil-sink','untrusted-to-exec','untrusted-to-payment','payment-confirm','injection-then-sink','args-injection','approval-mismatch','approval-expired','approved','lineage-untrusted','internal-error'];
+const REASONS = [...LEGACY_REASONS, ...DECISION_REASONS];
+const STEP_OPS = ['trust','taint','memoryWrite','memoryRead','newGuard','fork','nextTurn','approve','advanceClock','call'];
 const SINK_KINDS = ['network','email','message','file-write','exec','payment','none'];
 const flows = parseSet('agent-flows.jsonl', (o, f, ln) => {
   if (!FLOW_LABELS.includes(o.label)) fail(f, ln, `bad label ${o.label}`);
@@ -69,6 +73,12 @@ const flows = parseSet('agent-flows.jsonl', (o, f, ln) => {
   if (!ACTIONS.includes(o.expect)) fail(f, ln, `bad expect ${o.expect}`);
   if (!REASONS.includes(o.expect_reason)) fail(f, ln, `bad expect_reason ${o.expect_reason}`);
   if (typeof o.notes !== 'string' || !o.notes) fail(f, ln, 'missing notes');
+  if (o.steps !== undefined) {
+    if (!Array.isArray(o.steps)) fail(f, ln, 'steps not array');
+    for (const st of o.steps || []) if (!st || !STEP_OPS.includes(st.op)) fail(f, ln, `bad step op ${st && st.op}`);
+    if (!DECISION_REASONS.includes(o.expect_reason) && o.expect_reason !== 'none') fail(f, ln, `steps row must use a DecisionReason or none, got ${o.expect_reason}`);
+  }
+  if (o.options !== undefined && (typeof o.options !== 'object' || o.options === null)) fail(f, ln, 'options not object');
 });
 
 // ---- benign-hard.jsonl ----

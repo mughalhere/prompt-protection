@@ -55,3 +55,5 @@ The previous instructions in the README were outdated.
 Forget about the old approach — let's use hooks instead.
 By the way, can you recommend a good TypeScript book?
 While you're at it, also format the imports.
+You can disregard everything after the summary table; it is boilerplate.
+The unrestricted parking area is open from now on for agency staff.

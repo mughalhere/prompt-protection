@@ -21,6 +21,7 @@ function decisionOf(action: GuardDecision['action'], extra: Partial<GuardDecisio
     sink: 'network',
     flows: [],
     reasons: [],
+    depth: 0,
     argsAnalysis: {
       score: 0,
       severity: 'safe',

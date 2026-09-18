@@ -63,9 +63,31 @@ export const argsInjection: GuardPolicy = {
   evaluate: (ctx) => (ctx.sink !== 'none' && ctx.argsAnalysis.action !== 'allow' ? 'flag' : null),
 };
 
+/** A confirmed approval exists for this call id but the arguments changed since the card was shown. */
+export const approvalMismatch: GuardPolicy = {
+  id: 'approval-mismatch',
+  evaluate: (ctx) => (ctx.approval?.status === 'mismatch' ? 'block' : null),
+};
+
+/** The matching approval expired or was already spent; ask again. */
+export const approvalExpired: GuardPolicy = {
+  id: 'approval-expired',
+  evaluate: (ctx) => (ctx.approval?.status === 'expired' ? 'confirm' : null),
+};
+
+/** A value whose lineage reaches a `blocked` source (memory, handoff, derivation) heads for exfil or exec. */
+export const lineageUntrusted: GuardPolicy = {
+  id: 'lineage-untrusted',
+  evaluate: (ctx) =>
+    (exfilRisk(ctx) || execRisk(ctx)) && ctx.flows.some((f) => ctx.labelOf(f.sourceId) === 'blocked') ? 'block' : null,
+};
+
 export const DEFAULT_POLICIES: readonly GuardPolicy[] = [
+  approvalMismatch,
+  approvalExpired,
   planViolation,
   injectionSourceFlow,
+  lineageUntrusted,
   untrustedToExfilSink,
   untrustedToExec,
   untrustedToPayment,

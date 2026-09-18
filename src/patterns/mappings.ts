@@ -32,7 +32,7 @@ const families: Array<[string[], RuleMappings]> = [
       'jailbreak-dan', 'jailbreak-developer-mode', 'jailbreak-no-restrictions', 'jailbreak-jailbreak', 'jailbreak-unfiltered',
       'jailbreak-opposite-mode', 'jailbreak-escape-training', 'jailbreak-evil-persona', 'jailbreak-sudo', 'jailbreak-admin-override',
       'jailbreak-request-root-access', 'jailbreak-free-mode', 'jailbreak-character-no-limits', 'jailbreak-token-limit',
-      'jailbreak-fictional-instructions', 'jailbreak-many-shot', 'jailbreak-grandma-exploit', 'jailbreak-aim-pliny',
+      'jailbreak-fictional-instructions', 'jailbreak-many-shot', 'jailbreak-grandma-exploit', 'jailbreak-aim-pliny', 'jailbreak-unrestricted-agent',
     ],
     JAILBREAK,
   ],
