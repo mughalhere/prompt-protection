@@ -1,8 +1,8 @@
 {
   "name": "prompt-protection",
-  "version": "3.1.1",
+  "version": "4.0.0-rc.1",
   "mcpName": "io.github.mughalhere/prompt-protection",
-  "description": "Agent security runtime for Node.js and browsers: provenance-tracked tool-call guard (CaMeL-style), spotlighting, fuzzy canaries, and hybrid rules + embedded ML detection for prompt injection. Zero dependencies, TypeScript-first, published benchmarks.",
+  "description": "Provenance-tracked tool-call guard for JS agents (CaMeL-style), fail-closed, zero dependencies. Taints tool results, trusts what the user named, and blocks untrusted data reaching network, email, exec, file or payment sinks. Text detection, spotlighting and canaries included as components. Benchmarks published, good and bad.",
   "license": "MIT",
   "author": "mughalhere",
   "homepage": "https://mughalhere.github.io/prompt-protection/",
@@ -14,18 +14,18 @@
     "url": "https://github.com/mughalhere/prompt-protection/issues"
   },
   "keywords": [
-    "prompt-injection",
     "agent-security",
     "tool-call-guard",
     "taint-tracking",
-    "spotlighting",
-    "canary-token",
     "camel",
+    "fail-closed",
     "mcp-security",
     "ai-agents",
     "owasp-agentic",
+    "prompt-injection",
+    "spotlighting",
+    "canary-token",
     "audit-log",
-    "fail-closed",
     "opentelemetry",
     "agent-threat-rules",
     "atr",
@@ -62,6 +62,16 @@
       "require": {
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
+      }
+    },
+    "./internal": {
+      "import": {
+        "types": "./dist/internal.d.ts",
+        "default": "./dist/internal.js"
+      },
+      "require": {
+        "types": "./dist/internal.d.cts",
+        "default": "./dist/internal.cjs"
       }
     },
     "./middleware/express": {

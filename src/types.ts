@@ -1,3 +1,10 @@
+/** Widens a literal union to any string while keeping literal autocomplete (TypeScript #29729). */
+export type AnyString = string & Record<never, never>;
+
+/**
+ * Known threat categories. Open union: a minor release may add values, so treat an
+ * unknown category as `flag` and do not switch exhaustively. See docs/API_STABILITY.md.
+ */
 export type ThreatCategory =
   | 'prompt-injection'
   | 'jailbreak'
@@ -11,7 +18,8 @@ export type ThreatCategory =
   | 'credential-leak'
   | 'injection-relay'
   | 'pii-exposure'
-  | 'data-flow';
+  | 'data-flow'
+  | AnyString;
 
 /** Coarse severity band derived from the 0–100 score, independent of threshold. */
 export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'safe';
@@ -86,7 +94,7 @@ export interface AnalysisError {
 
 /** Compact description of one provenance flow, safe for logs (no argument values). */
 export interface FlowSummary {
-  kind: 'exact' | 'identifier' | 'content';
+  kind: 'exact' | 'identifier' | 'content' | AnyString; // mirrors guard FlowKind (open)
   sourceId: string;
   sourceTool: string;
   path: string;
@@ -170,14 +178,15 @@ export interface ProtectionEvent {
     | 'output.clean'
     | 'tool-call.blocked'
     | 'tool-call.flagged'
-    | 'tool-call.allowed';
+    | 'tool-call.allowed'
+    | AnyString; // open union, see ThreatCategory
   timestamp: string;
   score: number;
   action: Action;
   severity: SeverityLevel;
   categories: ThreatCategory[];
   ruleIds: string[];
-  direction: 'input' | 'output' | 'tool-call';
+  direction: 'input' | 'output' | 'tool-call' | AnyString;
   /** Tool name for `tool-call.*` events. */
   toolName?: string;
   toolCallId?: string;

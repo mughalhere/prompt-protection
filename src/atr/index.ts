@@ -1,3 +1,7 @@
+/**
+ * @packageDocumentation
+ * @beta Preview tier: may change in a minor release. See docs/API_STABILITY.md.
+ */
 export { loadAtrRules, referencesToMappings, DEFAULT_CATEGORY_MAP, ATR_ID_PREFIX } from './load.js';
 export { toAtrFindings, ENGINE_VERSION } from './findings.js';
 export type { ToAtrFindingsOptions } from './findings.js';

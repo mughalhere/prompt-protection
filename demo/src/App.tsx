@@ -34,6 +34,7 @@ const CATEGORY_LABELS: Record<ThreatCategory, string> = {
   'credential-leak': 'Credential Leak',
   'injection-relay': 'Injection Relay',
   'pii-exposure': 'PII Exposure',
+  'data-flow': 'Data Flow',
 };
 
 const CATEGORY_COLORS: Record<ThreatCategory, string> = {
@@ -49,6 +50,7 @@ const CATEGORY_COLORS: Record<ThreatCategory, string> = {
   'credential-leak': '#dc2626',
   'injection-relay': '#f97316',
   'pii-exposure': '#0ea5e9',
+  'data-flow': '#0891b2',
 };
 
 const SEVERITY_COLORS: Record<SeverityLevel, string> = {
@@ -282,7 +284,7 @@ function MatchRow({ match }: { match: AnalysisResult['matches'][number] }) {
 }
 
 export default function App() {
-  const [mode, setMode] = useState<Mode>('input');
+  const [mode, setMode] = useState<Mode>('guard');
 
   // Input analysis state
   const [input, setInput] = useState('');
@@ -384,7 +386,7 @@ export default function App() {
             <div>
               <h1 className={styles.title}>prompt-protection</h1>
               <p className={styles.subtitle}>
-                Detect and strip malicious LLM prompts, zero dependencies
+                Tool-call guard for JS agents. Taint what came in, block what tries to leave.
               </p>
             </div>
           </div>
@@ -412,6 +414,12 @@ export default function App() {
       <main className={styles.main}>
         <div className={styles.modeTabs}>
           <button
+            className={`${styles.modeTab} ${mode === 'guard' ? styles.modeTabActive : ''}`}
+            onClick={() => setMode('guard')}
+          >
+            Agent Guard
+          </button>
+          <button
             className={`${styles.modeTab} ${mode === 'input' ? styles.modeTabActive : ''}`}
             onClick={() => setMode('input')}
           >
@@ -422,12 +430,6 @@ export default function App() {
             onClick={() => setMode('output')}
           >
             Output Scanner
-          </button>
-          <button
-            className={`${styles.modeTab} ${mode === 'guard' ? styles.modeTabActive : ''}`}
-            onClick={() => setMode('guard')}
-          >
-            Agent Guard
           </button>
         </div>
 

@@ -1,3 +1,7 @@
+/**
+ * @packageDocumentation
+ * @beta Preview tier: may change in a minor release. See docs/API_STABILITY.md.
+ */
 import { normalize } from '../normalizer.js';
 import { createClassifier } from './model.js';
 import { MODEL_META, WEIGHTS_B64 } from './weights.js';

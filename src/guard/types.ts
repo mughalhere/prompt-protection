@@ -9,12 +9,15 @@ import type {
   ThreatCategory,
 } from '../types.js';
 import type { ProtectionSession, ProtectionSessionOptions } from '../session.js';
+import type { AnyString } from '../types.js';
 
 /** Where a tool's side effects land. `none` marks read-only tools. */
-export type SinkKind = 'network' | 'email' | 'message' | 'file-write' | 'exec' | 'payment' | 'none';
+export type SinkKind =
+  | 'network' | 'email' | 'message' | 'file-write' | 'exec' | 'payment' | 'none'
+  | AnyString; // open union: a minor may add sinks (see docs/API_STABILITY.md)
 
 /** How a tool-result fragment was detected inside a tool-call argument. */
-export type FlowKind = 'exact' | 'identifier' | 'content';
+export type FlowKind = 'exact' | 'identifier' | 'content' | AnyString;
 
 export interface Flow {
   kind: FlowKind;

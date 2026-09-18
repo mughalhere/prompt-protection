@@ -137,10 +137,9 @@ If a legitimate prompt is being blocked, open a [pattern request issue](https://
 The `main` branch is **protected**. You cannot push commits directly to `main`; changes land via **pull request** only. Before a PR can merge:
 
 - Required GitHub Actions check **`All checks passed`** must be green (strict: branch must be up to date with `main`).
-- At least **one approving review** is required.
 - All **review conversations** must be resolved.
 
-The **CI** workflow runs the test matrix on Node 18 / 20 / 22, then **`npm publish --dry-run`** so every merge proves the package tarball is publishable without using any npm token.
+The **CI** workflow runs the test matrix on Node 20 / 22 / 24, then **`npm publish --dry-run`** so every merge proves the package tarball is publishable without using any npm token.
 
 ### Publishing a version to npm
 
@@ -158,6 +157,21 @@ Publishing uses [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishe
 The publish job requests `id-token: write`, runs on a GitHub-hosted runner with Node ≥ 22.14 and **npm@11** (≥ 11.5.1 for OIDC; npm 12 needs a newer Node), and runs `npm publish --access public`. Provenance attestations are generated automatically. No long-lived npm token is used.
 
 After trusted publishing works, optionally tighten the package on npm to **Require two-factor authentication and disallow tokens**, then revoke any leftover automation tokens.
+
+## Releases
+
+`docs/API_STABILITY.md` defines three tiers; the version bump follows the tier of what changed.
+
+- **patch**: fixes and rule-pack updates, at most weekly. Rules never force more than a minor.
+- **minor**: additive stable API; preview-tier changes go under a "Preview changes" heading in the
+  CHANGELOG. Monthly.
+- **major**: at least six months apart, only for an incompatible change to the stable tier, and only
+  with `docs/migrations/v<N>.md` listing every removed or changed stable export and its replacement.
+- **pre-release**: version `X.Y.Z-rc.N`; the publish workflow sends it to the `next` dist-tag so
+  `latest` never moves to it. Install with `npm i prompt-protection@next`.
+
+New result-union members are added to the open unions, never to closed ones; adding a closed-union
+member is a major.
 
 ## License
 
