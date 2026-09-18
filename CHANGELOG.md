@@ -1,5 +1,47 @@
 # Changelog
 
+## [4.1.0] - Unreleased
+
+Taint-correct guard and records. Everything is additive to the stable `/guard` tier; 4.0 verdicts on the
+100 legacy `agent-flows` rows are unchanged (agreement gate). Conformance behaviours 1–7, 14 and 16 in
+`docs/CONFORMANCE.md`.
+
+### Added
+- `canonicalJson` / `digest` / `digestSyncWeak` / `CanonicalJsonError` (`src/utils/canonical.ts`, exported
+  from `/guard`): RFC 8785 rule, `toJSON` honoured, `-0` folded; `NaN`, `±Infinity`, `BigInt`, `Map`/`Set`,
+  cycles and depth > 64 throw instead of collapsing into collisions. `src/utils/digest.ts` re-exports it;
+  audit chains recorded on 4.0 replay unchanged (`tests/__fixtures__/audit-4.0.jsonl`).
+- `DecisionReason` open union and `DECISION_REASONS` / `isDecisionReason`; `GuardDecision.reasons` is typed
+  with it. New codes: `approval-mismatch`, `approval-expired`, `approved`, `lineage-untrusted`
+  (`tool-unpinned`, `tool-drift`, `budget-exceeded`, `envelope-invalid` reserved for 4.2–4.4).
+- Split-identifier provenance: a source URL also indexes its specific path, a source email its domain, so
+  `{host, path}` / `{user, domain}` arguments still correlate; leaves are never derived (a leaf URL sharing
+  only a path with a source is not a flow). A value split across arguments below the per-leaf thresholds
+  is scored once on the joined text (`Flow.path === 'args'`).
+- Memory lineage: `taintMemoryWrite` returns a `MemoryEntry` (`v: 1`, label, lineage edges, `rulesVersion`);
+  `guard.memoryRead(entries)` re-scores and registers entries as sources carrying their label;
+  `guard.derive(value, fromSourceIds)`; `TaintedSource.label` / `.lineage`; `TrustLabel`, `LineageEdge`,
+  `deriveLabel`. Default policy `lineage-untrusted` blocks a flow from a `blocked`-labelled source into an
+  exfil or exec sink.
+- Sub-agent handoff: `guard.handoff()`, `guard.absorb()`, `guard.fork()`, `createGuard({ inherit })`,
+  `guard.depth` and `GuardDecision.depth`.
+- Approval integrity: `guard.approvalCard(call)` (rendered fields with `tainted` marks, `digest`),
+  `guard.confirm(id, digest, by?)`, `GuardOptions.approvals` (`ttlMs`, `maxPending`). Default policies
+  `approval-mismatch` (block) and `approval-expired` (confirm) run first; an approved, canonically identical
+  call clears a `confirm` to `allow` with reason `approved`, once. `card.digest` equals the
+  `/adapters/vercel-guardrail` receipt `argsDigest` for the same call.
+- `datasets/agent-flows.jsonl`: `steps` rows (20) for `memory-persist`, `subagent-hop`, `split-identifier`,
+  `approval-swap`; `datasets/steps.cjs` interpreter shared by tests and bench; new bench gates for those
+  scenarios, agent-flows p99 and `/guard` bundle size.
+
+### Rules
+- `RULES_VERSION` 2026.09.18: `injection-ignore-above-short` also matches "disregard everything above /
+  before / so far"; new `jailbreak-unrestricted-agent` ("act as an unrestricted agent from now on").
+  Dataset row af-037 is no longer a known miss.
+
+### Preview changes
+- `/adapters/vercel-guardrail`: no API change; receipts and approval cards now share one digest by construction.
+
 ## [4.0.0] - Unreleased
 
 The surface cut. The guard is the product; text detection is a component; the root entry is the
