@@ -1,3 +1,7 @@
+/**
+ * @packageDocumentation
+ * @beta Preview tier: may change in a minor release. See docs/API_STABILITY.md.
+ */
 import type { ProtectionEvent, ProtectionLogger } from '../types.js';
 import { RULES_VERSION } from '../patterns/version.js';
 

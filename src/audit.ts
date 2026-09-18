@@ -1,3 +1,7 @@
+/**
+ * @packageDocumentation
+ * @beta Preview tier: may change in a minor release. See docs/API_STABILITY.md.
+ */
 import { RULES_VERSION } from './patterns/version.js';
 import { digest } from './utils/digest.js';
 import type { Action, FlowSummary, ProtectionEvent, ProtectionLogger, SeverityLevel, ThreatCategory } from './types.js';
