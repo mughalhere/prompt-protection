@@ -42,6 +42,8 @@ export const DECISION_REASONS: readonly DecisionReason[] = [
   'tool-unpinned',
   'tool-drift',
   'budget-exceeded',
+  'envelope-invalid',
+  'handoff-untrusted',
   'internal-error',
 ];
 

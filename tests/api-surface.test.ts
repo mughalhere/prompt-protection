@@ -70,6 +70,8 @@ describe('/guard runtime surface (stable tier: additive only)', () => {
         'pinTools', 'toolDrift', 'toolIdentities', 'toolIdentity', 'toolUnpinned', 'verifyTools',
         // 4.3
         'PERMISSIVE_POLICIES', 'PRESETS', 'STRICT_POLICIES', 'explain', 'resolvePreset', 'turnUntrustedToUntrustedDestination',
+        // 4.4
+        'envelopeInvalid', 'handoffUntrusted',
       ].sort(),
     );
   });
@@ -80,6 +82,15 @@ describe('/spotlight runtime surface (stable tier since 4.2: additive only)', ()
     const spotlight = await import('../src/spotlight/index');
     expect(Object.keys(spotlight).sort()).toEqual(
       ['SPOTLIGHT_INSTRUCTION', 'createBoundary', 'isSpotlightBoundary', 'spotlight', 'spotlightInstruction', 'unspotlight'].sort(),
+    );
+  });
+});
+
+describe('/envelope runtime surface (preview tier since 4.4)', () => {
+  it('exports exactly the documented runtime symbols', async () => {
+    const envelope = await import('../src/envelope/index');
+    expect(Object.keys(envelope).sort()).toEqual(
+      ['EnvelopeError', 'createNonceStore', 'exportPublicKey', 'fromBase64Url', 'generateKey', 'importPublicKey', 'isEnvelope', 'open', 'seal', 'toBase64Url'].sort(),
     );
   });
 });

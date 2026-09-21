@@ -1,5 +1,26 @@
 # Changelog
 
+## [4.4.0] - Unreleased
+
+Trust across boundaries: signed taint envelopes, sealed handoffs and sealed memory. Additive; the
+new `/envelope` subpath is preview tier. Conformance behaviour 15 closes the v1 suite (1–16).
+
+### Added
+- **`prompt-protection/envelope`** (preview): `seal(payload, key, { label, ttlMs, from })`,
+  `open(env, keys, { now, maxSkewMs, nonces, requireExp })`, `EnvelopeError` with codes
+  `bad-signature | expired | replayed | unknown-kid | crypto-unavailable | malformed`,
+  `createNonceStore`, `generateKey('HS256' | 'EdDSA')`, `exportPublicKey` / `importPublicKey`,
+  base64url helpers. Signature over `canonicalJson` of the envelope minus `sig`; verify order malformed →
+  key → signature → expiry/skew → nonce. HMAC-SHA-256 everywhere; Ed25519 where WebCrypto has it
+  (stable in Node ≥ 20.19.3 / 22.13 / 23.5). No non-cryptographic fallback: `crypto-unavailable` fails closed.
+- **Guard**: `taintEnvelope(env, keys)` (verified label accepted as attested; injection-scored text
+  stays `blocked`; a failed open registers a `blocked` source with lineage `envelope:<code>`),
+  `sealHandoff(key)` / `absorbSealed(env, keys)` (failed open → one `blocked` source, lineage
+  `handoff:<code>`, depth still increments), `sealMemoryEntry(entry)` / `memoryReadSealed(entries)` with
+  `GuardOptions.memory.key` (unsigned or tampered entries read back as `blocked`). Default policies
+  `envelope-invalid` and `handoff-untrusted` refuse any flow from such a source.
+- `DECISION_REASONS` now lists `envelope-invalid` and `handoff-untrusted`; presets carry both policies.
+
 ## [4.3.0] - Unreleased
 
 Operability and adapters: presets, observe mode, `explain`, render-exfil detection and redaction

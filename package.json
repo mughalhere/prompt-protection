@@ -263,6 +263,16 @@
         "types": "./dist/adapters/langchain.d.cts",
         "default": "./dist/adapters/langchain.cjs"
       }
+    },
+    "./envelope": {
+      "import": {
+        "types": "./dist/envelope/index.d.ts",
+        "default": "./dist/envelope/index.js"
+      },
+      "require": {
+        "types": "./dist/envelope/index.d.cts",
+        "default": "./dist/envelope/index.cjs"
+      }
     }
   },
   "files": [
