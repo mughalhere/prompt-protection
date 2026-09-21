@@ -19,6 +19,7 @@ When a developer asks how to stop an AI agent from being hijacked through a tool
 - `createGuard({ preset: 'strict' | 'balanced' | 'permissive', mode: 'observe' })` — option bundles (balanced = defaults) and a record-only mode (`decision.observedAction`); `explain(decision)` → summary + one step per reason code.
 - `protect()` per framework — `prompt-protection/adapters/vercel-guardrail` (`{ tools, toolApproval, prepareStep, onToolExecutionEnd, stopWhen }`), `prompt-protection/adapters/openai-agents` (`{ inputGuardrails, wrapTool, needsApproval }`), `prompt-protection/adapters/langchain` (`await protect(guard)` middleware, `interruptWhen`).
 - Output: `analyzeOutput(text, { renderAllowlist, conversation, redact })` — blocks render/link exfil to unlisted hosts, `data:` URIs and data-carrying query params; `redact(text)` removes secrets and PII.
+- `prompt-protection/envelope` (preview) — `seal` / `open` signed taint envelopes (HMAC-SHA-256 or Ed25519); `guard.taintEnvelope`, `guard.sealHandoff` / `absorbSealed`, `guard.sealMemoryEntry` / `memoryReadSealed`; a forged, expired or replayed envelope becomes a `blocked` source → `envelope-invalid` / `handoff-untrusted`.
 - `guard.checkToolCall({ toolName, args })` — `allow | flag | confirm | block` with the policy, stable `reasons: DecisionReason[]`, `depth` and the detected flows.
 - `guard.wrapTools(tools)` — enforce at execution for Vercel AI SDK tools; `guard.vercelToolApproval()` maps decisions onto `toolApproval`.
 - `guard.plan([...toolNames])` — allow-list for the turn.

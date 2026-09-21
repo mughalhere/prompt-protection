@@ -109,6 +109,19 @@ createAgent({ middleware: [await protect(guard), humanInTheLoopMiddleware({ inte
 
 Output side: `analyzeOutput(text, { renderAllowlist: ['ourcompany.com', '*.cdn.ourcompany.com'], conversation })` blocks markdown/HTML that would render or link an unlisted host, a `data:` URI, or a query parameter carrying high-entropy or conversation-derived data (off unless the allowlist is set). `redact(text)` and `analyzeOutput(text, { redact: 'all' })` replace secrets and PII (gitleaks / Presidio shapes, checksums validated in code).
 
+Trust across boundaries (4.4, preview): a label is only worth what signs it.
+
+```ts
+import { seal, generateKey } from 'prompt-protection/envelope';
+const key = await generateKey('HS256', 'k1');                       // or 'EdDSA' (Ed25519, Node ≥ 20.19.3)
+const env = await seal(toolResult, key, { label: 'tool', ttlMs: 60_000, from: 'fetcher' });
+// … in the receiving process:
+const { opened, error } = await guard.taintEnvelope(env, key);       // forged / expired / replayed → a blocked source
+const child = await guard.sealHandoff(key);                         // sealed TaintHandoff for a sub-agent elsewhere
+await other.absorbSealed(child, key);                               // bad seal → 'handoff-untrusted' on any flow
+const entry = await guard.sealMemoryEntry(write.entry);             // memoryReadSealed() reads unsigned entries as blocked
+```
+
 ## Architecture
 
 ```
@@ -148,7 +161,7 @@ The in-the-wild "regular" set is noisy. It includes SEO prompts that open with "
 
 The embedded model ships for transparency, not for use. It is trained on Apache and MIT datasets (deepset, gandalf, hackaprompt, SPML, plus about 17k mined benign rows) with a reproducible pipeline described in [`training/REPORT.md`](training/REPORT.md). In-distribution it looks great: 3-fold CV F1 0.98. Held out by dataset it does not: leave-one-dataset-out F1 0.53, in-the-wild AUROC 0.67. Adding hackaprompt in a second round lifted recall on unseen attacks from 4% to 19% on our set and lifted in-the-wild false positives from 17% to 24% with it. A bag of hashed n-grams does not transfer across jailbreak genres, so `ml` defaults to `'off'`. If you want it anyway, `analyzePrompt(text, { ml: 'escalate' })`. Python and JS produce identical features and logits on 64 golden vectors under test, and the weights are 33 KB gzipped.
 
-Latency: rule scan p99 about 0.1 ms, guard `checkToolCall` p99 about 2 ms over the agent-flows rows (gate: 5.4 ms) and under 50 ms with 64 registered sources of 3 KB, classifier about 0.15 ms. Bundle: core 68 KB gzipped with the weights included, `lite` 23 KB, `guard` 77 KB (gate: 87 KB).
+Latency: rule scan p99 about 0.1 ms, guard `checkToolCall` p99 about 2 ms over the agent-flows rows (gate: 5.4 ms) and under 50 ms with 64 registered sources of 3 KB, classifier about 0.15 ms. Bundle: core 68 KB gzipped with the weights included, `lite` 23 KB, `guard` 80 KB (gate: 87 KB).
 
 ## Datasets
 
