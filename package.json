@@ -243,6 +243,26 @@
         "types": "./dist/otel/index.d.cts",
         "default": "./dist/otel/index.cjs"
       }
+    },
+    "./adapters/openai-agents": {
+      "import": {
+        "types": "./dist/adapters/openai-agents.d.ts",
+        "default": "./dist/adapters/openai-agents.js"
+      },
+      "require": {
+        "types": "./dist/adapters/openai-agents.d.cts",
+        "default": "./dist/adapters/openai-agents.cjs"
+      }
+    },
+    "./adapters/langchain": {
+      "import": {
+        "types": "./dist/adapters/langchain.d.ts",
+        "default": "./dist/adapters/langchain.js"
+      },
+      "require": {
+        "types": "./dist/adapters/langchain.d.cts",
+        "default": "./dist/adapters/langchain.cjs"
+      }
     }
   },
   "files": [
@@ -250,7 +270,8 @@
     "server.json",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "sideEffects": false,
   "engines": {
@@ -280,7 +301,10 @@
     "express": ">=4.0.0",
     "openai": ">=4.0.0",
     "react": ">=17.0.0",
-    "yaml": ">=2.0.0"
+    "yaml": ">=2.0.0",
+    "@openai/agents": ">=0.18.0",
+    "langchain": ">=1.0.0",
+    "@langchain/core": ">=1.0.0"
   },
   "peerDependenciesMeta": {
     "@anthropic-ai/sdk": {
@@ -305,6 +329,15 @@
       "optional": true
     },
     "@opentelemetry/api": {
+      "optional": true
+    },
+    "@openai/agents": {
+      "optional": true
+    },
+    "langchain": {
+      "optional": true
+    },
+    "@langchain/core": {
       "optional": true
     }
   },
