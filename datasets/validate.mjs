@@ -47,14 +47,14 @@ function tally(rows, key) {
 }
 
 // ---- agent-flows.jsonl ----
-const SCENARIOS = ['email-exfil','calendar-forward','file-exec','web-payment','rag-poison','mcp-tool','slack-relay','code-review','memory-persist','subagent-hop','split-identifier','approval-swap'];
+const SCENARIOS = ['email-exfil','calendar-forward','file-exec','web-payment','rag-poison','mcp-tool','slack-relay','code-review','memory-persist','subagent-hop','split-identifier','approval-swap','tool-drift','loop-budget','depth-budget'];
 const FLOW_LABELS = ['attack','benign'];
 const ACTIONS = ['block','flag','allow'];
 // Legacy prose reasons (rows af-001..100) plus the DecisionReason codes (src/guard/reasons.ts) used by `steps` rows.
 const LEGACY_REASONS = ['tainted-identifier-to-sink','tainted-content-to-sink','injection-source-then-sink','none'];
-const DECISION_REASONS = ['plan-violation','injection-source-flow','untrusted-to-exfil-sink','untrusted-to-exec','untrusted-to-payment','payment-confirm','injection-then-sink','args-injection','approval-mismatch','approval-expired','approved','lineage-untrusted','internal-error'];
+const DECISION_REASONS = ['tool-unpinned','tool-drift','budget-exceeded','plan-violation','injection-source-flow','untrusted-to-exfil-sink','untrusted-to-exec','untrusted-to-payment','payment-confirm','injection-then-sink','args-injection','approval-mismatch','approval-expired','approved','lineage-untrusted','internal-error'];
 const REASONS = [...LEGACY_REASONS, ...DECISION_REASONS];
-const STEP_OPS = ['trust','taint','memoryWrite','memoryRead','newGuard','fork','nextTurn','approve','advanceClock','call'];
+const STEP_OPS = ['pin','lock','redefineTool','recordCost','trust','taint','memoryWrite','memoryRead','newGuard','fork','nextTurn','approve','advanceClock','call'];
 const SINK_KINDS = ['network','email','message','file-write','exec','payment','none'];
 const flows = parseSet('agent-flows.jsonl', (o, f, ln) => {
   if (!FLOW_LABELS.includes(o.label)) fail(f, ln, `bad label ${o.label}`);

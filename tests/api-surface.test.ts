@@ -64,7 +64,19 @@ describe('/guard runtime surface (stable tier: additive only)', () => {
         'injectionSourceFlow', 'injectionThenSink', 'isDecisionReason', 'isMemoryEntry', 'isTaintHandoff', 'keyOf',
         'lineageUntrusted', 'maxLabel', 'paymentConfirm', 'planViolation', 'rankOf', 'renderApprovalCard', 'stringifyValue',
         'toApprovalOutcome', 'untrustedToExec', 'untrustedToExfilSink', 'untrustedToPayment', 'urlPathOf', 'wrapTools',
+        // 4.2
+        'DEFAULT_MAX_REPEAT_IDENTICAL', 'UNLOCKED', 'budgetExceeded', 'createBudget', 'identityText', 'isToolLock',
+        'pinTools', 'toolDrift', 'toolIdentities', 'toolIdentity', 'toolUnpinned', 'verifyTools',
       ].sort(),
+    );
+  });
+});
+
+describe('/spotlight runtime surface (stable tier since 4.2: additive only)', () => {
+  it('exports exactly the documented runtime symbols', async () => {
+    const spotlight = await import('../src/spotlight/index');
+    expect(Object.keys(spotlight).sort()).toEqual(
+      ['SPOTLIGHT_INSTRUCTION', 'createBoundary', 'isSpotlightBoundary', 'spotlight', 'spotlightInstruction', 'unspotlight'].sort(),
     );
   });
 });

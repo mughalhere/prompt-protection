@@ -5,7 +5,11 @@
 
 const CLOCK_START = 1_700_000_000_000;
 
-const OPS = new Set(['trust', 'taint', 'memoryWrite', 'memoryRead', 'newGuard', 'fork', 'nextTurn', 'approve', 'advanceClock', 'call']);
+const OPS = new Set([
+  'trust', 'taint', 'memoryWrite', 'memoryRead', 'newGuard', 'fork', 'nextTurn', 'approve', 'advanceClock', 'call',
+  // 4.2
+  'pin', 'lock', 'redefineTool', 'recordCost',
+]);
 
 /**
  * @param {(options?: object) => any} createGuard
@@ -22,6 +26,7 @@ async function runRow(createGuard, row) {
   if (!Array.isArray(row.steps)) return guard.checkToolCall(row.call);
 
   const memory = new Map();
+  let tools = {};
   for (const step of row.steps) {
     if (!OPS.has(step.op)) throw new Error(`${row.id}: unknown step op ${step.op}`);
     switch (step.op) {
@@ -62,6 +67,24 @@ async function runRow(createGuard, row) {
       }
       case 'advanceClock':
         now += step.ms;
+        break;
+      case 'pin': {
+        // `tools` is a name → { description, inputSchema?, annotations? } map; the row-local copy is what later steps redefine.
+        tools = JSON.parse(JSON.stringify(step.tools));
+        await guard.pin(tools, step.drift !== undefined ? { drift: step.drift } : {});
+        break;
+      }
+      case 'lock':
+        guard.lock(step.lock, step.drift !== undefined ? { drift: step.drift } : {});
+        break;
+      case 'redefineTool': {
+        // A definition changed at runtime (poisoned description, new schema); wrapTools is where a guard sees definitions.
+        tools = { ...tools, [step.name]: { ...(tools[step.name] ?? {}), ...step.tool } };
+        guard.wrapTools(tools);
+        break;
+      }
+      case 'recordCost':
+        guard.recordCost(step.cost);
         break;
       case 'call': {
         const call = { toolName: step.toolName, args: step.args };
