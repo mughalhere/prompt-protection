@@ -1,5 +1,41 @@
 # Changelog
 
+## [4.3.0] - Unreleased
+
+Operability and adapters: presets, observe mode, `explain`, render-exfil detection and redaction
+on the output scanner, and one `protect()` per framework. Additive; 4.0 verdicts on the legacy
+`agent-flows` rows unchanged (`balanced` == defaults, proven per row). Conformance behaviours 11–13.
+
+### Added
+- **Presets** (`GuardOptions.preset`): `balanced` (defaults, identical to no preset), `strict`
+  (`turn-untrusted-to-untrusted-destination` confirm, `args-injection` blocks, budgets
+  `{ maxCallsPerTurn: 20, maxRepeatIdentical: 2, maxDepth: 3 }`, `minContainment: 0.4`), `permissive`
+  (no same-turn flags, payment flags, `annotationsDefault: 'heuristic'`). Explicit options win.
+  `resolvePreset`, `PRESETS`, `STRICT_POLICIES`, `PERMISSIVE_POLICIES` exported.
+- **Observe mode** (`GuardOptions.mode: 'observe'`): `action` is `allow`, `observedAction` /
+  `observedRequiresConfirmation` carry the verdict, `wrapTools` never throws, events carry
+  `mode: 'observe'` with the would-be action so blocks still reach the log.
+- **`explain(decision)`** → `{ summary, chain: [{ code, policy?, because, flows }] }`; unknown codes
+  get a generic line.
+- **Output scanner**: `renderAllowlist` (hosts, `*.` wildcards) turns on `out-render-unlisted-host`,
+  `out-data-uri-exfil`, `out-query-param-high-entropy` (≥ 20 chars, ≥ 3.5 bits/char) and
+  `out-query-param-conversation` (`conversation` option); findings in `result.render`. Off unless set.
+  `redact: 'secrets' | 'pii' | 'all'` returns `result.redacted` / `result.redactions`.
+- **`redact(text, options)`** (root, stable): ~25 secret shapes after gitleaks and PII recognisers after
+  Presidio (both MIT, `THIRD_PARTY_NOTICES.md` now ships), Luhn / IBAN / SSN validated in code, tiers
+  and custom replacement. Never applied to guard arguments.
+- **`protect()` adapters**: `/adapters/vercel-guardrail` `protect(guard, tools)` → `{ tools,
+  toolApproval, prepareStep, onToolExecutionEnd, stopWhen, provider }` (`WorkflowAgent` has no default
+  step limit; `stopWhen` fires on a block or an exhausted budget); new preview subpaths
+  `/adapters/openai-agents` (agent input guardrail, tool input/output guardrails, `needsApproval`,
+  `wrapTool`) and `/adapters/langchain` (`createMiddleware` with `wrapToolCall` + `beforeModel`,
+  `interruptWhen` for `humanInTheLoopMiddleware`). Peers `@openai/agents`, `langchain`,
+  `@langchain/core` are optional and dynamic-imported. Manual smoke scripts under `bench/smoke/`.
+- Bench gates: `output render-exfil recall ≥ 90%`, `redaction FP on benign-hard = 0`.
+
+### Preview changes
+- `/adapters/vercel-guardrail`: `protect()` added; existing API unchanged.
+
 ## [4.2.0] - Unreleased
 
 Static structure: pinned tool definitions, budgets, and spotlighting as a stable boundary. Additive to

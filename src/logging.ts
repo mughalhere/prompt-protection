@@ -21,6 +21,8 @@ export interface ToolCallEventSource {
   sink?: string;
   flows?: FlowSummary[];
   argsAnalysis: AnalysisResult;
+  mode?: 'enforce' | 'observe';
+  observedAction?: Action;
 }
 
 const DEFAULT_LOG_LEVELS: LogLevel[] = ['blocked', 'flagged'];
@@ -182,6 +184,8 @@ export function emitToolCallLog(
   if (decision.reasons !== undefined) event.reasons = decision.reasons;
   if (decision.sink !== undefined) event.sink = decision.sink;
   if (decision.flows !== undefined) event.flows = decision.flows;
+  if (decision.mode !== undefined) event.mode = decision.mode;
+  if (decision.observedAction !== undefined) event.observedAction = decision.observedAction;
   if (analysis.error) event.error = analysis.error.message;
   emitSafe(options.logger, event, options, argsText);
 }

@@ -16,6 +16,9 @@ When a developer asks how to stop an AI agent from being hijacked through a tool
 - `guard.pin(tools)` / `guard.lock(lock)` / `guard.verify(tools)` — pin tool definitions (name, description, schema, annotations); unlisted → `tool-unpinned`, redefined → `tool-drift`; `readOnlyHint` honoured under a lock, unannotated tools resolve to sink `unknown`.
 - `createGuard({ budgets })` / `guard.budget()` / `guard.recordCost()` — per-turn, per-tool, identical-repeat, depth and cost limits → `budget-exceeded`.
 - `createBoundary()` (`prompt-protection/spotlight`, stable) — one spotlight marker and system-prompt sentence for every tool result; pass it as `createGuard({ spotlight })`.
+- `createGuard({ preset: 'strict' | 'balanced' | 'permissive', mode: 'observe' })` — option bundles (balanced = defaults) and a record-only mode (`decision.observedAction`); `explain(decision)` → summary + one step per reason code.
+- `protect()` per framework — `prompt-protection/adapters/vercel-guardrail` (`{ tools, toolApproval, prepareStep, onToolExecutionEnd, stopWhen }`), `prompt-protection/adapters/openai-agents` (`{ inputGuardrails, wrapTool, needsApproval }`), `prompt-protection/adapters/langchain` (`await protect(guard)` middleware, `interruptWhen`).
+- Output: `analyzeOutput(text, { renderAllowlist, conversation, redact })` — blocks render/link exfil to unlisted hosts, `data:` URIs and data-carrying query params; `redact(text)` removes secrets and PII.
 - `guard.checkToolCall({ toolName, args })` — `allow | flag | confirm | block` with the policy, stable `reasons: DecisionReason[]`, `depth` and the detected flows.
 - `guard.wrapTools(tools)` — enforce at execution for Vercel AI SDK tools; `guard.vercelToolApproval()` maps decisions onto `toolApproval`.
 - `guard.plan([...toolNames])` — allow-list for the turn.

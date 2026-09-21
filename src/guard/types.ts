@@ -97,6 +97,9 @@ export interface GuardDecision {
   lock?: LockView;
   /** Budget state after counting this attempt, when budgets are configured. */
   budget?: BudgetState;
+  /** In observe mode: the verdict that would have been enforced (`action` is then `allow`). */
+  observedAction?: Action;
+  observedRequiresConfirmation?: boolean;
 }
 
 export type PolicyAction = 'allow' | 'flag' | 'confirm' | 'block';
@@ -182,6 +185,14 @@ export interface GuardOptions extends LoggingOptions {
   annotationsDefault?: 'destructive' | 'heuristic';
   /** Call, repeat, depth and cost limits. Off by default. */
   budgets?: BudgetOptions;
+  /**
+   * Option bundle: `balanced` (default policies, identical to no preset), `strict` (confirm on
+   * untrusted destinations, args-injection blocks, budgets on, lower containment), `permissive`
+   * (no same-turn flags, payment flags, heuristic annotations). Explicit options always win.
+   */
+  preset?: 'strict' | 'balanced' | 'permissive';
+  /** `observe` records the verdict in `observedAction` and never enforces; default `enforce`. */
+  mode?: 'enforce' | 'observe';
 }
 
 export interface LockOptions {
