@@ -40,7 +40,7 @@ jobs:
       # Auth via OIDC Trusted Publisher — no NPM_TOKEN.
       # Provenance attestations are generated automatically.
       - name: Publish to npm
-        # A pre-release version (4.0.0-rc.1) goes to the `next` dist-tag so `latest` never moves to it.
+        # A pre-release version (e.g. 4.0.0-rc.1) goes to the `next` dist-tag so `latest` never moves to it.
         run: |
           if node -e "process.exit(/-/.test(require('./package.json').version) ? 0 : 1)"; then
             npm publish --access public --tag next
@@ -54,4 +54,7 @@ jobs:
       - name: Attach SBOM to the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" sbom.cdx.json --generate-notes --verify-tag || gh release upload "$GITHUB_REF_NAME" sbom.cdx.json --clobber
+        # A pre-release version is flagged so the repo's "Latest" release never points at an rc.
+        run: |
+          if node -e "process.exit(/-/.test(require('./package.json').version) ? 0 : 1)"; then PRE=--prerelease; else PRE=; fi
+          gh release create "$GITHUB_REF_NAME" sbom.cdx.json --generate-notes --verify-tag $PRE || gh release upload "$GITHUB_REF_NAME" sbom.cdx.json --clobber

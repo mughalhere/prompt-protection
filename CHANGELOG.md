@@ -1,6 +1,6 @@
 # Changelog
 
-## [4.0.0] - Unreleased
+## [4.0.0] - 2026-09-21
 
 The surface cut. The guard is the product; text detection is a component; the root entry is the
 stable tier and nothing else. No scoring, guard or rule behaviour changes; `RULES_VERSION` is
