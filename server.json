@@ -8,13 +8,13 @@
     "source": "github"
   },
   "websiteUrl": "https://mughalhere.github.io/prompt-protection/",
-  "version": "4.0.0-rc.1",
+  "version": "4.0.0",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "prompt-protection",
-      "version": "4.0.0-rc.1",
+      "version": "4.0.0",
       "transport": {
         "type": "stdio"
       }

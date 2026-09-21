@@ -1,6 +1,6 @@
 {
   "name": "prompt-protection",
-  "version": "4.0.0-rc.1",
+  "version": "4.0.0",
   "mcpName": "io.github.mughalhere/prompt-protection",
   "description": "Provenance-tracked tool-call guard for JS agents (CaMeL-style), fail-closed, zero dependencies. Taints tool results, trusts what the user named, and blocks untrusted data reaching network, email, exec, file or payment sinks. Text detection, spotlighting and canaries included as components. Benchmarks published, good and bad.",
   "license": "MIT",
