@@ -96,3 +96,8 @@ export { createBudget, DEFAULT_MAX_REPEAT_IDENTICAL } from './budgets.js';
 export type { BudgetOptions, BudgetState, Budget } from './budgets.js';
 export { toolUnpinned, toolDrift, budgetExceeded } from './policy.js';
 export type { LockOptions, LockState } from './types.js';
+export { explain } from './explain.js';
+export type { ExplainStep, Explanation } from './explain.js';
+export { resolvePreset, PRESETS, STRICT_POLICIES, PERMISSIVE_POLICIES } from './presets.js';
+export type { GuardPreset } from './presets.js';
+export { turnUntrustedToUntrustedDestination } from './policy.js';

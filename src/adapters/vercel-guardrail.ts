@@ -5,7 +5,7 @@
 import { RULES_VERSION } from '../patterns/version.js';
 import { digest } from '../utils/digest.js';
 import { EXEC_SINKS, EXFIL_SINKS } from '../guard/sinks.js';
-import type { Guard, GuardDecision, SinkKind } from '../guard/types.js';
+import type { Guard, GuardDecision, SinkKind, WrappableTool } from '../guard/types.js';
 import type { Action, FailMode, FlowSummary } from '../types.js';
 
 /**
@@ -263,5 +263,50 @@ export function createGuardrailProvider(guard: Guard, options: GuardrailProvider
     get receipts() {
       return receipts;
     },
+  };
+}
+
+// --- protect() (4.3) ---------------------------------------------------------
+
+export interface ProtectOptions extends GuardrailProviderOptions {
+  /** Also stop the loop after this many steps when no budget is configured. */
+  maxSteps?: number;
+}
+
+export interface Protected<T extends Record<string, WrappableTool>> {
+  /** `guard.wrapTools(tools)`: check → execute → taint. */
+  tools: T;
+  toolApproval: ReturnType<GuardrailProvider['toolApproval']>;
+  prepareStep: ReturnType<GuardrailProvider['prepareStep']>;
+  onToolExecutionEnd: ReturnType<GuardrailProvider['onToolExecutionEnd']>;
+  /** `true` once a budget is exhausted or the last decision blocked. `WorkflowAgent` has no default limit; pass this. */
+  stopWhen: (event: { steps: readonly unknown[] }) => boolean;
+  provider: GuardrailProvider;
+}
+
+/**
+ * One call that returns every hook the AI SDK loop accepts (`generateText`, `ToolLoopAgent`,
+ * `WorkflowAgent`): wrapped tools, `toolApproval`, `prepareStep`, `onToolExecutionEnd`, `stopWhen`.
+ */
+export function protect<T extends Record<string, WrappableTool>>(guard: Guard, tools: T, options: ProtectOptions = {}): Protected<T> {
+  const provider = createGuardrailProvider(guard, { tools: Object.keys(tools), ...options });
+  const wrapped = guard.wrapTools(tools);
+  let lastBlocked = false;
+  const approval = provider.toolApproval();
+  return {
+    tools: wrapped,
+    toolApproval: async (input) => {
+      const status = await approval(input);
+      lastBlocked = typeof status !== 'string' && status.type === 'denied';
+      return status;
+    },
+    prepareStep: provider.prepareStep(),
+    onToolExecutionEnd: provider.onToolExecutionEnd(),
+    stopWhen: ({ steps }) => {
+      if (lastBlocked) return true;
+      if (guard.budget().exceeded.length > 0) return true;
+      return options.maxSteps !== undefined && steps.length >= options.maxSteps;
+    },
+    provider,
   };
 }

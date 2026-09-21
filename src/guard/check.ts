@@ -59,6 +59,8 @@ export interface CheckContext {
   /** Counts the attempt before policies run; absent when budgets are off. */
   budget?: Pick<Budget, 'record'>;
   requireLock?: boolean;
+  /** `observe`: compute the verdict, record it, return `allow`. Default `enforce`. */
+  mode?: 'enforce' | 'observe';
 }
 
 function summarizeFlows(flows: Flow[]): FlowSummary[] {
@@ -170,25 +172,34 @@ function runCheck(call: ToolCall, ctx: CheckContext): GuardDecision {
     ctx.approvals?.consume(approval.id);
   }
 
-  const action = toAction(policyAction);
+  const enforced = toAction(policyAction);
+  const observe = ctx.mode === 'observe';
+  // Observe: the verdict is computed and recorded, never applied.
+  const action: Action = observe ? 'allow' : enforced;
   const threshold = ctx.analyzeOptions.threshold ?? DEFAULT_THRESHOLD;
   const decision: GuardDecision = {
     action,
-    requiresConfirmation: policyAction === 'confirm',
+    requiresConfirmation: observe ? false : policyAction === 'confirm',
     toolName: call.toolName,
     ...(call.toolCallId !== undefined ? { toolCallId: call.toolCallId } : {}),
     sink,
     flows,
     reasons,
     ...(outcome.policy !== undefined && policyAction !== 'allow' ? { policy: outcome.policy } : {}),
-    argsAnalysis: withFlowMatches(rawArgs, flows, action, threshold),
+    argsAnalysis: withFlowMatches(rawArgs, flows, enforced, threshold),
     depth: ctx.depth,
     ...(approval !== null ? { approval } : {}),
     ...(lock.locked ? { lock } : {}),
     ...(budget !== null ? { budget: { ...budget, toolCalls: { ...budget.toolCalls }, repeats: { ...budget.repeats }, exceeded: [...budget.exceeded] } } : {}),
+    ...(observe ? { observedAction: enforced, observedRequiresConfirmation: policyAction === 'confirm' } : {}),
   };
 
-  emitToolCallLog({ ...decision, flows: summarizeFlows(flows) }, argsText, ctx.logging);
+  // The event carries the verdict that would have applied, so observe-mode blocks still reach the log.
+  emitToolCallLog(
+    { ...decision, flows: summarizeFlows(flows), ...(observe ? { action: enforced, mode: 'observe', observedAction: enforced } : {}) },
+    argsText,
+    ctx.logging,
+  );
   return decision;
 }
 
