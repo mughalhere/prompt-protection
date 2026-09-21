@@ -17,6 +17,9 @@ import { collectLeaves, detectFlows } from './provenance.js';
 import type { FlowThresholds, SourceIndex, TrustState } from './provenance.js';
 import { evaluatePolicies } from './policy.js';
 import type { ApprovalStore } from './approval.js';
+import type { Budget } from './budgets.js';
+import { UNLOCKED } from './pin.js';
+import type { LockView } from './pin.js';
 import type { TrustLabel } from './memory.js';
 import type { DecisionReason } from './reasons.js';
 import type { Flow, GuardDecision, GuardPolicy, PolicyAction, SinkKind, ToolCall } from './types.js';
@@ -51,6 +54,11 @@ export interface CheckContext {
   depth: number;
   /** Approval store; `lookup` runs before policies, `consume` after an approved call passes. */
   approvals?: Pick<ApprovalStore, 'lookup' | 'consume'>;
+  /** Lock view per tool name; `UNLOCKED` when no lock is installed. */
+  lockOf?: (toolName: string) => LockView;
+  /** Counts the attempt before policies run; absent when budgets are off. */
+  budget?: Pick<Budget, 'record'>;
+  requireLock?: boolean;
 }
 
 function summarizeFlows(flows: Flow[]): FlowSummary[] {
@@ -132,6 +140,9 @@ function runCheck(call: ToolCall, ctx: CheckContext): GuardDecision {
   const turnSources = sources.filter((s) => s.turn === ctx.turn);
   // Sync string compare against the confirmed card; hashing never runs on the check path.
   const approval = ctx.approvals ? ctx.approvals.lookup(call, canonicalJson(call.args)) : null;
+  const lock = ctx.lockOf ? ctx.lockOf(call.toolName) : UNLOCKED;
+  // Budgets count every attempt, blocked ones included: a loop of blocked calls is still a loop.
+  const budget = ctx.budget ? ctx.budget.record(call, ctx.depth) : null;
   const outcome = evaluatePolicies(ctx.policies, {
     call,
     sink,
@@ -145,6 +156,9 @@ function runCheck(call: ToolCall, ctx: CheckContext): GuardDecision {
     labelOf: ctx.labelOf,
     depth: ctx.depth,
     approval,
+    lock,
+    budget,
+    requireLock: ctx.requireLock ?? false,
   }, ctx.failMode);
 
   let policyAction: PolicyAction = outcome.action;
@@ -170,6 +184,8 @@ function runCheck(call: ToolCall, ctx: CheckContext): GuardDecision {
     argsAnalysis: withFlowMatches(rawArgs, flows, action, threshold),
     depth: ctx.depth,
     ...(approval !== null ? { approval } : {}),
+    ...(lock.locked ? { lock } : {}),
+    ...(budget !== null ? { budget: { ...budget, toolCalls: { ...budget.toolCalls }, repeats: { ...budget.repeats }, exceeded: [...budget.exceeded] } } : {}),
   };
 
   emitToolCallLog({ ...decision, flows: summarizeFlows(flows) }, argsText, ctx.logging);

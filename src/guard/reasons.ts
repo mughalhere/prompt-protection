@@ -39,6 +39,9 @@ export const DECISION_REASONS: readonly DecisionReason[] = [
   'approval-expired',
   'approved',
   'lineage-untrusted',
+  'tool-unpinned',
+  'tool-drift',
+  'budget-exceeded',
   'internal-error',
 ];
 

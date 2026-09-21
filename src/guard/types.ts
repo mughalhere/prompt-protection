@@ -14,10 +14,14 @@ import type { DecisionReason } from './reasons.js';
 import type { LineageEdge, MemoryEntry, MemoryReadResult, TrustLabel } from './memory.js';
 import type { TaintHandoff } from './handoff.js';
 import type { ApprovalCard, ApprovalOptions, ApprovalRecord, ApprovalState } from './approval.js';
+import type { LockView, ToolDrift, ToolLock, ToolSet } from './pin.js';
+import type { BudgetOptions, BudgetState } from './budgets.js';
+import type { SpotlightBoundary } from '../spotlight/index.js';
 
 /** Where a tool's side effects land. `none` marks read-only tools. */
 export type SinkKind =
   | 'network' | 'email' | 'message' | 'file-write' | 'exec' | 'payment' | 'none'
+  | 'unknown' // under a lock: unannotated tool the heuristics call `none`; treated as exfil and exec
   | AnyString; // open union: a minor may add sinks (see docs/API_STABILITY.md)
 
 /** How a tool-result fragment was detected inside a tool-call argument. */
@@ -89,6 +93,10 @@ export interface GuardDecision {
   depth: number;
   /** What the approval store said about this call, when a confirmed record applied. */
   approval?: ApprovalState;
+  /** Lock state for this tool, when the guard is locked. */
+  lock?: LockView;
+  /** Budget state after counting this attempt, when budgets are configured. */
+  budget?: BudgetState;
 }
 
 export type PolicyAction = 'allow' | 'flag' | 'confirm' | 'block';
@@ -113,6 +121,12 @@ export interface PolicyContext {
   depth: number;
   /** Confirmed approval that applies to this call, or null. */
   approval: ApprovalState | null;
+  /** Lock state for this tool (`UNLOCKED` when no lock is installed). */
+  lock: LockView;
+  /** Budget state after this attempt was counted, or null when budgets are off. */
+  budget: BudgetState | null;
+  /** Whether `requireLock` is set on the guard. */
+  requireLock: boolean;
 }
 
 export interface GuardPolicy {
@@ -149,8 +163,8 @@ export interface GuardOptions extends LoggingOptions {
   maxSourceChars?: number;
   /** Identifiers the user is known to have authored (pre-trusted). */
   trustedIdentifiers?: string[];
-  /** Spotlight tool results returned through `wrapTools`. */
-  spotlight?: SpotlightMode | GuardSpotlightOptions;
+  /** Spotlight tool results returned through `wrapTools`; a `createBoundary()` result reuses its marker. */
+  spotlight?: SpotlightMode | GuardSpotlightOptions | SpotlightBoundary;
   /** Verdict when the guard itself throws: `'closed'` (default) blocks, `'open'` allows. */
   failMode?: FailMode;
   /** Approval-record TTL and ring size (`guard.approvalCard` / `guard.confirm`). */
@@ -159,6 +173,26 @@ export interface GuardOptions extends LoggingOptions {
   memory?: { maxEntries?: number };
   /** Taint state from a parent guard; absorbed at construction (`guard.fork` sets this). */
   inherit?: TaintHandoff;
+  /** Block every call until `guard.pin` / `guard.lock` has installed a lock. Default false. */
+  requireLock?: boolean;
+  /**
+   * Under a lock, what an unannotated tool the name heuristics call `none` resolves to:
+   * `destructive` (default) → `unknown` (exfil + exec), `heuristic` → `none`.
+   */
+  annotationsDefault?: 'destructive' | 'heuristic';
+  /** Call, repeat, depth and cost limits. Off by default. */
+  budgets?: BudgetOptions;
+}
+
+export interface LockOptions {
+  /** Verdict for a tool whose definition drifted from the lock. Default `block`. */
+  drift?: 'block' | 'confirm';
+}
+
+export interface LockState {
+  lock: ToolLock | null;
+  drift: ToolDrift[];
+  driftAction: 'block' | 'confirm';
 }
 
 export interface TaintOptions {
@@ -246,4 +280,14 @@ export interface Guard {
   readonly turn: number;
   /** Sub-agent depth (0 = root). */
   readonly depth: number;
+  /** Digests the tool definitions (never `execute`), installs the lock and returns it for persisting. */
+  pin(tools: ToolSet, options?: LockOptions): Promise<ToolLock>;
+  /** Installs a persisted lock. Drift is detected on the next `verify` (or `wrapTools` after `pin`). */
+  lock(lock: ToolLock, options?: LockOptions): void;
+  /** Re-checks current definitions against the lock; the result drives `tool-drift` until the next call. */
+  verify(tools: ToolSet): Promise<ToolDrift[]>;
+  readonly lockState: LockState;
+  /** Budget state so far (all zeros when budgets are off). */
+  budget(): BudgetState;
+  recordCost(cost: { usd?: number; tokens?: number }): BudgetState;
 }

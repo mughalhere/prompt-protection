@@ -65,6 +65,24 @@ guard.checkToolCall(call);                    // identical args → allow ('appr
 
 Every decision carries `reasons: DecisionReason[]` (stable codes, `docs/CONFORMANCE.md`) and `depth`.
 
+Static structure (4.2): pin what the agent may call, and bound how often.
+
+```ts
+const lock = await guard.pin(tools);          // digests name, description, schema, annotations; persist it
+// … next process: guard.lock(savedLock); await guard.verify(tools)
+guard.wrapTools(tools);                       // a redefined description now blocks with 'tool-drift'
+guard.checkToolCall({ toolName: 'new_tool', args });   // unlisted under a lock → 'tool-unpinned'
+
+createGuard({ budgets: { maxCallsPerTurn: 20, maxRepeatIdentical: 3, maxDepth: 2 } });
+// the 4th identical call, or the 21st this turn → 'budget-exceeded'
+
+import { createBoundary } from 'prompt-protection/spotlight';
+const boundary = createBoundary({ mode: 'datamark' });
+createGuard({ spotlight: boundary });         // one marker, one system-prompt sentence: boundary.instruction
+```
+
+Under a lock, `readOnlyHint: true` makes a tool a non-sink and an unannotated tool the name heuristics cannot place resolves to `unknown` (treated as exfil and exec) unless you set `annotationsDefault: 'heuristic'` or name its sink in `sinks`.
+
 ## Architecture
 
 ```
@@ -96,7 +114,7 @@ Text detection is a component, not the product: 106 input rules, 21 output rules
 | local tuning (doubles as test fixtures) | MIT | 134 (77/57) | 100% / 31.2% / 100% | 0.0% / 7.0% / 7.0% |
 | Tool poisoning | MIT | 10 (5/5) | 100% | 0% |
 | Output scan, canary variants, system-prompt similarity, credential/PII/relay rules | MIT | 18 (10/8) | 100% | 0% |
-| **Agent flows**, `datasets/agent-flows.jsonl`, 120 tool-call scenarios (20 multi-step: memory, sub-agent, split identifier, approval swap) | CC-BY-4.0 | 120 (62/58) | agreement **100%** on 120 rows, reason codes asserted on the multi-step rows · attack block-recall 84% · benign FPR 3.4% | |
+| **Agent flows**, `datasets/agent-flows.jsonl`, 135 tool-call scenarios (35 multi-step: memory, sub-agent, split identifier, approval swap, tool drift, loop and depth budgets) | CC-BY-4.0 | 135 (71/64) | agreement **100%** on 135 rows, reason codes asserted on the multi-step rows · attack block-recall 86% · benign FPR 3.1% | |
 
 Some of these numbers are bad, and they are here on purpose. On NotInject the rules do well: 97.1% of short benign queries that merely contain "ignore" or "instruction" pass through. On the hard-negative set I wrote myself they false-positive on 19.4% of benign text. Questions *about* prompt injection, fiction, "grant admin access on Netflix" all trip them. They catch 14.6% of the attacks written to avoid canonical phrases. That is what pattern matching tops out at, and it is why provenance is the primary mechanism now. Both figures are CI gates at their current baseline; they can only go down from here.
 
@@ -104,7 +122,7 @@ The in-the-wild "regular" set is noisy. It includes SEO prompts that open with "
 
 The embedded model ships for transparency, not for use. It is trained on Apache and MIT datasets (deepset, gandalf, hackaprompt, SPML, plus about 17k mined benign rows) with a reproducible pipeline described in [`training/REPORT.md`](training/REPORT.md). In-distribution it looks great: 3-fold CV F1 0.98. Held out by dataset it does not: leave-one-dataset-out F1 0.53, in-the-wild AUROC 0.67. Adding hackaprompt in a second round lifted recall on unseen attacks from 4% to 19% on our set and lifted in-the-wild false positives from 17% to 24% with it. A bag of hashed n-grams does not transfer across jailbreak genres, so `ml` defaults to `'off'`. If you want it anyway, `analyzePrompt(text, { ml: 'escalate' })`. Python and JS produce identical features and logits on 64 golden vectors under test, and the weights are 33 KB gzipped.
 
-Latency: rule scan p99 about 0.1 ms, guard `checkToolCall` p99 about 2 ms over the agent-flows rows (gate: 5.4 ms) and under 50 ms with 64 registered sources of 3 KB, classifier about 0.15 ms. Bundle: core 64 KB gzipped with the weights included, `lite` 20 KB, `guard` 74 KB (gate: 87 KB).
+Latency: rule scan p99 about 0.1 ms, guard `checkToolCall` p99 about 2 ms over the agent-flows rows (gate: 5.4 ms) and under 50 ms with 64 registered sources of 3 KB, classifier about 0.15 ms. Bundle: core 64 KB gzipped with the weights included, `lite` 20 KB, `guard` 76 KB (gate: 87 KB).
 
 ## Datasets
 
