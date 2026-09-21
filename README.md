@@ -42,8 +42,28 @@ Or drive it by hand:
 ```ts
 guard.taint('read_email', emailBody);         // label a tool result as untrusted
 const decision = guard.checkToolCall({ toolName: 'http_post', args: { url } });
-// { action: 'block', policy: 'untrusted-to-exfil-sink', flows: [{ kind: 'identifier', path: 'args.url', … }] }
+// { action: 'block', policy: 'untrusted-to-exfil-sink', reasons: ['untrusted-to-exfil-sink'], flows: [{ kind: 'identifier', path: 'args.url', … }] }
 ```
+
+Taint survives three places it used to leak (4.1):
+
+```ts
+// Memory: persist the entry next to the value, read it back next session with its lineage.
+const { store, entry } = guard.taintMemoryWrite('summarise', summary, { key: 'notes/today' });
+if (store) await db.put(entry.key, { value: summary, entry });
+// … later, in a new guard:
+guard.memoryRead([savedEntry]);               // a blocked lineage into an exfil/exec sink → 'lineage-untrusted'
+
+// Sub-agents: the child guard inherits sources, labels and trusted identifiers; depth increments.
+const child = guard.fork();                   // or createGuard({ inherit: guard.handoff() }) across a boundary
+
+// Approvals: what the human saw is what runs.
+const card = await guard.approvalCard(call);  // rendered fields, tainted marks, card.digest
+guard.confirm(card.id, card.digest, 'alice'); // UI echoes the digest back
+guard.checkToolCall(call);                    // identical args → allow ('approved'); changed args → block ('approval-mismatch')
+```
+
+Every decision carries `reasons: DecisionReason[]` (stable codes, `docs/CONFORMANCE.md`) and `depth`.
 
 ## Architecture
 
@@ -76,7 +96,7 @@ Text detection is a component, not the product: 106 input rules, 21 output rules
 | local tuning (doubles as test fixtures) | MIT | 134 (77/57) | 100% / 31.2% / 100% | 0.0% / 7.0% / 7.0% |
 | Tool poisoning | MIT | 10 (5/5) | 100% | 0% |
 | Output scan, canary variants, system-prompt similarity, credential/PII/relay rules | MIT | 18 (10/8) | 100% | 0% |
-| **Agent flows**, `datasets/agent-flows.jsonl`, 100 tool-call scenarios | CC-BY-4.0 | 100 (50/50) | agreement **100%** on 99 scored rows, 1 documented miss · attack block-recall 82% · benign FPR 4% | |
+| **Agent flows**, `datasets/agent-flows.jsonl`, 120 tool-call scenarios (20 multi-step: memory, sub-agent, split identifier, approval swap) | CC-BY-4.0 | 120 (62/58) | agreement **100%** on 120 rows, reason codes asserted on the multi-step rows · attack block-recall 84% · benign FPR 3.4% | |
 
 Some of these numbers are bad, and they are here on purpose. On NotInject the rules do well: 97.1% of short benign queries that merely contain "ignore" or "instruction" pass through. On the hard-negative set I wrote myself they false-positive on 19.4% of benign text. Questions *about* prompt injection, fiction, "grant admin access on Netflix" all trip them. They catch 14.6% of the attacks written to avoid canonical phrases. That is what pattern matching tops out at, and it is why provenance is the primary mechanism now. Both figures are CI gates at their current baseline; they can only go down from here.
 
@@ -84,15 +104,15 @@ The in-the-wild "regular" set is noisy. It includes SEO prompts that open with "
 
 The embedded model ships for transparency, not for use. It is trained on Apache and MIT datasets (deepset, gandalf, hackaprompt, SPML, plus about 17k mined benign rows) with a reproducible pipeline described in [`training/REPORT.md`](training/REPORT.md). In-distribution it looks great: 3-fold CV F1 0.98. Held out by dataset it does not: leave-one-dataset-out F1 0.53, in-the-wild AUROC 0.67. Adding hackaprompt in a second round lifted recall on unseen attacks from 4% to 19% on our set and lifted in-the-wild false positives from 17% to 24% with it. A bag of hashed n-grams does not transfer across jailbreak genres, so `ml` defaults to `'off'`. If you want it anyway, `analyzePrompt(text, { ml: 'escalate' })`. Python and JS produce identical features and logits on 64 golden vectors under test, and the weights are 33 KB gzipped.
 
-Latency: rule scan p99 about 0.1 ms, guard `checkToolCall` p99 about 3 ms with 64 registered sources, classifier about 0.15 ms. Bundle: core 65 KB gzipped with the weights included, `lite` 20 KB, `guard` 67 KB.
+Latency: rule scan p99 about 0.1 ms, guard `checkToolCall` p99 about 2 ms over the agent-flows rows (gate: 5.4 ms) and under 50 ms with 64 registered sources of 3 KB, classifier about 0.15 ms. Bundle: core 64 KB gzipped with the weights included, `lite` 20 KB, `guard` 74 KB (gate: 87 KB).
 
 ## Datasets
 
-[`datasets/`](datasets/) is CC-BY-4.0 and disjoint from the test fixtures. It is also on the Hugging Face Hub as [promptprotection/agent-security-datasets](https://huggingface.co/datasets/promptprotection/agent-security-datasets), with a card built from the benchmark results. `attacks.jsonl` has 130 rows across nine categories and 14 languages. `benign-hard.jsonl` has 155 benign prompts carrying trigger vocabulary, in NotInject's four categories plus developer jargon and security documentation. `agent-flows.jsonl` has 100 tool-call scenarios with the expected guard decision and the reason. `node datasets/validate.mjs` checks schema, uniqueness and disjointness from the fixtures.
+[`datasets/`](datasets/) is CC-BY-4.0 and disjoint from the test fixtures. It is also on the Hugging Face Hub as [promptprotection/agent-security-datasets](https://huggingface.co/datasets/promptprotection/agent-security-datasets), with a card built from the benchmark results. `attacks.jsonl` has 130 rows across nine categories and 14 languages. `benign-hard.jsonl` has 155 benign prompts carrying trigger vocabulary, in NotInject's four categories plus developer jargon and security documentation. `agent-flows.jsonl` has 120 tool-call scenarios with the expected guard decision and the reason; the 20 multi-step rows carry a `steps` array (memory write/read, fork, approve, clock) run by `datasets/steps.cjs`, the interpreter shared by the tests and the bench. `node datasets/validate.mjs` checks schema, uniqueness and disjointness from the fixtures.
 
 ## Limitations
 
-Semantic paraphrase. Tainted prose rewritten so it shares no identifiers and no six-word shingles with its source is invisible to the guard. `injection-then-sink` covers the same-turn case only when the source itself scores as injection; `af-037` in the agent-flows set is the documented miss.
+Semantic paraphrase. Tainted prose rewritten so it shares no identifiers and no six-word shingles with its source is invisible to the guard. `injection-then-sink` covers the same-turn case only when the source itself scores as injection. For derivations your application can see (structured-output fields, summaries), `guard.derive(value, fromSourceIds)` carries the label explicitly; nothing carries it for a paraphrase the model performs internally.
 
 Recipient ambiguity. "Reply to them" leaves the recipient derived from the tool result, which has the same flow shape as attacker exfiltration. The default blocks. Call `guard.trust(sender)` first, or swap `untrusted-to-exfil-sink` for a confirm policy (`af-065`, `af-072`).
 

@@ -7,7 +7,7 @@ import type {
   SeverityLevel,
 } from 'prompt-protection';
 import { createGuard } from 'prompt-protection/guard';
-import type { GuardDecision } from 'prompt-protection/guard';
+import type { GuardDecision, MemoryEntry } from 'prompt-protection/guard';
 import { predict as mlPredict } from 'prompt-protection/ml';
 import styles from './App.module.css';
 
@@ -302,6 +302,7 @@ export default function App() {
   const [guardSource, setGuardSource] = useState(GUARD_EXAMPLE.source);
   const [guardTool, setGuardTool] = useState(GUARD_EXAMPLE.toolName);
   const [guardArgs, setGuardArgs] = useState(GUARD_EXAMPLE.args);
+  const [guardMemory, setGuardMemory] = useState('');
   const [guardDecision, setGuardDecision] = useState<GuardDecision | null>(null);
   const [guardError, setGuardError] = useState<string | null>(null);
 
@@ -317,9 +318,19 @@ export default function App() {
     const guard = createGuard();
     if (guardUser.trim()) guard.analyzeUserTurn(guardUser);
     if (guardSource.trim()) guard.taint('tool_result', guardSource);
+    if (guardMemory.trim()) {
+      // A stored MemoryEntry (from guard.taintMemoryWrite in an earlier session), read back with its lineage.
+      try {
+        guard.memoryRead([JSON.parse(guardMemory) as MemoryEntry]);
+      } catch (e) {
+        setGuardDecision(null);
+        setGuardError(`Memory entry must be a v1 MemoryEntry JSON: ${(e as Error).message}`);
+        return;
+      }
+    }
     setGuardError(null);
     setGuardDecision(guard.checkToolCall({ toolName: guardTool.trim() || 'tool', args }));
-  }, [guardUser, guardSource, guardTool, guardArgs]);
+  }, [guardUser, guardSource, guardMemory, guardTool, guardArgs]);
   const outputRef = useRef<HTMLTextAreaElement>(null);
 
   const analyze = useCallback((text: string) => {
@@ -731,6 +742,15 @@ export default function App() {
                 onChange={(e) => setGuardSource(e.target.value)}
               />
 
+              <div className={styles.sectionTitle}>Stored memory entry (optional, from an earlier session)</div>
+              <textarea
+                className={styles.textarea}
+                rows={3}
+                value={guardMemory}
+                onChange={(e) => setGuardMemory(e.target.value)}
+                placeholder='MemoryEntry JSON returned by guard.taintMemoryWrite(...).entry, e.g. {"v":1,"id":"m1","value":"…","label":"blocked",…}'
+              />
+
               <div className={styles.sectionTitle}>Proposed tool call</div>
               <input
                 className={styles.textarea}
@@ -756,6 +776,7 @@ export default function App() {
                     setGuardSource(GUARD_EXAMPLE.source);
                     setGuardTool(GUARD_EXAMPLE.toolName);
                     setGuardArgs(GUARD_EXAMPLE.args);
+                    setGuardMemory('');
                     setGuardDecision(null);
                     setGuardError(null);
                   }}
