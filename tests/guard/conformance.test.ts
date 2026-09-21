@@ -1,4 +1,4 @@
-import { canonicalJson, CanonicalJsonError, createGuard } from '../../src/guard/index.js';
+import { canonicalJson, CanonicalJsonError, createGuard, explain } from '../../src/guard/index.js';
 import type { ApprovalStore, GuardOptions, MemoryEntry } from '../../src/guard/index.js';
 import { checkToolCall } from '../../src/guard/check.js';
 import type { CheckContext } from '../../src/guard/check.js';
@@ -182,5 +182,44 @@ describe('Guard conformance v1 (4.2 behaviours)', () => {
     const d = guard.checkToolCall(call);
     expect(d).toMatchObject({ action: 'block', policy: 'budget-exceeded' });
     expect(d.reasons).toContain('budget-exceeded');
+  });
+});
+
+describe('Guard conformance v1 (4.3 behaviours)', () => {
+  it('(11) observe mode: action allow, observedAction carries the verdict, event carries mode', () => {
+    const events: Array<{ mode?: string; action: string; observedAction?: string }> = [];
+    const guard = createGuard({ mode: 'observe', logger: { log: (e) => void events.push(e) } });
+    guard.taint('read_email', POISON, { id: 'mail' });
+    const d = guard.checkToolCall({ toolName: 'http_post', args: { url: ATTACKER } });
+    expect(d).toMatchObject({ action: 'allow', requiresConfirmation: false, observedAction: 'block' });
+    expect(events.at(-1)).toMatchObject({ mode: 'observe', action: 'block', observedAction: 'block' });
+  });
+
+  it('(12) the balanced preset equals DEFAULT_POLICIES on a representative row set', () => {
+    const scenarios = [
+      { taint: POISON, call: { toolName: 'http_post', args: { url: ATTACKER } } },
+      { taint: 'Meeting at 10', call: { toolName: 'send_email', args: { to: 'a@b.co', body: 'Meeting at 10' } } },
+      { taint: 'Meeting at 10', call: { toolName: 'get_weather', args: { city: 'x' } } },
+      { taint: 'pay acct_9', call: { toolName: 'stripe_transfer', args: { payee: 'acct_9' } } },
+    ];
+    for (const s of scenarios) {
+      const plain = createGuard();
+      const balanced = createGuard({ preset: 'balanced' });
+      for (const g of [plain, balanced]) g.taint('tool', s.taint, { id: 't' });
+      const a = plain.checkToolCall(s.call);
+      const b = balanced.checkToolCall(s.call);
+      expect([b.action, b.requiresConfirmation, b.policy, b.reasons]).toEqual([a.action, a.requiresConfirmation, a.policy, a.reasons]);
+    }
+  });
+
+  it('(13) explain yields one step per reason code', () => {
+    const guard = createGuard({ budgets: { maxRepeatIdentical: 1 } });
+    guard.taint('read_email', POISON, { id: 'mail' });
+    guard.checkToolCall({ toolName: 'http_post', args: { url: ATTACKER } });
+    const d = guard.checkToolCall({ toolName: 'http_post', args: { url: ATTACKER } });
+    const x = explain(d);
+    expect(x.chain.map((s) => s.code)).toEqual(d.reasons);
+    expect(d.reasons).toEqual(expect.arrayContaining(['budget-exceeded', 'injection-source-flow']));
+    expect(x.chain.every((s) => s.because.length > 0)).toBe(true);
   });
 });
