@@ -1,5 +1,29 @@
 # Changelog
 
+## [4.2.0] - Unreleased
+
+Static structure: pinned tool definitions, budgets, and spotlighting as a stable boundary. Additive to
+`/guard`; 4.0 verdicts on the legacy `agent-flows` rows unchanged. Conformance behaviours 8–10.
+
+### Added
+- **Tool pinning** (`pinTools`, `verifyTools`, `guard.pin`, `guard.lock`, `guard.verify`, `guard.lockState`).
+  A `ToolLock` digests each tool's name, description, schema and annotations (never `execute`). Under a
+  lock, an unlisted tool is refused (`tool-unpinned`) and a changed definition is refused or confirmed
+  (`tool-drift`, `LockOptions.drift`); `wrapTools` after `pin` detects redefinitions synchronously,
+  `verify` re-checks persisted locks. `GuardOptions.requireLock` refuses everything until locked.
+- **Annotations under a lock**: `readOnlyHint: true` → sink `none`; an unannotated tool the name heuristics
+  call `none` → new open-union sink `unknown` (member of `EXFIL_SINKS` and `EXEC_SINKS`) unless
+  `annotationsDefault: 'heuristic'`. Unlocked guards resolve sinks exactly as before.
+- **Budgets** (`GuardOptions.budgets`, `guard.budget()`, `guard.recordCost()`): per-turn, per-tool,
+  identical-repeat (default 3), depth and cost limits; every attempt counts, blocked ones included;
+  `onExceed: 'block' | 'confirm'` → `budget-exceeded`. Off unless configured.
+- `GuardDecision.lock` / `.budget`; `PolicyContext.lock` / `.budget` / `.requireLock`; policies
+  `toolUnpinned`, `toolDrift`, `budgetExceeded` run after the approval policies.
+- **Spotlight boundary**: `createBoundary({ mode, marker?, label? })` → `{ mark, unmark, instruction, marker }`;
+  `SPOTLIGHT_INSTRUCTION`; `createGuard({ spotlight: boundary })`. `/spotlight` is now **stable** tier.
+- Dataset: 14 `steps` rows for `tool-drift`, `loop-budget`, `depth-budget`; ops `pin`, `lock`,
+  `redefineTool`, `recordCost`; three new bench agreement gates.
+
 ## [4.1.0] - Unreleased
 
 Taint-correct guard and records. Everything is additive to the stable `/guard` tier; 4.0 verdicts on the
