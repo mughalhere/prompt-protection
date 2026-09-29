@@ -40,7 +40,8 @@ function decodedText(text: string): string {
   return decodeObfuscation(normalizeUnicode(text));
 }
 
-function keyOf(path: string): string {
+/** Last path segment, lowercased and stripped to letters (`args.items[0].to` → `to`). */
+export function keyOf(path: string): string {
   const tail = path.slice(path.lastIndexOf('.') + 1).replace(/\[\d+\]$/, '');
   return tail.toLowerCase().replace(/[^a-z]/g, '');
 }
@@ -81,14 +82,45 @@ export function stringifyValue(value: unknown): string {
 }
 
 /** Lowercased identifier values (→ kind) from the raw, defanged and decoded forms of `text`. */
-export function identifierValues(text: string): Map<string, IdentifierKind> {
+/** URL paths shorter than this, or with a single segment, are too generic to correlate (`/inbox`). */
+export const MIN_URL_PATH_CHARS = 12;
+
+/** Path of a URL identifier when it is specific enough to correlate on its own, else null. */
+export function urlPathOf(url: string): string | null {
+  const afterScheme = url.slice(url.indexOf('//') + 2);
+  const slash = afterScheme.indexOf('/');
+  if (slash === -1) return null;
+  const path = afterScheme.slice(slash).split(/[?#]/, 1)[0] ?? '';
+  const segments = path.split('/').filter((s) => s.length > 0);
+  if (segments.length === 0) return null;
+  return segments.length >= 2 || path.length >= MIN_URL_PATH_CHARS ? path : null;
+}
+
+/**
+ * Lowercased identifier value → kind over raw, defanged and decoded text. With `derived` (sources
+ * and trusted text), a URL also yields its specific path and an email its domain, so a destination
+ * split across arguments (`{host, path}`, `{user, domain}`) still correlates. Argument leaves are
+ * indexed without derivation: a leaf URL matches on host and full URL only, never on a shared path.
+ */
+export function identifierValues(text: string, derived = true): Map<string, IdentifierKind> {
   const out = new Map<string, IdentifierKind>();
+  const put = (value: string, kind: IdentifierKind): void => {
+    if (!out.has(value)) out.set(value, kind);
+  };
   const defanged = defang(text);
   const variants = defanged === text ? [text, decodedText(text)] : [text, defanged, decodedText(defanged)];
   for (const variant of variants) {
     for (const id of extractIdentifiers(variant)) {
       const value = id.value.toLowerCase();
-      if (!out.has(value)) out.set(value, id.kind);
+      put(value, id.kind);
+      if (!derived) continue;
+      if (id.kind === 'url') {
+        const path = urlPathOf(value);
+        if (path !== null) put(path, 'path');
+      } else if (id.kind === 'email') {
+        const domain = value.slice(value.lastIndexOf('@') + 1);
+        if (domain.length > 0) put(domain, 'host');
+      }
     }
   }
   return out;
@@ -269,7 +301,7 @@ export function detectFlows(
     const userAuthored = trust.text.length > 0 && trust.text.includes(compact);
     if (!userAuthored) untrustedLeaves.push(leaf);
 
-    const ids = identifierValues(leaf.value);
+    const ids = identifierValues(leaf.value, false);
     const destinationKey = DESTINATION_KEYS.has(keyOf(leaf.path));
     for (const [value, kind] of ids) {
       if (!DESTINATION_KINDS.has(kind)) continue;
@@ -345,6 +377,38 @@ export function detectFlows(
           sourceTool: src.tool,
           path: leaf.path,
           value: preview(compact),
+          strength: Math.max(wordFlow ? score.word : 0, charFlow ? score.char : 0),
+        });
+      }
+    }
+  }
+
+  // A value split across leaves (`{a: half, b: half}`) never reaches the per-leaf thresholds.
+  // Score the joined untrusted text once, only for sources no leaf already implicated.
+  if (untrustedLeaves.length >= 2 && index.sources.length > 0) {
+    const implicated = new Set(flows.map((f) => f.sourceId));
+    // Key-name leaves (`args.part0` → "part0") would dilute the joined text; only values join.
+    const joined = untrustedLeaves
+      .filter((l) => !l.path.endsWith(`.${l.value}`))
+      .map((l) => normalize(l.value).normalized.trim())
+      .filter((s) => s.length > 0)
+      .join(' ');
+    if (joined.length >= MIN_CONTENT_CHARS) {
+      const needle = buildShingles(joined);
+      const wordEligible = needle.wordCount >= MIN_CONTENT_WORDS;
+      for (const [sourceId, score] of index.containment(needle)) {
+        if (implicated.has(sourceId)) continue;
+        const src = index.get(sourceId);
+        if (src === undefined) continue;
+        const wordFlow = wordEligible && score.word >= thresholds.minContainment;
+        const charFlow = score.char >= thresholds.minCharContainment;
+        if (!wordFlow && !charFlow) continue;
+        flows.push({
+          kind: 'content',
+          sourceId,
+          sourceTool: src.tool,
+          path: 'args',
+          value: preview(joined),
           strength: Math.max(wordFlow ? score.word : 0, charFlow ? score.char : 0),
         });
       }

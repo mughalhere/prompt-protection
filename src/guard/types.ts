@@ -10,6 +10,10 @@ import type {
 } from '../types.js';
 import type { ProtectionSession, ProtectionSessionOptions } from '../session.js';
 import type { AnyString } from '../types.js';
+import type { DecisionReason } from './reasons.js';
+import type { LineageEdge, MemoryEntry, MemoryReadResult, TrustLabel } from './memory.js';
+import type { TaintHandoff } from './handoff.js';
+import type { ApprovalCard, ApprovalOptions, ApprovalRecord, ApprovalState } from './approval.js';
 
 /** Where a tool's side effects land. `none` marks read-only tools. */
 export type SinkKind =
@@ -55,6 +59,10 @@ export interface TaintedSource {
   /** Value of the guard's turn counter when the source was registered. */
   turn: number;
   timestamp: number;
+  /** Provenance label; absent means `tool` (or `blocked` when the source scored as injection). */
+  label?: TrustLabel;
+  /** Where the value came from (memory reads, handoffs, `derive`). */
+  lineage?: LineageEdge[];
 }
 
 export interface ToolCall {
@@ -71,12 +79,16 @@ export interface GuardDecision {
   toolCallId?: string;
   sink: SinkKind;
   flows: Flow[];
-  /** Ids of every policy that fired, highest severity first. */
-  reasons: string[];
+  /** Reason codes, highest severity first (policy ids plus `approved`). */
+  reasons: DecisionReason[];
   /** The policy that decided the action, when any fired. */
   policy?: string;
   /** Scan of the argument text itself, with synthetic `data-flow` matches for flows. */
   argsAnalysis: AnalysisResult;
+  /** Sub-agent depth of the deciding guard (0 = root). */
+  depth: number;
+  /** What the approval store said about this call, when a confirmed record applied. */
+  approval?: ApprovalState;
 }
 
 export type PolicyAction = 'allow' | 'flag' | 'confirm' | 'block';
@@ -95,6 +107,12 @@ export interface PolicyContext {
   /** The call names ≥1 destination (recipient/URL/account) and the user authored all of them. */
   destinationTrusted: boolean;
   sourceById: (id: string) => TaintedSource | undefined;
+  /** Provenance label of a source (`blocked` when it scored as injection or inherited that label). */
+  labelOf: (sourceId: string) => TrustLabel;
+  /** Sub-agent depth of this guard. */
+  depth: number;
+  /** Confirmed approval that applies to this call, or null. */
+  approval: ApprovalState | null;
 }
 
 export interface GuardPolicy {
@@ -135,6 +153,12 @@ export interface GuardOptions extends LoggingOptions {
   spotlight?: SpotlightMode | GuardSpotlightOptions;
   /** Verdict when the guard itself throws: `'closed'` (default) blocks, `'open'` allows. */
   failMode?: FailMode;
+  /** Approval-record TTL and ring size (`guard.approvalCard` / `guard.confirm`). */
+  approvals?: ApprovalOptions;
+  /** Memory-entry limits (`guard.memoryRead`). */
+  memory?: { maxEntries?: number };
+  /** Taint state from a parent guard; absorbed at construction (`guard.fork` sets this). */
+  inherit?: TaintHandoff;
 }
 
 export interface TaintOptions {
@@ -145,6 +169,12 @@ export interface TaintOptions {
 export interface MemoryWriteOptions extends TaintOptions {
   /** `reject-blocked` (default) refuses to store injection-scored results; `annotate` stores and reports. */
   policy?: 'reject-blocked' | 'annotate';
+  /** Source ids this value was derived from (`copy` edges, strength 1). Auto-detected by containment otherwise. */
+  derivedFrom?: string[];
+  /** Application key the entry is stored under. */
+  key?: string;
+  /** Overrides the derived label (only ever raises it). */
+  label?: TrustLabel;
 }
 
 export interface MemoryWriteResult {
@@ -154,6 +184,8 @@ export interface MemoryWriteResult {
   store: boolean;
   /** Spotlit form of the text when the guard has `spotlight` configured, persist this, not the raw text. */
   spotlit?: string;
+  /** Lineage record to persist next to the value; feed it back through `memoryRead`. */
+  entry: MemoryEntry;
 }
 
 export type ToolApprovalOutcome =
@@ -190,9 +222,28 @@ export interface Guard {
   taintMemoryWrite(source: string, value: unknown, options?: MemoryWriteOptions): MemoryWriteResult;
   /** Most recent decision for a tool-call id (ring of 64), for approval UIs and receipts. */
   lastDecision(toolCallId: string): GuardDecision | undefined;
+  /**
+   * Registers persisted memory entries as tainted sources, re-scored under the current rules and
+   * carrying their stored label and lineage (`lineage-untrusted` fires on a `blocked` lineage).
+   */
+  memoryRead(entries: readonly MemoryEntry[]): MemoryReadResult;
+  /** Registers an app-visible derivation (summary, extracted field) that inherits its parents' labels. */
+  derive(value: unknown, fromSourceIds: readonly string[], options?: TaintOptions): TaintedSource;
+  /** Serialises taint state for a sub-agent's guard. */
+  handoff(): TaintHandoff;
+  /** Absorbs a parent's taint state; depth becomes `max(depth, handoff.depth + 1)`. Throws on malformed input. */
+  absorb(handoff: TaintHandoff): void;
+  /** `createGuard({ ...options, inherit: this.handoff() })`. */
+  fork(options?: GuardOptions): Guard;
+  /** Checks the call and issues an approval card whose `digest` a UI must echo back to `confirm`. */
+  approvalCard(call: ToolCall): Promise<ApprovalCard>;
+  /** Approves a card; a digest that differs from the card throws `ApprovalMismatchError`. */
+  confirm(id: string, digest: string, by?: string): ApprovalRecord;
   nextTurn(): void;
   clear(): void;
   readonly session: ProtectionSession;
   readonly sources: readonly TaintedSource[];
   readonly turn: number;
+  /** Sub-agent depth (0 = root). */
+  readonly depth: number;
 }

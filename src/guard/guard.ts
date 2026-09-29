@@ -4,11 +4,20 @@ import { createProtectionSession } from '../session.js';
 import type { ProtectionSession } from '../session.js';
 import { buildShingles } from '../utils/shingle.js';
 import type { AnalysisResult, AnalyzeOptions, FailMode, LoggingOptions } from '../types.js';
+import { canonicalJson, digest } from '../utils/canonical.js';
+import { randomHex } from '../utils/random.js';
+import { RULES_VERSION } from '../patterns/version.js';
 import { checkToolCall as runCheck } from './check.js';
 import { DEFAULT_POLICIES } from './policy.js';
-import { SourceIndex, identifierValues, stringifyValue } from './provenance.js';
+import { SourceIndex, containmentOf, identifierValues, stringifyValue } from './provenance.js';
 import type { TrustState } from './provenance.js';
 import { createSinkResolver } from './sinks.js';
+import { createApprovalStore, renderApprovalCard } from './approval.js';
+import type { ApprovalCard } from './approval.js';
+import { assertTaintHandoff } from './handoff.js';
+import type { TaintHandoff } from './handoff.js';
+import { deriveLabel, isMemoryEntry, maxLabel, MIN_EDGE } from './memory.js';
+import type { LineageEdge, MemoryEntry, MemoryReadResult, TrustLabel } from './memory.js';
 import type {
   Guard,
   GuardDecision,
@@ -16,6 +25,7 @@ import type {
   GuardSpotlightOptions,
   MemoryWriteOptions,
   MemoryWriteResult,
+  SourceInjection,
   TaintOptions,
   TaintedSource,
   ToolCall,
@@ -71,8 +81,26 @@ export function createGuard(options: GuardOptions = {}): Guard {
   let plan: ReadonlySet<string> | null = null;
   let turn = 0;
   let seq = 0;
+  let depth = 0;
+  const approvals = createApprovalStore(options.approvals);
+  const maxMemoryEntries = options.memory?.maxEntries ?? maxSources;
 
-  function taint(source: string, value: unknown, taintOptions: TaintOptions = {}): TaintedSource {
+  function ownLabel(injection: SourceInjection): TrustLabel {
+    return injection.action === 'block' ? 'blocked' : 'tool';
+  }
+
+  function labelOf(sourceId: string): TrustLabel {
+    const src = index.get(sourceId);
+    if (src === undefined) return 'untrusted';
+    return src.label ?? ownLabel(src.injection);
+  }
+
+  interface Provenance {
+    label?: TrustLabel;
+    lineage?: LineageEdge[];
+  }
+
+  function taint(source: string, value: unknown, taintOptions: TaintOptions = {}, provenance: Provenance = {}): TaintedSource {
     const id = taintOptions.id ?? `${source}#${++seq}`;
     const existing = index.get(id);
     if (existing !== undefined) return existing;
@@ -86,6 +114,14 @@ export function createGuard(options: GuardOptions = {}): Guard {
     } catch (err) {
       result = failedAnalysis(err, failMode, analyzeOptions.threshold ?? 35);
     }
+    const injection: SourceInjection = {
+      score: result.score,
+      action: result.action,
+      categories: result.categories,
+      ...(result.ml !== undefined ? { mlProbability: result.ml.probability } : {}),
+    };
+    // A stored or inherited label only ever raises the source's own.
+    const label = provenance.label !== undefined ? maxLabel(ownLabel(injection), provenance.label) : undefined;
     const entry: TaintedSource = {
       id,
       tool: source,
@@ -93,16 +129,25 @@ export function createGuard(options: GuardOptions = {}): Guard {
       normalized,
       shingles: buildShingles(normalized, 1),
       identifiers: identifierValues(text),
-      injection: {
-        score: result.score,
-        action: result.action,
-        categories: result.categories,
-        ...(result.ml !== undefined ? { mlProbability: result.ml.probability } : {}),
-      },
+      injection,
       turn,
       timestamp: Date.now(),
+      ...(label !== undefined ? { label } : {}),
+      ...(provenance.lineage !== undefined ? { lineage: provenance.lineage } : {}),
     };
     return index.add(entry);
+  }
+
+  /** Containment of `text` in each live source other than `selfId`, as `derive` edges. */
+  function autoEdges(text: string, selfId: string): LineageEdge[] {
+    const edges: LineageEdge[] = [];
+    for (const src of index.sources) {
+      if (src.id === selfId) continue;
+      const c = containmentOf(text, src.normalized);
+      const strength = Math.max(c.word, c.char);
+      if (strength >= MIN_EDGE) edges.push({ from: src.id, kind: 'derive', strength });
+    }
+    return edges;
   }
 
   function trustText(text: string): void {
@@ -143,28 +188,144 @@ export function createGuard(options: GuardOptions = {}): Guard {
       analyzeOptions,
       logging,
       failMode,
+      labelOf,
+      depth,
+      approvals,
       ...(unmark ? { unmark } : {}),
     }));
   }
 
   function taintMemoryWrite(source: string, value: unknown, memoryOptions: MemoryWriteOptions = {}): MemoryWriteResult {
-    const entry = taint(source, value, memoryOptions.id !== undefined ? { id: memoryOptions.id } : {});
+    const src = taint(source, value, memoryOptions.id !== undefined ? { id: memoryOptions.id } : {});
+    const explicit: LineageEdge[] = (memoryOptions.derivedFrom ?? []).map((from) => ({ from, kind: 'copy', strength: 1 }));
+    const lineage = explicit.length > 0 ? explicit : autoEdges(src.text, src.id);
+    const derived = deriveLabel(lineage, labelOf, ownLabel(src.injection));
+    const label = memoryOptions.label !== undefined ? maxLabel(derived, memoryOptions.label) : derived;
+    src.label = label;
+    src.lineage = lineage;
+    const entry: MemoryEntry = {
+      v: 1,
+      id: src.id,
+      ...(memoryOptions.key !== undefined ? { key: memoryOptions.key } : {}),
+      value: src.text,
+      label,
+      sourceIds: lineage.filter((e) => e.strength >= 0.5).map((e) => e.from),
+      lineage,
+      injection: src.injection,
+      rulesVersion: RULES_VERSION,
+      turn,
+      ts: new Date(src.timestamp).toISOString(),
+    };
     const policy = memoryOptions.policy ?? 'reject-blocked';
-    const action = entry.injection.action;
-    const store = !(policy === 'reject-blocked' && action === 'block');
-    const result: MemoryWriteResult = { source: entry, action, store };
-    if (spot) result.spotlit = spotlight(entry.text, { mode: spot.mode, marker, sourceId: entry.id }).text;
+    const action = src.injection.action;
+    const store = !(policy === 'reject-blocked' && (action === 'block' || label === 'blocked'));
+    const result: MemoryWriteResult = { source: src, action, store, entry };
+    if (spot) result.spotlit = spotlight(src.text, { mode: spot.mode, marker, sourceId: src.id }).text;
     return result;
   }
 
+  function memoryRead(entries: readonly MemoryEntry[]): MemoryReadResult {
+    const sources: TaintedSource[] = [];
+    const edges: LineageEdge[] = [];
+    let label: TrustLabel = 'tool';
+    let worst: SourceInjection = { score: 0, action: 'allow', categories: [] };
+    for (const entry of entries.slice(0, maxMemoryEntries)) {
+      if (!isMemoryEntry(entry)) throw new TypeError('memoryRead: not a v1 MemoryEntry');
+      const read: LineageEdge = { from: entry.id, kind: 'read', strength: 1 };
+      const lineage = [...entry.lineage, read];
+      // Re-scored under the current rules; the stored label can only raise the result.
+      const src = taint(`memory:${entry.key ?? entry.id}`, entry.value, { id: `mem:${entry.id}` }, { label: entry.label, lineage });
+      sources.push(src);
+      edges.push(...lineage);
+      label = maxLabel(label, src.label ?? ownLabel(src.injection));
+      if (src.injection.score > worst.score) worst = src.injection;
+    }
+    return { sources, label, edges, injection: worst };
+  }
+
+  function derive(value: unknown, fromSourceIds: readonly string[], taintOptions: TaintOptions = {}): TaintedSource {
+    const lineage: LineageEdge[] = fromSourceIds.map((from) => ({ from, kind: 'derive', strength: 1 }));
+    const label = fromSourceIds.map(labelOf).reduce<TrustLabel>((acc, l) => maxLabel(acc, l), 'tool');
+    return taint('derived', value, taintOptions, { label, lineage });
+  }
+
+  function handoff(): TaintHandoff {
+    return {
+      v: 1,
+      depth,
+      turn,
+      sources: index.sources.map((s) => ({
+        id: s.id,
+        tool: s.tool,
+        text: s.text,
+        label: labelOf(s.id),
+        injection: s.injection,
+        turn: s.turn,
+        lineage: s.lineage ?? [],
+      })),
+      trustedIdentifiers: [...trust.identifiers],
+    };
+  }
+
+  function absorb(h: TaintHandoff): void {
+    assertTaintHandoff(h);
+    depth = Math.max(depth, h.depth + 1);
+    for (const v of h.trustedIdentifiers) trust.identifiers.add(v.toLowerCase());
+    for (const s of h.sources) {
+      const existing = index.get(s.id);
+      if (existing !== undefined) {
+        existing.label = maxLabel(existing.label ?? ownLabel(existing.injection), s.label);
+        continue;
+      }
+      taint(s.tool, s.text, { id: s.id }, { label: s.label, lineage: s.lineage });
+    }
+  }
+
+  async function approvalCard(call: ToolCall): Promise<ApprovalCard> {
+    const decision = check(call);
+    const canonicalArgs = canonicalJson(call.args);
+    const now = Date.now();
+    const card: ApprovalCard = {
+      id: randomHex(16),
+      // Hashes the canonical text, so it equals `digest(call.args)` wherever receipts compute that.
+      digest: await digest(canonicalArgs),
+      canonicalArgs,
+      toolName: call.toolName,
+      ...(call.toolCallId !== undefined ? { toolCallId: call.toolCallId } : {}),
+      sink: decision.sink,
+      decision,
+      rendered: renderApprovalCard(call, decision),
+      createdAt: new Date(now).toISOString(),
+      expiresAt: '',
+    };
+    const record = approvals.issue(card);
+    card.expiresAt = new Date(record.expiresAt).toISOString();
+    return card;
+  }
+
+  if (options.inherit !== undefined) absorb(options.inherit);
+
   const guard: Guard = {
-    taint,
+    taint: (source, value, taintOptions) => taint(source, value, taintOptions),
     trust: trustText,
     analyzeUserTurn,
     checkToolCall: check,
     plan(allowedTools) {
       plan = allowedTools === null ? null : new Set(allowedTools);
     },
+    memoryRead,
+    derive,
+    handoff,
+    absorb,
+    fork(forkOptions = {}) {
+      // The child gets its own session and turn counter; only taint state crosses the hop.
+      const base: GuardOptions = { ...options };
+      delete base.session;
+      delete base.inherit;
+      return createGuard({ ...base, ...forkOptions, inherit: handoff() });
+    },
+    approvalCard,
+    confirm: (id, digestValue, by) => approvals.confirm(id, digestValue, by),
     wrapTools(tools) {
       return wrapWithHooks(tools, {
         check,
@@ -187,8 +348,10 @@ export function createGuard(options: GuardOptions = {}): Guard {
       trust = { identifiers: new Set(options.trustedIdentifiers?.map((s) => s.toLowerCase())), text: '' };
       plan = null;
       turn = 0;
+      depth = 0;
       recent.clear();
       session.clear();
+      if (options.inherit !== undefined) absorb(options.inherit);
     },
     get session() {
       return session;
@@ -198,6 +361,9 @@ export function createGuard(options: GuardOptions = {}): Guard {
     },
     get turn() {
       return turn;
+    },
+    get depth() {
+      return depth;
     },
   };
   return guard;

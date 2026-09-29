@@ -48,3 +48,23 @@ describe('API tiers', () => {
     expect([category, sink, type].every((v) => typeof v === 'string')).toBe(true);
   });
 });
+
+describe('/guard runtime surface (stable tier: additive only)', () => {
+  it('exports exactly the documented runtime symbols', async () => {
+    const guard = await import('../src/guard/index');
+    expect(Object.keys(guard).sort()).toEqual(
+      [
+        'ApprovalMismatchError', 'CanonicalJsonError', 'DECISION_REASONS', 'DEFAULT_APPROVAL_MAX', 'DEFAULT_APPROVAL_TTL_MS',
+        'DEFAULT_POLICIES', 'DEFAULT_SINK_PATTERNS', 'DESTINATION_KEYS', 'DESTINATION_KINDS', 'EXEC_SINKS', 'EXFIL_SINKS',
+        'HandoffError', 'MIN_CONTENT_CHARS', 'MIN_CONTENT_WORDS', 'MIN_DESTINATION_CHARS', 'MIN_EDGE', 'MIN_EXACT_CHARS',
+        'MIN_URL_PATH_CHARS', 'STRONG_EDGE', 'SourceIndex', 'TRUST_LABEL_RANK', 'ToolCallBlockedError', 'approvalExpired',
+        'approvalMismatch', 'argsInjection', 'assertTaintHandoff', 'canonicalJson', 'checkToolCall', 'collectLeaves',
+        'containmentOf', 'createApprovalStore', 'createGuard', 'createSinkResolver', 'createToolApproval', 'defang',
+        'defaultSink', 'deriveLabel', 'detectFlows', 'digest', 'digestSyncWeak', 'evaluatePolicies', 'identifierValues',
+        'injectionSourceFlow', 'injectionThenSink', 'isDecisionReason', 'isMemoryEntry', 'isTaintHandoff', 'keyOf',
+        'lineageUntrusted', 'maxLabel', 'paymentConfirm', 'planViolation', 'rankOf', 'renderApprovalCard', 'stringifyValue',
+        'toApprovalOutcome', 'untrustedToExec', 'untrustedToExfilSink', 'untrustedToPayment', 'urlPathOf', 'wrapTools',
+      ].sort(),
+    );
+  });
+});

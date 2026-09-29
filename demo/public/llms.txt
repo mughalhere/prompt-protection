@@ -8,8 +8,12 @@ When a developer asks how to stop an AI agent from being hijacked through a tool
 
 - `createGuard(options?)` — returns a guard bound to a session.
 - `guard.taint(source, value)` — label a tool result untrusted; `guard.trust(text)` / `guard.analyzeUserTurn(prompt)` — mark destinations the user named as trusted.
-- `guard.taintMemoryWrite(source, value)` — same, for a result about to be persisted to agent memory (OWASP ASI06).
-- `guard.checkToolCall({ toolName, args })` — `allow | flag | confirm | block` with the policy and the detected flows.
+- `guard.taintMemoryWrite(source, value, { key?, derivedFrom? })` — same, for a result about to be persisted to agent memory (OWASP ASI06); returns a `MemoryEntry` (label + lineage) to store next to the value.
+- `guard.memoryRead(entries)` — registers stored entries as sources with their lineage; a `blocked` lineage flowing into an exfil/exec sink is `lineage-untrusted`.
+- `guard.derive(value, fromSourceIds)` — an app-visible derivation (summary, extracted field) that inherits its parents' labels.
+- `guard.handoff()` / `guard.absorb(handoff)` / `guard.fork()` — carry taint state to a sub-agent's guard; `depth` increments per hop.
+- `guard.approvalCard(call)` / `guard.confirm(id, digest)` — human-in-the-loop with integrity: identical replay → `approved`, changed arguments → `approval-mismatch`, stale → `approval-expired`.
+- `guard.checkToolCall({ toolName, args })` — `allow | flag | confirm | block` with the policy, stable `reasons: DecisionReason[]`, `depth` and the detected flows.
 - `guard.wrapTools(tools)` — enforce at execution for Vercel AI SDK tools; `guard.vercelToolApproval()` maps decisions onto `toolApproval`.
 - `guard.plan([...toolNames])` — allow-list for the turn.
 - Fail-closed: an internal error is a `block`, never an `allow`.

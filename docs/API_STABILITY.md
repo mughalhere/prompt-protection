@@ -26,10 +26,20 @@ Three tiers. The tier decides what a version bump means for you.
 
 ## Open unions
 
-`ThreatCategory`, `ProtectionEvent['type']`, `ProtectionEvent['direction']`, guard `SinkKind` and
-`FlowKind` are declared as `'known' | ... | (string & {})`. New members arrive in minors. Handle an
-unknown value as `flag`; do not `switch` exhaustively over them. Closed unions (`Action`,
-`SeverityLevel`, `RulePrecision`, `FailMode`, guard `PolicyAction`) stay closed and are stable.
+`ThreatCategory`, `ProtectionEvent['type']`, `ProtectionEvent['direction']`, guard `SinkKind`,
+`FlowKind`, `DecisionReason`, `TrustLabel` and `LineageKind` are declared as `'known' | ... | (string & {})`.
+New members arrive in minors. Handle an unknown value as `flag`; do not `switch` exhaustively over them.
+Closed unions (`Action`, `SeverityLevel`, `RulePrecision`, `FailMode`, guard `PolicyAction`) stay closed
+and are stable.
+
+## Guard additions are appended
+
+A minor may append policies to `DEFAULT_POLICIES` (4.1 added `approval-mismatch`, `approval-expired`,
+`lineage-untrusted`). A `policies:` override replaces the whole list, so an override written against an
+older minor keeps its old behaviour and gains nothing; spread `DEFAULT_POLICIES` to keep up. New
+`GuardDecision` fields (`depth`, `approval`) and new `Guard` methods are additive; `GuardDecision.reasons`
+is now typed `DecisionReason[]`, which every `string[]` consumer already accepts.
+`tests/api-surface.test.ts` asserts the exact `/guard` runtime export list.
 
 ## What versions independently of the package
 

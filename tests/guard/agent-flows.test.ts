@@ -1,7 +1,13 @@
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
-import { createGuard } from '../../src/guard';
-import type { SinkKind } from '../../src/guard';
+import { createGuard, isDecisionReason } from '../../src/guard';
+import type { GuardDecision, SinkKind } from '../../src/guard';
+
+// Shared with bench/run.mjs so the two interpreters cannot drift.
+const { runRow } = createRequire(__filename)('../../datasets/steps.cjs') as {
+  runRow: (factory: typeof createGuard, row: Row) => Promise<GuardDecision>;
+};
 
 interface Row {
   id: string;
@@ -9,11 +15,14 @@ interface Row {
   scenario: string;
   user: string;
   sources: Array<{ id: string; tool: string; text: string }>;
-  call: { toolName: string; args: unknown };
+  steps?: Array<{ op: string } & Record<string, unknown>>;
+  options?: Record<string, unknown>;
+  call: { toolName: string; args: unknown; toolCallId?: string };
   sinks: Record<string, SinkKind>;
   expect: 'block' | 'flag' | 'allow';
   expect_reason: string;
   notes: string;
+  known_miss?: string;
 }
 
 const rows: Row[] = readFileSync(join(__dirname, '../../datasets/agent-flows.jsonl'), 'utf8')
@@ -22,20 +31,19 @@ const rows: Row[] = readFileSync(join(__dirname, '../../datasets/agent-flows.jso
   .map((line) => JSON.parse(line) as Row);
 
 const TARGET_AGREEMENT = 0.95;
-
-function runRow(row: Row) {
-  const guard = createGuard({ sinks: row.sinks });
-  guard.analyzeUserTurn(row.user);
-  for (const src of row.sources) guard.taint(src.tool, src.text, { id: src.id });
-  return guard.checkToolCall(row.call);
-}
+const STEP_SCENARIOS = ['memory-persist', 'subagent-hop', 'split-identifier', 'approval-swap'];
 
 describe('agent-flows.jsonl (data-driven)', () => {
-  it('loads 100 rows', () => {
-    expect(rows).toHaveLength(100);
+  it('loads 120 rows: 100 legacy + 20 steps rows across the four 4.1 scenarios', () => {
+    expect(rows).toHaveLength(120);
+    for (const s of STEP_SCENARIOS) {
+      const inScenario = rows.filter((r) => r.scenario === s);
+      expect(inScenario.filter((r) => r.label === 'attack').length).toBeGreaterThanOrEqual(3);
+      expect(inScenario.filter((r) => r.label === 'benign').length).toBeGreaterThanOrEqual(2);
+    }
   });
 
-  it(`agrees with expected actions on ≥ ${TARGET_AGREEMENT * 100}% of rows`, () => {
+  it(`agrees with expected actions on ≥ ${TARGET_AGREEMENT * 100}% of rows, and on reason codes where a row names one`, async () => {
     const mismatches: string[] = [];
     const reasonMismatches: string[] = [];
     const knownMisses: string[] = [];
@@ -45,7 +53,7 @@ describe('agent-flows.jsonl (data-driven)', () => {
     let benign = 0;
 
     for (const row of rows) {
-      const d = runRow(row);
+      const d = await runRow(createGuard, row);
       if (row.label === 'attack') {
         attacks++;
         if (d.action === 'block') blockedAttacks++;
@@ -53,15 +61,16 @@ describe('agent-flows.jsonl (data-driven)', () => {
         benign++;
         if (d.action === 'block') benignBlocked++;
       }
+      // Reason codes are asserted on `steps` rows only; legacy rows keep their prose reasons.
+      const reasonExpected = Array.isArray(row.steps) && isDecisionReason(row.expect_reason);
       if (d.action !== row.expect && row.known_miss !== undefined) {
         knownMisses.push(`${row.id}: expected ${row.expect} got ${d.action}, ${row.known_miss}`);
-      } else if (d.action !== row.expect) {
+      } else if (d.action !== row.expect || (reasonExpected && !d.reasons.includes(row.expect_reason))) {
         mismatches.push(
-          `${row.id}: expected ${row.expect} (${row.expect_reason}) got ${d.action}` +
-            ` [policy=${d.policy ?? '-'} sink=${d.sink} flows=${d.flows.map((f) => `${f.kind}:${f.path}`).join(',') || '-'}` +
-            ` src=${guardSources(row).join(',')}]`,
+          `${row.id}: expected ${row.expect} (${row.expect_reason}) got ${d.action} (${d.reasons.join('|') || '-'})` +
+            ` [policy=${d.policy ?? '-'} sink=${d.sink} flows=${d.flows.map((f) => `${f.kind}:${f.path}`).join(',') || '-'}]`,
         );
-      } else if (row.expect_reason !== 'none' && d.policy !== undefined && !reasonMatches(row.expect_reason, d.policy)) {
+      } else if (!reasonExpected && row.expect_reason !== 'none' && d.policy !== undefined && !reasonMatches(row.expect_reason, d.policy)) {
         reasonMismatches.push(`${row.id}: expect_reason ${row.expect_reason} vs policy ${d.policy}`);
       }
     }
@@ -81,14 +90,20 @@ describe('agent-flows.jsonl (data-driven)', () => {
     );
     expect(agreement).toBeGreaterThanOrEqual(TARGET_AGREEMENT);
   });
+
+  it('the four 4.1 scenarios agree on every row (deterministic classes)', async () => {
+    const failures: string[] = [];
+    for (const row of rows.filter((r) => STEP_SCENARIOS.includes(r.scenario))) {
+      const d = await runRow(createGuard, row);
+      if (d.action !== row.expect || (row.expect_reason !== 'none' && !d.reasons.includes(row.expect_reason))) {
+        failures.push(`${row.id}: expected ${row.expect}/${row.expect_reason} got ${d.action}/${d.reasons.join('|')}`);
+      }
+    }
+    expect(failures).toEqual([]);
+  });
 });
 
-function guardSources(row: Row): string[] {
-  const guard = createGuard({ sinks: row.sinks });
-  for (const src of row.sources) guard.taint(src.tool, src.text, { id: src.id });
-  return guard.sources.map((s) => `${s.id}=${s.injection.action}@${s.injection.score}`);
-}
-
+// Legacy prose reasons (rows af-001..100) map onto the policies that may legitimately decide them.
 const REASON_TO_POLICIES: Record<string, string[]> = {
   'tainted-identifier-to-sink': ['untrusted-to-exfil-sink', 'untrusted-to-exec', 'untrusted-to-payment', 'injection-source-flow'],
   'tainted-content-to-sink': ['untrusted-to-exfil-sink', 'untrusted-to-exec', 'untrusted-to-payment', 'injection-source-flow'],
