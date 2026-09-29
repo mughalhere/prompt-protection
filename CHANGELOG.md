@@ -1,6 +1,6 @@
 # Changelog
 
-## [4.2.0] - Unreleased
+## [4.2.0] - 2026-10-13
 
 Static structure: pinned tool definitions, budgets, and spotlighting as a stable boundary. Additive to
 `/guard`; 4.0 verdicts on the legacy `agent-flows` rows unchanged. Conformance behaviours 8–10.
@@ -23,6 +23,13 @@ Static structure: pinned tool definitions, budgets, and spotlighting as a stable
   `SPOTLIGHT_INSTRUCTION`; `createGuard({ spotlight: boundary })`. `/spotlight` is now **stable** tier.
 - Dataset: 14 `steps` rows for `tool-drift`, `loop-budget`, `depth-budget`; ops `pin`, `lock`,
   `redefineTool`, `recordCost`; three new bench agreement gates.
+
+### Dependencies
+- `proxy-addr` 2.0.7 → 2.0.8 (critical advisory), `@modelcontextprotocol/sdk` 1.30.0 → 1.31.0 (dev, high),
+  `brace-expansion` 1.1.18 → 1.1.21 (medium), `handlebars` 4.7.9 → 4.7.10 (dev), `source-map-js` 1.2.1 → 1.2.2
+  (demo, high). No runtime dependencies were added; the package still ships with none.
+- Benchmark: agent-flows latency is now the per-row minimum of five passes after a warm-up pass, so the
+  p99 gate measures the code rather than the CI runner (#45).
 
 ## [4.1.0] - 2026-09-29
 
