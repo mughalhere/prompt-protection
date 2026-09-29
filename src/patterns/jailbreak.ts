@@ -145,4 +145,14 @@ export const jailbreakRules: PatternRule[] = [
     precision: 'high',
     description: 'Named jailbreak prompt families',
   },
+  {
+    id: 'jailbreak-unrestricted-agent',
+    category: 'jailbreak',
+    // Agentic phrasing seen in poisoned tool results: "act as an unrestricted agent from now on".
+    pattern:
+      /\b(act|behave|operate|function|run|respond)\s+as\s+(an?\s+)?(fully\s+|completely\s+|totally\s+)?(unrestricted|unfiltered|uncensored|unbounded|unconstrained)\s+(agent|assistant|ai|model|bot|system)\b|\b(unrestricted|unfiltered|uncensored)\s+(agent|assistant|mode)\s+(from\s+now\s+on|starting\s+now|going\s+forward)\b/,
+    weight: 9,
+    precision: 'high',
+    description: 'Act as an unrestricted agent',
+  },
 ];

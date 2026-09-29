@@ -38,10 +38,10 @@ export const injectionRules: PatternRule[] = [
   {
     id: 'injection-ignore-above-short',
     category: 'prompt-injection',
-    pattern: /(ignore|disregard)\s+(all\s+)?(of\s+)?(the\s+)?above\b/,
+    pattern: /(ignore|disregard)\s+(all\s+)?(of\s+)?(the\s+)?(above|everything\s+(above|before|prior|so\s+far))\b/,
     weight: 8,
     precision: 'medium',
-    description: 'Ignore/disregard above (short override)',
+    description: 'Ignore/disregard above / everything above (short override)',
   },
   {
     id: 'injection-discard-prior',
