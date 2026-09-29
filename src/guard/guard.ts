@@ -23,6 +23,8 @@ import type {
   GuardDecision,
   GuardOptions,
   GuardSpotlightOptions,
+  LockOptions,
+  SinkKind,
   MemoryWriteOptions,
   MemoryWriteResult,
   SourceInjection,
@@ -31,7 +33,12 @@ import type {
   ToolCall,
 } from './types.js';
 import { createToolApproval, wrapTools as wrapWithHooks } from './wrap.js';
-import { spotlight, unspotlight } from '../spotlight/index.js';
+import { isSpotlightBoundary, spotlight, unspotlight } from '../spotlight/index.js';
+import { createBudget } from './budgets.js';
+import type { BudgetState } from './budgets.js';
+import { identityText, isToolLock, pinTools, toolIdentities, UNLOCKED, verifyTools } from './pin.js';
+import type { LockView, ToolDrift, ToolLock, ToolSet } from './pin.js';
+import { defaultSink } from './sinks.js';
 
 const DEFAULT_MAX_SOURCES = 64;
 const DEFAULT_MAX_SOURCE_CHARS = 200_000;
@@ -51,7 +58,10 @@ function pickLogging(options: GuardOptions): LoggingOptions {
 
 function resolveSpotlight(option: GuardOptions['spotlight']): GuardSpotlightOptions | null {
   if (option === undefined) return null;
-  return typeof option === 'string' ? { mode: option } : option;
+  if (typeof option === 'string') return { mode: option };
+  // A boundary carries its own marker; the guard marks and unmarks with it.
+  if (isSpotlightBoundary(option)) return { mode: option.mode, marker: option.marker };
+  return option;
 }
 
 /**
@@ -84,6 +94,61 @@ export function createGuard(options: GuardOptions = {}): Guard {
   let depth = 0;
   const approvals = createApprovalStore(options.approvals);
   const maxMemoryEntries = options.memory?.maxEntries ?? maxSources;
+  const requireLock = options.requireLock ?? false;
+  const annotationsDefault = options.annotationsDefault ?? 'destructive';
+  const budget = options.budgets !== undefined ? createBudget(options.budgets) : null;
+  const explicitSink = typeof options.sinks === 'function' ? options.sinks : (name: string) =>
+    options.sinks !== undefined && Object.prototype.hasOwnProperty.call(options.sinks, name)
+      ? (options.sinks as Record<string, SinkKind>)[name]
+      : undefined;
+
+  let lock: ToolLock | null = null;
+  let driftAction: 'block' | 'confirm' = 'block';
+  /** Canonical identity text per tool at `pin` time, for sync drift checks in `wrapTools`. */
+  let identities = new Map<string, string>();
+  let drift = new Map<string, ToolDrift>();
+
+  function lockOf(toolName: string): LockView {
+    if (lock === null) return UNLOCKED;
+    const pinned = lock.tools[toolName];
+    return {
+      locked: true,
+      listed: pinned !== undefined,
+      drift: drift.get(toolName) ?? null,
+      annotations: pinned?.annotations ?? null,
+      driftAction,
+    };
+  }
+
+  /** Under a lock only: explicit map > `readOnlyHint` > heuristic; unannotated heuristic `none` → `unknown`. */
+  function resolveSinkLocked(toolName: string): SinkKind {
+    const explicit = explicitSink(toolName);
+    if (explicit !== undefined) return explicit;
+    if (lock === null) return resolveSink(toolName);
+    const annotations = lock.tools[toolName]?.annotations;
+    if (annotations?.readOnlyHint === true) return 'none';
+    const heuristic = defaultSink(toolName);
+    if (heuristic === 'none' && annotations === undefined && annotationsDefault === 'destructive') return 'unknown';
+    return heuristic;
+  }
+
+  function installLock(next: ToolLock, lockOptions: LockOptions): void {
+    lock = next;
+    driftAction = lockOptions.drift ?? 'block';
+    drift = new Map();
+  }
+
+  function syncDrift(tools: ToolSet): void {
+    if (lock === null || identities.size === 0) return;
+    const next = new Map<string, ToolDrift>();
+    for (const [name, identity] of toolIdentities(tools)) {
+      const expected = identities.get(name);
+      const actual = identityText(identity);
+      if (expected === undefined) next.set(name, { name, kind: 'unlisted' });
+      else if (expected !== actual) next.set(name, { name, kind: 'changed' });
+    }
+    drift = next;
+  }
 
   function ownLabel(injection: SourceInjection): TrustLabel {
     return injection.action === 'block' ? 'blocked' : 'tool';
@@ -182,7 +247,7 @@ export function createGuard(options: GuardOptions = {}): Guard {
       trust,
       thresholds,
       policies,
-      resolveSink,
+      resolveSink: resolveSinkLocked,
       plan,
       turn,
       analyzeOptions,
@@ -191,6 +256,9 @@ export function createGuard(options: GuardOptions = {}): Guard {
       labelOf,
       depth,
       approvals,
+      lockOf,
+      requireLock,
+      ...(budget !== null ? { budget } : {}),
       ...(unmark ? { unmark } : {}),
     }));
   }
@@ -327,6 +395,8 @@ export function createGuard(options: GuardOptions = {}): Guard {
     approvalCard,
     confirm: (id, digestValue, by) => approvals.confirm(id, digestValue, by),
     wrapTools(tools) {
+      // Definitions seen here are compared with the ones pinned, so a runtime redefinition drifts.
+      syncDrift(tools as ToolSet);
       return wrapWithHooks(tools, {
         check,
         taint: (tool, value, id) => {
@@ -342,6 +412,7 @@ export function createGuard(options: GuardOptions = {}): Guard {
     lastDecision: (toolCallId) => recent.get(toolCallId),
     nextTurn() {
       turn += 1;
+      budget?.nextTurn();
     },
     clear() {
       index = new SourceIndex(maxSources, maxSourceChars);
@@ -351,7 +422,38 @@ export function createGuard(options: GuardOptions = {}): Guard {
       depth = 0;
       recent.clear();
       session.clear();
+      lock = null;
+      identities = new Map();
+      drift = new Map();
+      budget?.reset();
       if (options.inherit !== undefined) absorb(options.inherit);
+    },
+    async pin(tools, lockOptions = {}) {
+      const next = await pinTools(tools);
+      identities = new Map([...toolIdentities(tools)].map(([name, identity]) => [name, identityText(identity)]));
+      installLock(next, lockOptions);
+      return next;
+    },
+    lock(next, lockOptions = {}) {
+      if (!isToolLock(next)) throw new TypeError('lock: not a v1 ToolLock');
+      identities = new Map();
+      installLock(next, lockOptions);
+    },
+    async verify(tools) {
+      if (lock === null) return [];
+      const found = await verifyTools(tools, lock);
+      drift = new Map(found.map((d) => [d.name, d]));
+      return found;
+    },
+    get lockState() {
+      return { lock, drift: [...drift.values()], driftAction };
+    },
+    budget(): BudgetState {
+      return budget?.state ?? { turnCalls: 0, toolCalls: {}, repeats: {}, cost: { usd: 0, tokens: 0 }, depth, exceeded: [], onExceed: 'block' };
+    },
+    recordCost(cost) {
+      if (budget === null) return guard.budget();
+      return budget.recordCost(cost);
     },
     get session() {
       return session;
