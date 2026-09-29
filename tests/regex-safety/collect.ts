@@ -4,6 +4,8 @@ import { IDENTIFIER_REGEXES } from '../../src/utils/identifiers';
 import { PROVENANCE_REGEXES } from '../../src/guard/provenance';
 import { ENCODING_REGEXES } from '../../src/utils/encoding';
 import { UNICODE_REGEXES } from '../../src/utils/unicode';
+import { REDACT_REGEXES } from '../../src/patterns/redact';
+import { RENDER_REGEXES } from '../../src/output';
 
 export interface RegexUnderTest {
   owner: string;
@@ -40,5 +42,7 @@ export function collectRegexes(): RegexUnderTest[] {
   for (const r of fromBag('provenance', PROVENANCE_REGEXES)) push(r);
   for (const r of fromBag('encoding', ENCODING_REGEXES)) push(r);
   for (const r of fromBag('unicode', UNICODE_REGEXES)) push(r);
+  for (const r of fromBag('redact', REDACT_REGEXES)) push(r);
+  for (const r of fromBag('render', RENDER_REGEXES)) push(r);
   return out;
 }
