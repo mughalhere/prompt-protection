@@ -1,6 +1,6 @@
 # Changelog
 
-## [4.1.0] - Unreleased
+## [4.1.0] - 2026-09-29
 
 Taint-correct guard and records. Everything is additive to the stable `/guard` tier; 4.0 verdicts on the
 100 legacy `agent-flows` rows are unchanged (agreement gate). Conformance behaviours 1–7, 14 and 16 in
