@@ -7,6 +7,7 @@ export default defineConfig({
     'src/internal.ts',
     'src/guard/index.ts',
     'src/spotlight/index.ts',
+    'src/envelope/index.ts',
     'src/canary/index.ts',
     'src/ml/index.ts',
     'src/atr/index.ts',

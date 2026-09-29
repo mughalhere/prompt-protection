@@ -30,6 +30,9 @@ import type {
   SourceInjection,
   TaintOptions,
   TaintedSource,
+  TaintEnvelopeOptions,
+  TaintEnvelopeResult,
+  AbsorbSealedResult,
   ToolCall,
 } from './types.js';
 import { createToolApproval, wrapTools as wrapWithHooks } from './wrap.js';
@@ -37,6 +40,8 @@ import { isSpotlightBoundary, spotlight, unspotlight } from '../spotlight/index.
 import { createBudget } from './budgets.js';
 import type { BudgetState } from './budgets.js';
 import { resolvePreset } from './presets.js';
+import { EnvelopeError, open, seal } from '../envelope/index.js';
+import type { Envelope, EnvelopeErrorCode, EnvelopeKey, OpenOptions } from '../envelope/index.js';
 import { identityText, isToolLock, pinTools, toolIdentities, UNLOCKED, verifyTools } from './pin.js';
 import type { LockView, ToolDrift, ToolLock, ToolSet } from './pin.js';
 import { defaultSink } from './sinks.js';
@@ -166,6 +171,8 @@ export function createGuard(rawOptions: GuardOptions = {}): Guard {
   interface Provenance {
     label?: TrustLabel;
     lineage?: LineageEdge[];
+    /** The label is signed by a verified producer: accept it as-is, unless the text itself scores as injection. */
+    attested?: boolean;
   }
 
   function taint(source: string, value: unknown, taintOptions: TaintOptions = {}, provenance: Provenance = {}): TaintedSource {
@@ -188,8 +195,11 @@ export function createGuard(rawOptions: GuardOptions = {}): Guard {
       categories: result.categories,
       ...(result.ml !== undefined ? { mlProbability: result.ml.probability } : {}),
     };
-    // A stored or inherited label only ever raises the source's own.
-    const label = provenance.label !== undefined ? maxLabel(ownLabel(injection), provenance.label) : undefined;
+    // A stored or inherited label only ever raises the source's own; an attested (signed) label is
+    // taken as given, except that injection-scored text is blocked whatever the producer claims.
+    const own = ownLabel(injection);
+    const label =
+      provenance.label === undefined ? undefined : provenance.attested === true && own !== 'blocked' ? provenance.label : maxLabel(own, provenance.label);
     const entry: TaintedSource = {
       id,
       tool: source,
@@ -375,6 +385,89 @@ export function createGuard(rawOptions: GuardOptions = {}): Guard {
     return card;
   }
 
+  function codeOf(err: unknown): EnvelopeErrorCode {
+    return err instanceof EnvelopeError ? err.code : 'malformed';
+  }
+
+  function payloadText(env: unknown): unknown {
+    return env !== null && typeof env === 'object' && 'payload' in env ? (env as { payload: unknown }).payload : env;
+  }
+
+  async function taintEnvelope(env: unknown, keys: EnvelopeKey | readonly EnvelopeKey[], envOptions: TaintEnvelopeOptions = {}): Promise<TaintEnvelopeResult> {
+    const tool = envOptions.tool ?? 'envelope';
+    const idOpt = envOptions.id !== undefined ? { id: envOptions.id } : {};
+    try {
+      const opened = await open(env, keys, envOptions);
+      const from = opened.from ?? `envelope:${opened.kid ?? 'key'}`;
+      const source = taint(tool, opened.payload, idOpt, { label: opened.label, lineage: [{ from, kind: 'copy', strength: 1 }], attested: true });
+      return { source, opened: true };
+    } catch (err) {
+      // The payload is still registered so its text can be matched, but as blocked provenance.
+      const code = codeOf(err);
+      const source = taint(tool, payloadText(env), idOpt, { label: 'blocked', lineage: [{ from: `envelope:${code}`, kind: 'copy', strength: 1 }] });
+      return { source, opened: false, error: code };
+    }
+  }
+
+  function withoutSig(entry: MemoryEntry): Omit<MemoryEntry, 'sig'> {
+    const body: MemoryEntry = { ...entry };
+    delete body.sig;
+    return body;
+  }
+
+  function memoryKeys(explicit?: EnvelopeKey | readonly EnvelopeKey[]): EnvelopeKey | readonly EnvelopeKey[] | undefined {
+    return explicit ?? options.memory?.key;
+  }
+
+  async function sealMemoryEntry(entry: MemoryEntry, key?: EnvelopeKey): Promise<MemoryEntry> {
+    const configured = memoryKeys(key);
+    const signing = Array.isArray(configured) ? (configured as readonly EnvelopeKey[])[0] : (configured as EnvelopeKey | undefined);
+    if (signing === undefined) throw new TypeError('sealMemoryEntry: no memory key configured');
+    const body = withoutSig(entry);
+    const sealed = await seal(body, signing, { label: entry.label, from: `memory:${entry.id}` });
+    return { ...body, sig: JSON.stringify(sealed) };
+  }
+
+  async function memoryReadSealed(entries: readonly MemoryEntry[], keys?: EnvelopeKey | readonly EnvelopeKey[]): Promise<MemoryReadResult> {
+    const verifying = memoryKeys(keys);
+    if (verifying === undefined) throw new TypeError('memoryReadSealed: no memory key configured');
+    const checked: MemoryEntry[] = [];
+    for (const entry of entries) {
+      if (!isMemoryEntry(entry)) throw new TypeError('memoryReadSealed: not a v1 MemoryEntry');
+      let ok = false;
+      if (entry.sig !== undefined) {
+        try {
+          const env = await open<Omit<MemoryEntry, 'sig'>>(JSON.parse(entry.sig) as unknown, verifying);
+          ok = canonicalJson(env.payload) === canonicalJson(withoutSig(entry));
+        } catch {
+          ok = false;
+        }
+      }
+      // A missing or bad signature means the stored label cannot be trusted: treat the entry as blocked.
+      checked.push(ok ? entry : { ...entry, label: 'blocked', lineage: [...entry.lineage, { from: 'envelope:bad-signature', kind: 'copy', strength: 1 }] });
+    }
+    return memoryRead(checked);
+  }
+
+  async function sealHandoff(key: EnvelopeKey, sealOptions: { ttlMs?: number; from?: string } = {}): Promise<Envelope<TaintHandoff>> {
+    return seal(handoff(), key, { label: 'tool', ...sealOptions });
+  }
+
+  async function absorbSealed(env: unknown, keys: EnvelopeKey | readonly EnvelopeKey[], openOptions: OpenOptions = {}): Promise<AbsorbSealedResult> {
+    try {
+      const opened = await open<TaintHandoff>(env, keys, openOptions);
+      absorb(opened.payload);
+      return { opened: true };
+    } catch (err) {
+      const code = codeOf(err);
+      const payload = payloadText(env);
+      const claimedDepth = payload !== null && typeof payload === 'object' && typeof (payload as { depth?: unknown }).depth === 'number' ? (payload as { depth: number }).depth : depth;
+      depth = Math.max(depth, claimedDepth + 1);
+      const source = taint('handoff', payload, {}, { label: 'blocked', lineage: [{ from: `handoff:${code}`, kind: 'copy', strength: 1 }] });
+      return { opened: false, error: code, source };
+    }
+  }
+
   if (options.inherit !== undefined) absorb(options.inherit);
 
   const guard: Guard = {
@@ -459,6 +552,11 @@ export function createGuard(rawOptions: GuardOptions = {}): Guard {
       if (budget === null) return guard.budget();
       return budget.recordCost(cost);
     },
+    taintEnvelope,
+    sealMemoryEntry,
+    memoryReadSealed,
+    sealHandoff,
+    absorbSealed,
     get session() {
       return session;
     },
