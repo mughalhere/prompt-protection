@@ -1,6 +1,6 @@
 # Changelog
 
-## [4.2.0] - Unreleased
+## [4.2.0] - 2026-09-29
 
 Static structure: pinned tool definitions, budgets, and spotlighting as a stable boundary. Additive to
 `/guard`; 4.0 verdicts on the legacy `agent-flows` rows unchanged. Conformance behaviours 8–10.
