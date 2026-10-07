@@ -109,14 +109,28 @@ results.output = classify(
 
 // --- Agent guard over datasets/agent-flows.jsonl ---------------------------
 const flows = jsonl(datasets, 'agent-flows.jsonl');
-const flowLat = [];
+// Latency: one untimed warm-up pass (JIT, module init), then FLOW_PASSES timed passes keeping each
+// row's minimum. p99 over 120 rows is the second-slowest row, so a single cold pass on a shared
+// runner measured scheduling noise (2.7–10.5 ms for identical code); the per-row minimum does not.
+const FLOW_PASSES = 5;
+for (const row of flows) await runRow(createGuard, row);
+const flowLat = new Array(flows.length).fill(Infinity);
 let agree = 0, scored = 0, knownMiss = 0, attackRows = 0, attackBlocked = 0, benignRows = 0, benignBlocked = 0, benignAllowed = 0;
 const flowMismatches = [];
 const byScenario = {};
-for (const row of flows) {
+for (let pass = 1; pass < FLOW_PASSES; pass++) {
+  for (let i = 0; i < flows.length; i++) {
+    const t0 = performance.now();
+    await runRow(createGuard, flows[i]);
+    flowLat[i] = Math.min(flowLat[i], performance.now() - t0);
+  }
+}
+// Decisions are deterministic; the scoring pass is also the last timed pass.
+for (let i = 0; i < flows.length; i++) {
+  const row = flows[i];
   const t0 = performance.now();
   const d = await runRow(createGuard, row);
-  flowLat.push(performance.now() - t0);
+  flowLat[i] = Math.min(flowLat[i], performance.now() - t0);
   const sc = (byScenario[row.scenario] ??= { attacks: 0, attackBlocked: 0, benign: 0, benignAllowed: 0, rows: 0, agreed: 0 });
   sc.rows++;
   if (row.label === 'attack') { attackRows++; sc.attacks++; if (d.action === 'block') { attackBlocked++; sc.attackBlocked++; } }
@@ -137,6 +151,7 @@ results.agentFlows = {
   // AgentDojo vocabulary: utility under attack = benign flows that pass untouched; degraded = flag/confirm.
   benignUtility: benignAllowed / benignRows, benignDegraded: (benignRows - benignAllowed - benignBlocked) / benignRows,
   byScenario,
+  passes: FLOW_PASSES,
   p50ms: flowLat[Math.floor(flowLat.length / 2)], p99ms: flowLat[Math.floor(flowLat.length * 0.99)],
   mismatches: flowMismatches,
 };
