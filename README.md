@@ -104,7 +104,7 @@ The in-the-wild "regular" set is noisy. It includes SEO prompts that open with "
 
 The embedded model ships for transparency, not for use. It is trained on Apache and MIT datasets (deepset, gandalf, hackaprompt, SPML, plus about 17k mined benign rows) with a reproducible pipeline described in [`training/REPORT.md`](training/REPORT.md). In-distribution it looks great: 3-fold CV F1 0.98. Held out by dataset it does not: leave-one-dataset-out F1 0.53, in-the-wild AUROC 0.67. Adding hackaprompt in a second round lifted recall on unseen attacks from 4% to 19% on our set and lifted in-the-wild false positives from 17% to 24% with it. A bag of hashed n-grams does not transfer across jailbreak genres, so `ml` defaults to `'off'`. If you want it anyway, `analyzePrompt(text, { ml: 'escalate' })`. Python and JS produce identical features and logits on 64 golden vectors under test, and the weights are 33 KB gzipped.
 
-Latency: rule scan p99 about 0.1 ms, guard `checkToolCall` p99 about 2 ms over the agent-flows rows (gate: 5.4 ms) and under 50 ms with 64 registered sources of 3 KB, classifier about 0.15 ms. Bundle: core 64 KB gzipped with the weights included, `lite` 20 KB, `guard` 74 KB (gate: 87 KB).
+Latency: rule scan p99 about 0.1 ms, guard `checkToolCall` p99 about 2 ms over the agent-flows rows (per-row minimum of 5 passes after a warm-up pass; gate: 5.4 ms) and under 50 ms with 64 registered sources of 3 KB, classifier about 0.15 ms. Bundle: core 64 KB gzipped with the weights included, `lite` 20 KB, `guard` 74 KB (gate: 87 KB).
 
 ## Datasets
 
