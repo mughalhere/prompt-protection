@@ -197,6 +197,10 @@ export interface ProtectionEvent {
   flows?: FlowSummary[];
   /** Present when the verdict came from `failMode` after an internal error. */
   error?: string;
+  /** `observe` when the guard recorded the verdict without enforcing it; `action` is then `allow`. */
+  mode?: 'enforce' | 'observe' | AnyString;
+  /** The enforced verdict a `tool-call.*` event would have had in observe mode. */
+  observedAction?: Action;
   /** Present only when `includeContent` is true */
   promptPreview?: string;
   contentPreview?: string;
@@ -303,8 +307,23 @@ export interface OutputAnalysisResult {
   threats: ThreatCategory[];
   /** Present only when `canary` or `systemPrompt` was passed. */
   canary?: CanaryDetection;
+  /** Present when `renderAllowlist` was passed: URLs the output would render or link, with their verdicts. */
+  render?: RenderFinding[];
+  /** Output with secrets / PII replaced; present only when `redact` was set. */
+  redacted?: string;
+  redactions?: Array<{ id: string; tier: 'secrets' | 'pii'; start: number; end: number }>;
   /** Set when the scan itself failed and the verdict came from `failMode`. */
   error?: AnalysisError;
+}
+
+export interface RenderFinding {
+  url: string;
+  host: string;
+  /** Where the URL appeared. */
+  via: 'markdown-image' | 'markdown-link' | 'html-src' | 'html-href' | 'data-uri';
+  allowed: boolean;
+  /** Query parameters that looked like carried data. */
+  suspiciousParams?: Array<{ name: string; reason: 'high-entropy' | 'conversation' }>;
 }
 
 export interface OutputAnalysisOptions extends LoggingOptions {
@@ -330,6 +349,17 @@ export interface OutputAnalysisOptions extends LoggingOptions {
   canary?: Canary | Canary[];
   /** System prompt to compare against; verbatim overlap adds `out-system-prompt-similarity`. */
   systemPrompt?: string;
+  /**
+   * Hosts the client may render or link to (`example.com`, `*.example.com`). When set, markdown
+   * images/links and HTML `src`/`href` to any other host add `out-render-unlisted-host`, `data:` URLs
+   * add `out-data-uri-exfil`, and query parameters carrying high-entropy or conversation-derived
+   * values add `out-query-param-high-entropy` / `out-query-param-conversation`. Off when absent.
+   */
+  renderAllowlist?: string[];
+  /** Conversation text (user turns, tool results) that a URL query parameter must not carry. */
+  conversation?: string;
+  /** Redact secrets / PII in the returned `redacted` text. Default off. */
+  redact?: false | 'secrets' | 'pii' | 'all';
 }
 
 export interface Canary {
