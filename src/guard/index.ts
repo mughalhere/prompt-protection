@@ -90,3 +90,9 @@ export type {
   WrappableTool,
   Guard,
 } from './types.js';
+export { pinTools, verifyTools, toolIdentity, toolIdentities, identityText, isToolLock, UNLOCKED } from './pin.js';
+export type { ToolAnnotations, ToolLike, ToolSet, PinnedTool, ToolLock, ToolDrift, ToolIdentity, LockView } from './pin.js';
+export { createBudget, DEFAULT_MAX_REPEAT_IDENTICAL } from './budgets.js';
+export type { BudgetOptions, BudgetState, Budget } from './budgets.js';
+export { toolUnpinned, toolDrift, budgetExceeded } from './policy.js';
+export type { LockOptions, LockState } from './types.js';

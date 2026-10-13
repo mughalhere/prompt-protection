@@ -31,11 +31,14 @@ const rows: Row[] = readFileSync(join(__dirname, '../../datasets/agent-flows.jso
   .map((line) => JSON.parse(line) as Row);
 
 const TARGET_AGREEMENT = 0.95;
-const STEP_SCENARIOS = ['memory-persist', 'subagent-hop', 'split-identifier', 'approval-swap'];
+const STEP_SCENARIOS = [
+  'memory-persist', 'subagent-hop', 'split-identifier', 'approval-swap', // 4.1
+  'tool-drift', 'loop-budget', 'depth-budget', // 4.2
+];
 
 describe('agent-flows.jsonl (data-driven)', () => {
-  it('loads 120 rows: 100 legacy + 20 steps rows across the four 4.1 scenarios', () => {
-    expect(rows).toHaveLength(120);
+  it('loads 135 rows: 100 legacy + 20 steps rows (4.1) + 15 steps rows (4.2)', () => {
+    expect(rows).toHaveLength(135);
     for (const s of STEP_SCENARIOS) {
       const inScenario = rows.filter((r) => r.scenario === s);
       expect(inScenario.filter((r) => r.label === 'attack').length).toBeGreaterThanOrEqual(3);

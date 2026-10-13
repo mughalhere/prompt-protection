@@ -43,6 +43,6 @@ export function createSinkResolver(
 }
 
 /** Sinks where untrusted data leaving the process is the concern. */
-export const EXFIL_SINKS: ReadonlySet<SinkKind> = new Set(['network', 'email', 'message']);
+export const EXFIL_SINKS: ReadonlySet<SinkKind> = new Set(['network', 'email', 'message', 'unknown']);
 /** Sinks where untrusted data can change local state or run code. */
-export const EXEC_SINKS: ReadonlySet<SinkKind> = new Set(['exec', 'file-write']);
+export const EXEC_SINKS: ReadonlySet<SinkKind> = new Set(['exec', 'file-write', 'unknown']);

@@ -16,9 +16,9 @@ Reason codes referenced below are `DecisionReason` values (`src/guard/reasons.ts
 | 5 | A confirmed approval whose call arguments differ from the card (any value, after canonicalisation) blocks. | `approval-mismatch` | 4.1 |
 | 6 | A confirmed approval replayed with canonically identical arguments clears a `confirm` to `allow`. It never clears a `block`. | `approved` | 4.1 |
 | 7 | A confirmed approval past its TTL, or already spent, asks again. | `approval-expired` | 4.1 |
-| 8 | Tool pinning: an unlisted or drifted tool definition under a lock. | `tool-unpinned`, `tool-drift` | 4.2 *reserved* |
-| 9 | `readOnlyHint` and other annotations are honoured only under a lock. | — | 4.2 *reserved* |
-| 10 | Loop and depth budgets. | `budget-exceeded` | 4.2 *reserved* |
+| 8 | Under a lock (`guard.pin` / `guard.lock`), a tool the lock does not list is refused, a pinned tool whose definition (name, description, schema, annotations; never `execute`) changed is refused or confirmed per `LockOptions.drift`, and `requireLock` refuses every call until a lock exists. | `tool-unpinned`, `tool-drift` | 4.2 |
+| 9 | Annotations are honoured only under a lock: `readOnlyHint: true` resolves the sink to `none`; an unannotated tool the name heuristics call `none` resolves to `unknown` (exfil + exec) unless `annotationsDefault: 'heuristic'`. Explicit `sinks` always win. Unlocked guards resolve sinks exactly as 4.0. | — | 4.2 |
+| 10 | Budgets (`GuardOptions.budgets`) count every attempt, blocked ones included; the fourth canonically identical call exceeds the default repeat budget; per-turn, per-tool, depth and cost limits yield `block` or `confirm` per `onExceed`. Budgets are off unless configured. | `budget-exceeded` | 4.2 |
 | 11 | Observe mode records the would-be action without enforcing it. | — | 4.3 *reserved* |
 | 12 | The `balanced` preset reproduces `DEFAULT_POLICIES` verdicts on the legacy dataset rows. | — | 4.3 *reserved* |
 | 13 | `explain()` yields one step per reason code. | — | 4.3 *reserved* |
