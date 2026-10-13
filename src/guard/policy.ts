@@ -82,9 +82,30 @@ export const lineageUntrusted: GuardPolicy = {
     (exfilRisk(ctx) || execRisk(ctx)) && ctx.flows.some((f) => ctx.labelOf(f.sourceId) === 'blocked') ? 'block' : null,
 };
 
+/** `requireLock` without a lock, or a tool the lock does not list. */
+export const toolUnpinned: GuardPolicy = {
+  id: 'tool-unpinned',
+  evaluate: (ctx) => ((ctx.requireLock && !ctx.lock.locked) || (ctx.lock.locked && !ctx.lock.listed) ? 'block' : null),
+};
+
+/** A pinned tool whose definition changed since the lock; `LockOptions.drift` picks block or confirm. */
+export const toolDrift: GuardPolicy = {
+  id: 'tool-drift',
+  evaluate: (ctx) => (ctx.lock.drift !== null && ctx.lock.drift.kind !== 'missing' ? (ctx.lock.driftAction ?? 'block') : null),
+};
+
+/** Any configured budget exceeded after counting this attempt. */
+export const budgetExceeded: GuardPolicy = {
+  id: 'budget-exceeded',
+  evaluate: (ctx) => (ctx.budget !== null && ctx.budget.exceeded.length > 0 ? ctx.budget.onExceed : null),
+};
+
 export const DEFAULT_POLICIES: readonly GuardPolicy[] = [
   approvalMismatch,
   approvalExpired,
+  toolUnpinned,
+  toolDrift,
+  budgetExceeded,
   planViolation,
   injectionSourceFlow,
   lineageUntrusted,
