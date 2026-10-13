@@ -104,6 +104,23 @@ export const turnUntrustedToUntrustedDestination: GuardPolicy = {
     EXFIL_SINKS.has(ctx.sink) && !ctx.destinationTrusted && ctx.flows.length === 0 && ctx.turnSources.length > 0 ? 'confirm' : null,
 };
 
+/** A flow from a source whose lineage starts at a marker edge (`envelope:<code>`, `handoff:<code>`). */
+function flowsFromMarker(ctx: PolicyContext, marker: string): boolean {
+  return ctx.flows.some((f) => ctx.sourceById(f.sourceId)?.lineage?.some((e) => e.from.startsWith(marker)) === true);
+}
+
+/** A value from an envelope that failed verification (forged, expired, replayed, unknown key) is used at all. */
+export const envelopeInvalid: GuardPolicy = {
+  id: 'envelope-invalid',
+  evaluate: (ctx) => (flowsFromMarker(ctx, 'envelope:') ? 'block' : null),
+};
+
+/** A value from a sealed handoff that failed verification is used at all. */
+export const handoffUntrusted: GuardPolicy = {
+  id: 'handoff-untrusted',
+  evaluate: (ctx) => (flowsFromMarker(ctx, 'handoff:') ? 'block' : null),
+};
+
 /** Any configured budget exceeded after counting this attempt. */
 export const budgetExceeded: GuardPolicy = {
   id: 'budget-exceeded',
@@ -117,6 +134,8 @@ export const DEFAULT_POLICIES: readonly GuardPolicy[] = [
   toolDrift,
   budgetExceeded,
   planViolation,
+  envelopeInvalid,
+  handoffUntrusted,
   injectionSourceFlow,
   lineageUntrusted,
   untrustedToExfilSink,

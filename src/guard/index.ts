@@ -101,3 +101,5 @@ export type { ExplainStep, Explanation } from './explain.js';
 export { resolvePreset, PRESETS, STRICT_POLICIES, PERMISSIVE_POLICIES } from './presets.js';
 export type { GuardPreset } from './presets.js';
 export { turnUntrustedToUntrustedDestination } from './policy.js';
+export { envelopeInvalid, handoffUntrusted } from './policy.js';
+export type { TaintEnvelopeOptions, TaintEnvelopeResult, AbsorbSealedResult } from './types.js';

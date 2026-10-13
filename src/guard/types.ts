@@ -17,6 +17,7 @@ import type { ApprovalCard, ApprovalOptions, ApprovalRecord, ApprovalState } fro
 import type { LockView, ToolDrift, ToolLock, ToolSet } from './pin.js';
 import type { BudgetOptions, BudgetState } from './budgets.js';
 import type { SpotlightBoundary } from '../spotlight/index.js';
+import type { Envelope, EnvelopeErrorCode, EnvelopeKey, OpenOptions } from '../envelope/index.js';
 
 /** Where a tool's side effects land. `none` marks read-only tools. */
 export type SinkKind =
@@ -172,8 +173,8 @@ export interface GuardOptions extends LoggingOptions {
   failMode?: FailMode;
   /** Approval-record TTL and ring size (`guard.approvalCard` / `guard.confirm`). */
   approvals?: ApprovalOptions;
-  /** Memory-entry limits (`guard.memoryRead`). */
-  memory?: { maxEntries?: number };
+  /** Memory-entry limits (`guard.memoryRead`) and the key `sealMemoryEntry` / `memoryReadSealed` use. */
+  memory?: { maxEntries?: number; key?: EnvelopeKey | EnvelopeKey[] };
   /** Taint state from a parent guard; absorbed at construction (`guard.fork` sets this). */
   inherit?: TaintHandoff;
   /** Block every call until `guard.pin` / `guard.lock` has installed a lock. Default false. */
@@ -301,4 +302,40 @@ export interface Guard {
   /** Budget state so far (all zeros when budgets are off). */
   budget(): BudgetState;
   recordCost(cost: { usd?: number; tokens?: number }): BudgetState;
+  /**
+   * Opens a sealed envelope and taints its payload with the carried label. A failed open registers
+   * one `blocked` source whose lineage starts at `envelope:<code>`, so any flow from it is
+   * `envelope-invalid`. Never throws for a bad envelope; throws only for a malformed `keys` argument.
+   */
+  taintEnvelope(env: unknown, keys: EnvelopeKey | readonly EnvelopeKey[], options?: TaintEnvelopeOptions): Promise<TaintEnvelopeResult>;
+  /** Seals a memory entry with `memory.key` (or `key`); the returned entry carries `sig`. */
+  sealMemoryEntry(entry: MemoryEntry, key?: EnvelopeKey): Promise<MemoryEntry>;
+  /** `memoryRead` for sealed entries: a missing or bad `sig` makes the entry `blocked` instead of trusting its stored label. */
+  memoryReadSealed(entries: readonly MemoryEntry[], keys?: EnvelopeKey | readonly EnvelopeKey[]): Promise<MemoryReadResult>;
+  /** `handoff()` sealed for another process. */
+  sealHandoff(key: EnvelopeKey, options?: { ttlMs?: number; from?: string }): Promise<Envelope<TaintHandoff>>;
+  /**
+   * `absorb` for a sealed handoff. A failed open registers one `blocked` source carrying the payload text
+   * with lineage `handoff:<code>`, so anything flowing from it is `handoff-untrusted`; depth still increments.
+   */
+  absorbSealed(env: unknown, keys: EnvelopeKey | readonly EnvelopeKey[], options?: OpenOptions): Promise<AbsorbSealedResult>;
+}
+
+export interface TaintEnvelopeOptions extends TaintOptions, OpenOptions {
+  /** Tool / producer name for the source. Default `envelope`. */
+  tool?: string;
+}
+
+export interface TaintEnvelopeResult {
+  source: TaintedSource;
+  opened: boolean;
+  /** Set when `opened` is false. */
+  error?: EnvelopeErrorCode;
+}
+
+export interface AbsorbSealedResult {
+  opened: boolean;
+  error?: EnvelopeErrorCode;
+  /** The source registered for a failed open. */
+  source?: TaintedSource;
 }

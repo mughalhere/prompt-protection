@@ -5,7 +5,7 @@ Three tiers. The tier decides what a version bump means for you.
 | Tier | Contract | Where |
 |---|---|---|
 | **Stable** | Full semver. Removing or narrowing anything here is a major, announced one minor ahead with a deprecation note. | root entry, `/guard`, `/spotlight` (since 4.2), `/adapters/vercel`, `/mcp`, `/middleware/*`, `/react`, `/adapters/claude`, `/adapters/openai` |
-| **Preview** | May change in a **minor**. Every change is listed under "Preview changes" in the CHANGELOG. Entry files carry a `@beta` header. | `/ml`, `/atr`, `/atr/yaml`, `/audit`, `/otel`, `/canary`, `/adapters/vercel-guardrail`, `/adapters/openai-agents` (4.3), `/adapters/langchain` (4.3), `/lite` |
+| **Preview** | May change in a **minor**. Every change is listed under "Preview changes" in the CHANGELOG. Entry files carry a `@beta` header. | `/ml`, `/atr`, `/atr/yaml`, `/audit`, `/otel`, `/canary`, `/adapters/vercel-guardrail`, `/adapters/openai-agents` (4.3), `/adapters/langchain` (4.3), `/envelope` (4.4), `/lite` |
 | **Internal** | No contract. Any release may change or remove it. | `/internal` |
 
 `tests/api-surface.test.ts` asserts the root runtime export list; a change there is a change here.
