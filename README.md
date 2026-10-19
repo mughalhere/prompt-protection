@@ -612,7 +612,7 @@ if (result.severity === 'critical') {
 
 ### Claude Adapter
 
-Uses `claude-haiku-4-5-20251001` for fast, cheap classification. Prompt caching minimizes cost.
+Uses `claude-haiku-4-5-20251001` for fast, cheap classification.
 
 ```typescript
 import { verifyPromptAsync } from 'prompt-protection';

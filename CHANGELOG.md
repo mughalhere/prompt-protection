@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `ClaudeAdapter` no longer fails open. It read the verdict from `content[0]`, so on a model that thinks by default the first block was a thinking block and every prompt was classified SAFE. It now reads the text block and throws on a refusal or when no text comes back.
+- Removed the `cache_control` marker and the "prompt caching minimizes cost" claim: the ~250-token system prompt is below every model's minimum cacheable length, so the marker never took effect.
+
 ## [4.2.0] - 2026-10-13
 
 Static structure: pinned tool definitions, budgets, and spotlighting as a stable boundary. Additive to
