@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [4.2.1] - 2026-10-20
 
 ### Fixed
 - `ClaudeAdapter` no longer fails open. It read the verdict from `content[0]`, so on a model that thinks by default the first block was a thinking block and every prompt was classified SAFE. It now reads the text block and throws on a refusal or when no text comes back.
