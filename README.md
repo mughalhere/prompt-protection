@@ -8,6 +8,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![Zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](package.json)
+[![Prompt Protection MCP on mcprush](https://mcprush.com/badge/prompt-protection-mcp/score.svg)](https://mcprush.com/to/prompt-protection-mcp?ref=badge)
+[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/mughalhere/badge.svg)](https://hub.xerj.org/contributors/mughalhere)
+
+Listed in the [Agent Threat Rules ADOPTERS registry](https://github.com/Agent-Threat-Rule/agent-threat-rules/blob/main/ADOPTERS.md#prompt-protection) (Tier 2, adapter), the [official MCP registry](https://registry.modelcontextprotocol.io) as `io.github.mughalhere/prompt-protection`, [MCPrush](https://mcprush.com/mughalhere/prompt-protection-mcp), and the [XERJ Corpus Hub](https://hub.xerj.org/contributors/mughalhere).
 
 **[Live Demo →](https://mughalhere.github.io/prompt-protection/)**
 
@@ -638,7 +642,7 @@ if (result.severity === 'critical') {
 
 ### Claude Adapter
 
-Uses `claude-haiku-4-5-20251001` for fast, cheap classification. Prompt caching minimizes cost.
+Uses `claude-haiku-4-5-20251001` for fast, cheap classification.
 
 ```typescript
 import { verifyPromptAsync } from 'prompt-protection';

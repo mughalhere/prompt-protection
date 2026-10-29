@@ -31,8 +31,6 @@ Respond with ONLY "MALICIOUS" or "SAFE". No explanation. No other words.`;
 /**
  * Built-in Claude adapter for AI-assisted prompt verification.
  * Requires @anthropic-ai/sdk as a peer dependency.
- *
- * Uses prompt caching on the system prompt to minimize cost.
  */
 export class ClaudeAdapter implements AIAdapter {
   private readonly options: Required<ClaudeAdapterOptions>;
@@ -53,14 +51,7 @@ export class ClaudeAdapter implements AIAdapter {
     const response = await client.messages.create({
       model: this.options.model,
       max_tokens: this.options.maxTokens,
-      system: [
-        {
-          type: 'text' as const,
-          text: SYSTEM_PROMPT,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
-          cache_control: { type: 'ephemeral' } as any,
-        },
-      ],
+      system: SYSTEM_PROMPT,
       messages: [
         {
           role: 'user',
@@ -69,9 +60,14 @@ export class ClaudeAdapter implements AIAdapter {
       ],
     });
 
-    const firstBlock = response.content[0];
-    const text = firstBlock?.type === 'text' ? firstBlock.text.trim().toUpperCase() : '';
-    const isMalicious = text === 'MALICIOUS';
+    if (response.stop_reason === 'refusal') {
+      throw new Error('Claude adapter: classification request was refused');
+    }
+    const textBlock = response.content.find((block) => block.type === 'text');
+    if (!textBlock) {
+      throw new Error(`Claude adapter: no text in response (stop_reason ${response.stop_reason})`);
+    }
+    const isMalicious = textBlock.text.trim().toUpperCase() === 'MALICIOUS';
 
     const result: { isMalicious: boolean; reason?: string } = { isMalicious };
     if (isMalicious) result.reason = 'Claude classified prompt as malicious';
