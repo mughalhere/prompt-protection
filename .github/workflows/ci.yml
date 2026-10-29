@@ -143,9 +143,34 @@ jobs:
       - name: Evaluate bundles in a bare vm context
         run: node --experimental-vm-modules scripts/compat/no-globals.mjs
 
+  demo:
+    name: Demo build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            demo/package-lock.json
+
+      - name: Install library dependencies
+        run: npm ci
+
+      - name: Install demo dependencies
+        working-directory: demo
+        run: npm ci
+
+      - name: Build demo
+        working-directory: demo
+        run: npm run build
+
   all-checks-passed:
     name: All checks passed
-    needs: [test, pack, bench, redos, compat-bun, compat-deno, compat-edge]
+    needs: [test, pack, bench, redos, compat-bun, compat-deno, compat-edge, demo]
     runs-on: ubuntu-latest
     steps:
       - name: CI complete
