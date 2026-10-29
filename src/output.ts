@@ -11,12 +11,15 @@ import {
   SIMILARITY_CONTAINMENT_THRESHOLD,
   SIMILARITY_RUN_THRESHOLD,
 } from './canary/index.js';
+import { normalize } from './normalizer.js';
+import { redact } from './redact.js';
 import type {
   CanaryDetection,
   OutputAnalysisOptions,
   OutputAnalysisResult,
   PatternMatch,
   PatternRule,
+  RenderFinding,
   ThreatCategory,
 } from './types.js';
 
@@ -46,6 +49,121 @@ const PROMPT_SIMILARITY_RULE: PatternRule = {
 
 function syntheticMatch(rule: PatternRule, matchedText: string): PatternMatch {
   return { rule, matchedText, startIndex: 0, endIndex: 0 };
+}
+
+// --- Render-exfil (4.3): only when `renderAllowlist` is set, so existing users see no change. ---
+
+const RENDER_UNLISTED_HOST_RULE: PatternRule = {
+  id: 'out-render-unlisted-host',
+  category: 'data-exfiltration',
+  pattern: /(?!)/,
+  weight: 9,
+  precision: 'high',
+  description: 'Output renders or links a URL on a host outside the render allowlist',
+};
+const DATA_URI_RULE: PatternRule = {
+  id: 'out-data-uri-exfil',
+  category: 'data-exfiltration',
+  pattern: /(?!)/,
+  weight: 8,
+  precision: 'high',
+  description: 'Output renders a data: URI (client-side payload carrier)',
+};
+const QUERY_ENTROPY_RULE: PatternRule = {
+  id: 'out-query-param-high-entropy',
+  category: 'data-exfiltration',
+  pattern: /(?!)/,
+  weight: 8,
+  precision: 'medium',
+  description: 'A rendered URL carries a long high-entropy query value',
+};
+const QUERY_CONVERSATION_RULE: PatternRule = {
+  id: 'out-query-param-conversation',
+  category: 'data-exfiltration',
+  pattern: /(?!)/,
+  weight: 9,
+  precision: 'high',
+  description: 'A rendered URL carries conversation text in a query value',
+};
+
+const MD_IMAGE_RE = /!\[[^\][\n]{0,200}\]\(\s*([^\s)]+)/g;
+const MD_LINK_RE = /(?<!!)\[[^\][\n]{0,200}\]\(\s*([^\s)]+)/g;
+const HTML_SRC_RE = /(?<![\w-])src\s*=\s*["']?([^"'\s>]+)/gi;
+const HTML_HREF_RE = /(?<![\w-])href\s*=\s*["']?([^"'\s>]+)/gi;
+export const RENDER_REGEXES = { MD_IMAGE_RE, MD_LINK_RE, HTML_SRC_RE, HTML_HREF_RE } as const;
+
+const ENTROPY_MIN_CHARS = 20;
+const ENTROPY_MIN_BITS = 3.5;
+
+function shannonBitsPerChar(s: string): number {
+  const counts = new Map<string, number>();
+  for (const ch of s) counts.set(ch, (counts.get(ch) ?? 0) + 1);
+  let bits = 0;
+  for (const n of counts.values()) {
+    const p = n / s.length;
+    bits -= p * Math.log2(p);
+  }
+  return bits;
+}
+
+function hostAllowed(host: string, allow: readonly string[]): boolean {
+  const h = host.toLowerCase();
+  return allow.some((entry) => {
+    const e = entry.toLowerCase();
+    if (e.startsWith('*.')) return h === e.slice(2) || h.endsWith(e.slice(1));
+    return h === e;
+  });
+}
+
+function detectRender(
+  output: string,
+  options: OutputAnalysisOptions,
+): { render: RenderFinding[]; synthetic: PatternMatch[] } | null {
+  const allow = options.renderAllowlist;
+  if (allow === undefined) return null;
+  const render: RenderFinding[] = [];
+  const synthetic: PatternMatch[] = [];
+  const conversation = options.conversation !== undefined ? normalize(options.conversation).normalized : null;
+  const seen = new Set<string>();
+  const sources: Array<[RegExp, RenderFinding['via']]> = [
+    [MD_IMAGE_RE, 'markdown-image'],
+    [MD_LINK_RE, 'markdown-link'],
+    [HTML_SRC_RE, 'html-src'],
+    [HTML_HREF_RE, 'html-href'],
+  ];
+  for (const [re, via] of sources) {
+    for (const m of output.matchAll(re)) {
+      const raw = m[1];
+      if (raw === undefined || seen.has(`${via}:${raw}`)) continue;
+      seen.add(`${via}:${raw}`);
+      if (/^data:/i.test(raw)) {
+        render.push({ url: raw.slice(0, 120), host: '', via: 'data-uri', allowed: false });
+        synthetic.push(syntheticMatch(DATA_URI_RULE, raw.slice(0, 64)));
+        continue;
+      }
+      let url: URL;
+      try {
+        url = new URL(raw);
+      } catch {
+        continue; // relative or malformed: nothing to exfiltrate to
+      }
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') continue;
+      const allowed = hostAllowed(url.hostname, allow);
+      const finding: RenderFinding = { url: raw, host: url.hostname, via, allowed };
+      const suspicious: NonNullable<RenderFinding['suspiciousParams']> = [];
+      for (const [name, value] of url.searchParams) {
+        if (value.length >= ENTROPY_MIN_CHARS && shannonBitsPerChar(value) >= ENTROPY_MIN_BITS) suspicious.push({ name, reason: 'high-entropy' });
+        else if (conversation !== null && value.length >= 12 && conversation.includes(normalize(value).normalized)) suspicious.push({ name, reason: 'conversation' });
+      }
+      if (suspicious.length > 0) finding.suspiciousParams = suspicious;
+      render.push(finding);
+      if (!allowed) synthetic.push(syntheticMatch(RENDER_UNLISTED_HOST_RULE, `${via} ${url.hostname}`));
+      for (const p of suspicious) {
+        synthetic.push(syntheticMatch(p.reason === 'high-entropy' ? QUERY_ENTROPY_RULE : QUERY_CONVERSATION_RULE, `${url.hostname}?${p.name}`));
+      }
+    }
+  }
+  return { render, synthetic };
 }
 
 /**
@@ -143,11 +261,10 @@ export function analyzeOutput(
   });
 
   const leaks = detectLeaks(capped, options);
-  const matches = leaks ? [...scored.matches, ...leaks.synthetic] : scored.matches;
-  const normalizedScore =
-    leaks && leaks.synthetic.length > 0
-      ? rescore(scored.rawScore, leaks.synthetic)
-      : scored.normalizedScore;
+  const render = detectRender(capped, options);
+  const synthetic = [...(leaks?.synthetic ?? []), ...(render?.synthetic ?? [])];
+  const matches = synthetic.length > 0 ? [...scored.matches, ...synthetic] : scored.matches;
+  const normalizedScore = synthetic.length > 0 ? rescore(scored.rawScore, synthetic) : scored.normalizedScore;
 
   const threats = [...new Set(matches.map((m) => m.rule.category))] as ThreatCategory[];
   const action = resolveAction(normalizedScore, matches, threshold, options.flagThreshold);
@@ -161,6 +278,13 @@ export function analyzeOutput(
     threats,
   };
   if (leaks) result.canary = leaks.canary;
+  if (render) result.render = render.render;
+  if (options.redact !== undefined && options.redact !== false) {
+    const tiers = options.redact === 'all' ? undefined : [options.redact];
+    const r = redact(output, tiers !== undefined ? { tiers } : {});
+    result.redacted = r.text;
+    result.redactions = r.redactions;
+  }
 
   emitOutputLog(result, output, options);
 
