@@ -36,6 +36,7 @@ import { createToolApproval, wrapTools as wrapWithHooks } from './wrap.js';
 import { isSpotlightBoundary, spotlight, unspotlight } from '../spotlight/index.js';
 import { createBudget } from './budgets.js';
 import type { BudgetState } from './budgets.js';
+import { resolvePreset } from './presets.js';
 import { identityText, isToolLock, pinTools, toolIdentities, UNLOCKED, verifyTools } from './pin.js';
 import type { LockView, ToolDrift, ToolLock, ToolSet } from './pin.js';
 import { defaultSink } from './sinks.js';
@@ -69,7 +70,9 @@ function resolveSpotlight(option: GuardOptions['spotlight']): GuardSpotlightOpti
  * through `trust` / `analyzeUserTurn`, and every model-proposed call goes
  * through `checkToolCall` before execution.
  */
-export function createGuard(options: GuardOptions = {}): Guard {
+export function createGuard(rawOptions: GuardOptions = {}): Guard {
+  // A preset supplies defaults under the explicit options; `balanced` or none leaves them untouched.
+  const options = resolvePreset(rawOptions);
   const analyzeOptions: AnalyzeOptions = { ...(options.analyzeOptions ?? {}) };
   const session: ProtectionSession = options.session ?? createProtectionSession(options.analyzeOptions ?? {});
   const logging = pickLogging(options);
@@ -259,6 +262,7 @@ export function createGuard(options: GuardOptions = {}): Guard {
       lockOf,
       requireLock,
       ...(budget !== null ? { budget } : {}),
+      ...(options.mode !== undefined ? { mode: options.mode } : {}),
       ...(unmark ? { unmark } : {}),
     }));
   }

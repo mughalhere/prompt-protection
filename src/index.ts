@@ -4,6 +4,8 @@
 export { analyzePrompt, verifyPrompt, stripPrompt, scanToolDefinition } from './api.js';
 export { verifyPromptAsync } from './async.js';
 export { analyzeOutput } from './output.js';
+export { redact } from './redact.js';
+export type { RedactOptions, RedactResult, Redaction, RedactRule, RedactTier } from './redact.js';
 export { PromptInjectionError } from './error.js';
 export { createProtectionSession } from './session.js';
 export { createConsoleLogger } from './logging.js';
@@ -33,6 +35,7 @@ export type {
   PromptInjectionErrorDetails,
   OutputAnalysisResult,
   OutputAnalysisOptions,
+  RenderFinding,
   ProtectionEvent,
   ProtectionLogger,
   LoggingOptions,

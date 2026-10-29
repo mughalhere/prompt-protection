@@ -16,6 +16,7 @@ describe('API tiers', () => {
         'PromptInjectionError',
         'RULES_VERSION',
         'analyzeOutput',
+        'redact',
         'analyzePrompt',
         'createConsoleLogger',
         'createProtectionSession',
@@ -67,6 +68,8 @@ describe('/guard runtime surface (stable tier: additive only)', () => {
         // 4.2
         'DEFAULT_MAX_REPEAT_IDENTICAL', 'UNLOCKED', 'budgetExceeded', 'createBudget', 'identityText', 'isToolLock',
         'pinTools', 'toolDrift', 'toolIdentities', 'toolIdentity', 'toolUnpinned', 'verifyTools',
+        // 4.3
+        'PERMISSIVE_POLICIES', 'PRESETS', 'STRICT_POLICIES', 'explain', 'resolvePreset', 'turnUntrustedToUntrustedDestination',
       ].sort(),
     );
   });

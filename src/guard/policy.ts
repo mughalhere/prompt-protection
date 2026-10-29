@@ -94,6 +94,16 @@ export const toolDrift: GuardPolicy = {
   evaluate: (ctx) => (ctx.lock.drift !== null && ctx.lock.drift.kind !== 'missing' ? (ctx.lock.driftAction ?? 'block') : null),
 };
 
+/**
+ * Strict-preset only: an exfil sink whose destination the user did not name, in a turn that saw
+ * untrusted sources, with no detected flow. Paraphrase is exactly what containment misses.
+ */
+export const turnUntrustedToUntrustedDestination: GuardPolicy = {
+  id: 'turn-untrusted-to-untrusted-destination',
+  evaluate: (ctx) =>
+    EXFIL_SINKS.has(ctx.sink) && !ctx.destinationTrusted && ctx.flows.length === 0 && ctx.turnSources.length > 0 ? 'confirm' : null,
+};
+
 /** Any configured budget exceeded after counting this attempt. */
 export const budgetExceeded: GuardPolicy = {
   id: 'budget-exceeded',
