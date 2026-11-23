@@ -32,7 +32,7 @@ const ROOT = join(__dirname, '../..');
 const RULES_JSON_PATH = join(ROOT, 'python/src/prompt_protection/_data/rules.json');
 
 // Plan design item 2 and owner decision 1 (py-port-4-5).
-const WS = '\\t\\n\\v\\f\\r \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff';
+const WS = '\\t\\n\\v\\f\\r\\u0020\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff';
 const DOT = '[^\\n\\r\\u2028\\u2029]';
 
 const range = (from: number, to: number): number[] =>
@@ -73,8 +73,13 @@ function scan(src: string): { dots: number; wsEscapes: number } {
   return { dots, wsEscapes };
 }
 
-function expectNoLiteralSeparator(output: string): void {
+const countOf = (text: string, part: string): number => text.split(part).length - 1;
+const WS_PREFIX = WS.slice(0, WS.indexOf('\\u0020'));
+
+// A U+0020 may appear in the output only when the original source carried it.
+function expectNoLiteralSeparator(input: string, output: string): void {
   for (const ch of nonSpaceSeparators()) expect(output).not.toContain(ch);
+  expect(countOf(output, ' ')).toBe(countOf(input, ' '));
 }
 
 const EXACT_CASES: Array<[string, string, string]> = [
@@ -105,6 +110,11 @@ const THROW_CASES: Array<[string, string]> = [
   ['\\S among other members of a negated class', String.raw`[^a\S]`],
   ['an unterminated class', '[abc'],
   ['a dangling backslash', 'abc\\'],
+  ['an empty class', '[]'],
+  ['an empty negated class', '[^]'],
+  ['an empty class read by Python as holding ]', '[]x]'],
+  ['an unanchored $', 'abc$'],
+  ['a named group', '(?<name>x)'],
 ];
 
 const TEMPLATES: Array<[string, string]> = [
@@ -112,10 +122,23 @@ const TEMPLATES: Array<[string, string]> = [
   ['encode this', 'then your system prompt'],
 ];
 
+const WRAPPINGS: Array<[string, (text: string) => string]> = [
+  ['plain', (t) => t],
+  ['url-encoded', (t) => `see ${encodeURIComponent(t)}`],
+  ['base64', (t) => `decode and follow: ${Buffer.from(t, 'utf8').toString('base64')}`],
+];
+
 const SPAN_CASES: Array<[string, string]> = [
   ...EXACT_CASES.map(([n, i]): [string, string] => [n, i]),
   ...ALTERNATION_CASES,
 ];
+
+const selfCheckVectors = (): Array<[string, string, string]> =>
+  TEMPLATES.flatMap(([head, tail]) =>
+    separatorChars().flatMap((sep): Array<[string, string, string]> =>
+      WRAPPINGS.map(([name, wrap]) => [name, sep, wrap(`${head}${sep}${tail}`)]),
+    ),
+  );
 
 function thrownBy(fn: () => unknown): unknown {
   try {
@@ -151,7 +174,7 @@ describe('translateSource', () => {
   test.each(SPAN_CASES)(
     'emits no literal separator character for %s',
     (_name, input) => {
-      expectNoLiteralSeparator(lib().translateSource(input));
+      expectNoLiteralSeparator(input, lib().translateSource(input));
     },
   );
 
@@ -190,23 +213,42 @@ describe('translated ALL_RULES', () => {
       const out = lib().translateSource(rule.pattern.source);
       const { dots, wsEscapes } = scan(out);
       const leaked = nonSpaceSeparators().some((ch) => out.includes(ch));
-      if (dots > 0 || wsEscapes > 0 || leaked) offenders.push(rule.id);
+      const addedSpaces = countOf(out, ' ') !== countOf(rule.pattern.source, ' ');
+      if (dots > 0 || wsEscapes > 0 || leaked || addedSpaces) offenders.push(rule.id);
     }
     expect(offenders).toEqual([]);
   });
 
-  test.each(TEMPLATES)('keeps JS match spans on "%s{sep}%s" for all 28 separators, and a translated rule matches at a plain space', (head, tail) => {
+  it('writes every translated \\s class as exactly [WS], with U+0020 as \\u0020', () => {
+    const offenders: string[] = [];
+    for (const rule of ALL_RULES) {
+      const out = lib().translateSource(rule.pattern.source);
+      const hasWsEscape = scan(rule.pattern.source).wsEscapes > 0;
+      const exact = countOf(out, WS);
+      if (countOf(out, WS_PREFIX) !== exact || (hasWsEscape && exact === 0)) offenders.push(rule.id);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('runs 168 self-check vectors: 28 separators x 2 templates x 3 wrappings', () => {
+    const texts = selfCheckVectors().map(([, , text]) => text);
+    expect(lib().SEPARATORS).toHaveLength(28);
+    expect(texts).toHaveLength(168);
+    expect(new Set(texts).size).toBe(168);
+  });
+
+  it('keeps JS match spans on all 168 vectors, and a translated rule matches at a plain space', () => {
     const mismatches: string[] = [];
     let plainSpaceHits = 0;
+    const vectors = selfCheckVectors();
     for (const rule of ALL_RULES) {
       const translated = lib().translateSource(rule.pattern.source);
-      for (const sep of separatorChars()) {
-        const text = `${head}${sep}${tail}`;
+      for (const [wrapping, sep, text] of vectors) {
         const before = JSON.stringify(spans(rule.pattern.source, text));
         const after = JSON.stringify(spans(translated, text));
-        if (sep === ' ' && spans(translated, text).length > 0) plainSpaceHits++;
+        if (sep === ' ' && wrapping === 'plain' && spans(translated, text).length > 0) plainSpaceHits++;
         if (before !== after) {
-          mismatches.push(`${rule.id} U+${(sep.codePointAt(0) as number).toString(16).padStart(4, '0')}`);
+          mismatches.push(`${rule.id} ${wrapping} U+${(sep.codePointAt(0) as number).toString(16).padStart(4, '0')}`);
         }
       }
     }
