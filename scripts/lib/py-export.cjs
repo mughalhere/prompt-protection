@@ -127,4 +127,53 @@ function corpusTexts(jsonlTexts, fixtureLines) {
   return [...new Set([...jsonlTexts, ...fixtureLines])];
 }
 
-module.exports = { translateSource, buildRulesJson, SEPARATORS, separatorVectors, ruleSpans, corpusTexts };
+// D12: the decision fields the Python port compares. Card ids, timestamps and source ids never appear.
+function projectDecision(decision) {
+  const args = decision.argsAnalysis;
+  return {
+    action: decision.action,
+    requiresConfirmation: decision.requiresConfirmation,
+    reasons: [...decision.reasons],
+    policy: decision.policy ?? null,
+    sink: decision.sink,
+    depth: decision.depth,
+    flows: decision.flows.map((f) => ({ kind: f.kind, path: f.path })),
+    args: { score: args.score, action: args.action, ruleIds: args.matches.map((m) => m.rule.id) },
+  };
+}
+
+// D13: wraps a guard and every guard its fork() returns; steps.cjs stays unchanged.
+function recordGuard(guard, cards, locks) {
+  return new Proxy(guard, {
+    get(target, prop) {
+      const member = target[prop];
+      if (typeof member !== 'function') return member;
+      if (prop === 'fork') return (...a) => recordGuard(member.apply(target, a), cards, locks);
+      if (prop === 'approvalCard') {
+        return async (...a) => {
+          const card = await member.apply(target, a);
+          cards.push({ toolName: card.toolName, digest: card.digest, canonicalArgs: card.canonicalArgs });
+          return card;
+        };
+      }
+      if (prop === 'pin') {
+        return async (...a) => {
+          const lock = await member.apply(target, a);
+          locks.push({ v: lock.v, algo: lock.algo, rulesVersion: lock.rulesVersion, tools: lock.tools });
+          return lock;
+        };
+      }
+      return member.bind(target);
+    },
+  });
+}
+
+function recordingFactory(createGuard) {
+  const cards = [];
+  const locks = [];
+  return { factory: (options) => recordGuard(createGuard(options), cards, locks), cards, locks };
+}
+
+module.exports = {
+  translateSource, buildRulesJson, SEPARATORS, separatorVectors, ruleSpans, corpusTexts, projectDecision, recordingFactory,
+};
