@@ -3,6 +3,7 @@
 import re
 
 import pytest
+
 from prompt_protection._js import (
     JS_DOT,
     JS_WHITESPACE,
@@ -84,6 +85,35 @@ def test_utf16_slice_matches_js_slice(text: str, start: int, end: int | None, ex
     assert utf16_slice(text, start, end) == expected
 
 
+# node -e 's="a\u{1F600}b"; for (const [a,b] of [[-1],[-2],[-3,-1],[1,-1],[-10],[2,1],[-10,-2],[0,-10]])'
+# ... console.log(JSON.stringify(b===undefined?s.slice(a):s.slice(a,b)))'
+@pytest.mark.parametrize(
+    ("start", "end", "expected"),
+    [
+        (-1, None, "b"),
+        (-2, None, "\ude00b"),
+        (-3, -1, "😀"),
+        (1, -1, "😀"),
+        (-10, None, "a😀b"),
+        (2, 1, ""),
+        (-10, -2, "a\ud83d"),
+        (0, -10, ""),
+    ],
+    ids=[
+        "minus-1",
+        "minus-2-from-low",
+        "minus-3-to-minus-1",
+        "1-to-minus-1",
+        "minus-10-clamped-to-zero",
+        "start-after-end",
+        "minus-10-to-minus-2-cut-after-high",
+        "end-clamped-to-zero",
+    ],
+)
+def test_utf16_slice_negative_indexes_match_js_slice(start: int, end: int | None, expected: str) -> None:
+    assert utf16_slice("a😀b", start, end) == expected
+
+
 # node -e 'const cps=Array.from(s); for(k=0;k<=cps.length;k++) console.log(cps.slice(0,k).join("").length)'
 OFFSET_TABLE = [
     ("a😀b", [0, 1, 3, 4]),
@@ -148,6 +178,45 @@ def test_code_units_lists_utf16_units(text: str, expected: list[int]) -> None:
 )
 def test_js_round_is_half_toward_positive_infinity(value: float, expected: int) -> None:
     assert js_round(value) == expected
+
+
+# node -e 'for (const x of [4503599627370496,4503599627370497,2**53,-(2**52)-1,1e300,-(2**52),'
+# ... 4503599627370495.5,4503599627370494.5]) console.log(BigInt(Math.round(x)).toString())'
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (4503599627370496.0, 4503599627370496),
+        (4503599627370497.0, 4503599627370497),
+        (float(2**53), 9007199254740992),
+        (-(2.0**52) - 1, -4503599627370497),
+        (1e300, int(1e300)),
+        (-(2.0**52), -4503599627370496),
+        (4503599627370495.5, 4503599627370496),
+        (4503599627370494.5, 4503599627370495),
+    ],
+    ids=[
+        "2**52",
+        "2**52-plus-1",
+        "2**53",
+        "negative-2**52-minus-1",
+        "1e300",
+        "negative-2**52",
+        "below-2**52-tie-up",
+        "below-2**52-tie-up-odd",
+    ],
+)
+def test_js_round_at_and_above_2_pow_52_matches_math_round(value: float, expected: int) -> None:
+    assert js_round(value) == expected
+
+
+# node -e 'for (const x of [NaN, Infinity, -Infinity]) console.log(String(x))'
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(float("nan"), "NaN"), (float("inf"), "Infinity"), (float("-inf"), "-Infinity")],
+    ids=["nan", "infinity", "negative-infinity"],
+)
+def test_js_number_str_non_finite_matches_string(value: float, expected: str) -> None:
+    assert js_number_str(value) == expected
 
 
 # node -e 'for (const x of [...]) console.log(String(x))'
