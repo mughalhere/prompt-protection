@@ -318,3 +318,35 @@ def test_score_matches_node_golden(golden_case: dict[str, Any], deadline: None) 
     for m in result.matches:
         assert 0 <= m.start_index <= m.end_index <= utf16_len(text)
         assert m.matched_text == utf16_slice(text, m.start_index, m.end_index)
+
+
+# e-5a46e7, e-c584ee: Rule.weight is an int. Node reads the same weight as a double, so 10**400 is Infinity.
+BIG = 10**308
+HUGE = 10**400
+# (weights, hits text, raw score, normalized score), from Node.
+INT_WEIGHT_SCORES = [
+    pytest.param([BIG] * 28, "a", math.inf, 100, id="28-rules-of-10pow308-sum-is-inf-scores-100"),
+    pytest.param([HUGE], "a", math.inf, 100, id="weight-10pow400-is-inf-scores-100"),
+    pytest.param([HUGE], "aa", math.inf, 100, id="weight-10pow400-repeated-stays-inf-scores-100"),
+    pytest.param([BIG, -BIG, 10], "a", 10, 49, id="large-opposite-ints-cancel-in-double-sum"),
+]
+INT_WEIGHT_NON_FINITE = [
+    pytest.param([-HUGE], "a", id="weight-minus-10pow400-is-minus-inf"),
+    pytest.param([-BIG], "aa", id="minus-10pow308-repeated-raw-finite-score-overflows"),
+]
+
+
+@pytest.mark.parametrize(("weights", "text", "raw", "normalized"), INT_WEIGHT_SCORES)
+def test_int_weights_beyond_double_range_score_like_node(
+    weights: list[int], text: str, raw: float, normalized: int
+) -> None:
+    result = run(weighted_rules(weights), text)
+    assert (result.raw_score, result.normalized_score) == (raw, normalized)
+
+
+@pytest.mark.parametrize(("weights", "text"), INT_WEIGHT_NON_FINITE)
+def test_int_weights_with_a_non_finite_score_raise_value_error_not_overflow_error(
+    weights: list[int], text: str
+) -> None:
+    with pytest.raises(ValueError, match="(?i)finite"):
+        run(weighted_rules(weights), text)
