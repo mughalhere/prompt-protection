@@ -329,6 +329,8 @@ INT_WEIGHT_SCORES = [
     pytest.param([HUGE], "a", math.inf, 100, id="weight-10pow400-is-inf-scores-100"),
     pytest.param([HUGE], "aa", math.inf, 100, id="weight-10pow400-repeated-stays-inf-scores-100"),
     pytest.param([BIG, -BIG, 10], "a", 10, 49, id="large-opposite-ints-cancel-in-double-sum"),
+    # node -e 'console.log([1e308,1e308,-1e308,-1e308].reduce((a,b)=>a+b))' prints Infinity. Rule order is JS add order.
+    pytest.param([BIG, BIG, -BIG, -BIG], "a", math.inf, 100, id="node-e-two-1e308-then-two-minus-stay-inf-scores-100"),
 ]
 INT_WEIGHT_NON_FINITE = [
     pytest.param([-HUGE], "a", id="weight-minus-10pow400-is-minus-inf"),
