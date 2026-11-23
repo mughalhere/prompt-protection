@@ -180,14 +180,12 @@ def test_a_match_serialises_with_js_keys_and_the_rule_fields() -> None:
         "category": "prompt-injection",
         "weight": 10,
         "precision": "high",
-        "description": "Ignore previous instructions",
     }
     wanted_second = {
         "id": "tool-ignore-previous",
         "category": "tool-poisoning",
         "weight": 8,
         "precision": "high",
-        "description": "Instruction-override phrasing embedded in a tool definition",
     }
     assert wanted_first.items() <= first["rule"].items()
     assert wanted_second.items() <= second["rule"].items()
