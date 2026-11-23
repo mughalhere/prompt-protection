@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -90,18 +90,20 @@ function readRaw(name: string): string {
 const readGolden = (): Golden => JSON.parse(readRaw(GOLDEN_FILE)) as Golden;
 const readUnicode = (): UnicodeNode => JSON.parse(readRaw(UNICODE_FILE)) as UnicodeNode;
 
-function collectTexts(value: unknown, out: string[]): void {
-  if (Array.isArray(value)) {
-    value.forEach((v) => collectTexts(v, out));
+const CORPUS_KEYS = new Set(['text', 'user', 'args']);
+
+// Strings at any depth under a text, user or args key, depth-first in key order (e-6406d1).
+function collectTexts(value: unknown, inScope: boolean, out: string[]): void {
+  if (typeof value === 'string') {
+    if (inScope) out.push(value);
+  } else if (Array.isArray(value)) {
+    value.forEach((v) => collectTexts(v, inScope, out));
   } else if (value !== null && typeof value === 'object') {
-    for (const [key, v] of Object.entries(value)) {
-      if ((key === 'text' || key === 'user') && typeof v === 'string') out.push(v);
-      else collectTexts(v, out);
-    }
+    for (const [key, v] of Object.entries(value)) collectTexts(v, inScope || CORPUS_KEYS.has(key), out);
   }
 }
 
-// Independent corpus of design item 4 and D14: datasets, then benign, then malicious.
+// Independent corpus of design item 4 and e-6406d1: datasets, then benign, then malicious.
 function expectedCorpus(): Array<[string, string]> {
   const seen = new Set<string>();
   const out: Array<[string, string]> = [];
@@ -115,7 +117,7 @@ function expectedCorpus(): Array<[string, string]> {
   for (const file of files) {
     for (const line of readFileSync(join(ROOT, 'datasets', file), 'utf8').split('\n').filter((l) => l !== '')) {
       const texts: string[] = [];
-      collectTexts(JSON.parse(line), texts);
+      collectTexts(JSON.parse(line), false, texts);
       texts.forEach((t) => add(t, 'dataset'));
     }
   }
@@ -305,6 +307,19 @@ describe('analyze golden shape (design item 4)', () => {
   });
 });
 
+describe('analyze golden tool-call arguments (e-6406d1)', () => {
+  const ARG_STRINGS: Array<[string, string]> = [
+    ['af-001 call.args.body', 'full support thread contents'],
+    ['af-001 call.args.url', 'https://exfil-collector.attacker.io/inbox'],
+    ['af-026 call.args.headers.cookie (nested)', 'session=abc'],
+    ['af-151 steps[].args.city', 'Lahore'],
+  ];
+
+  test.each(ARG_STRINGS)('holds %s once, with origin dataset', (_where, value) => {
+    expect(readGolden().cases.filter((c) => c.text === value).map((c) => c.origin)).toEqual(['dataset']);
+  });
+});
+
 describe('analyze golden agrees with the built library and the rule sources (Node 22)', () => {
   nodeTest('score, severity, action, categories, ruleIds and normalized equal analyzePrompt output', () => {
     const bad = readGolden().cases.filter((c) => {
@@ -378,14 +393,17 @@ describe('export-analyze-golden.mjs --check (D11, D14)', () => {
   const sandboxes: string[] = [];
   afterAll(() => sandboxes.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
 
-  function sandbox(): string {
+  function sandbox(copyDatasets = false): string {
     const dir = mkdtempSync(join(tmpdir(), 'analyze-golden-'));
     sandboxes.push(dir);
     mkdirSync(join(dir, 'tests'));
     cpSync(join(ROOT, 'scripts'), join(dir, 'scripts'), { recursive: true });
     cpSync(FIXTURES, join(dir, 'tests/__fixtures__'), { recursive: true });
     cpSync(join(ROOT, 'package.json'), join(dir, 'package.json'));
-    for (const name of ['dist', 'datasets', 'node_modules']) symlinkSync(join(ROOT, name), join(dir, name));
+    if (copyDatasets) cpSync(join(ROOT, 'datasets'), join(dir, 'datasets'), { recursive: true });
+    for (const name of copyDatasets ? ['dist', 'node_modules'] : ['dist', 'datasets', 'node_modules']) {
+      symlinkSync(join(ROOT, name), join(dir, name));
+    }
     return dir;
   }
   const check = (dir: string): { status: number | null; stderr: string } => {
@@ -424,5 +442,16 @@ describe('export-analyze-golden.mjs --check (D11, D14)', () => {
     if (next === null) rmSync(path);
     else writeFileSync(path, next);
     expect(check(dir).status).toBe(1);
+  });
+
+  nodeTest('exits 1 naming the text when a dataset text equals a separator vector (e-f07d1d)', () => {
+    const dir = sandbox(true);
+    const [head, tail] = TEMPLATES[0]!;
+    const duplicate = `${head} ${tail}`;
+    expect(expectedVectors()).toContain(duplicate);
+    appendFileSync(join(dir, 'datasets/attacks.jsonl'), `\n${JSON.stringify({ id: 'dup-1', text: duplicate })}\n`);
+    const run = check(dir);
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain(duplicate);
   });
 });
