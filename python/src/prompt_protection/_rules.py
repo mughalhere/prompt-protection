@@ -8,6 +8,7 @@ from importlib import resources
 from typing import Any
 
 from prompt_protection._js import code_units
+from prompt_protection._result import JsResult
 
 __all__ = ["DEFERRED_REFERENCE_RULE_IDS", "RULES", "RULES_VERSION", "Rule", "match_spans"]
 
@@ -15,7 +16,7 @@ _FLAGS = re.ASCII | re.IGNORECASE
 
 
 @dataclass(frozen=True, slots=True)
-class Rule:
+class Rule(JsResult):
     id: str
     source: str
     weight: int
@@ -23,6 +24,11 @@ class Rule:
     precision: str
     pattern: re.Pattern[str]
     mappings: Mapping[str, Any] | None = None
+    description: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialise like a JS rule; the compiled ``pattern`` is left out because ``source`` holds it."""
+        return {key: value for key, value in JsResult.to_dict(self).items() if key != "pattern"}
 
 
 def _load() -> dict[str, Any]:

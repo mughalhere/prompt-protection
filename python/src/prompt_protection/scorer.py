@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from prompt_protection._js import js_round, utf16_len, utf16_slice
+from prompt_protection._result import JsResult
 from prompt_protection._rules import Rule, match_spans
 
 __all__ = ["PatternMatch", "ScoreResult", "score"]
@@ -15,7 +16,7 @@ _SCORE_SCALE = 15
 
 
 @dataclass(frozen=True, slots=True)
-class PatternMatch:
+class PatternMatch(JsResult):
     rule: Rule
     matched_text: str
     start_index: int

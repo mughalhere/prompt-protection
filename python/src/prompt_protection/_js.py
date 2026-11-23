@@ -13,6 +13,7 @@ __all__ = [
     "decode_uri_component",
     "js_number_str",
     "js_round",
+    "js_trim",
     "utf16_len",
     "utf16_slice",
     "utf16_to_cp_offset",
@@ -85,6 +86,19 @@ def js_round(value: float) -> int:
     if abs(value) >= _MAX_EXACT_HALF:
         return floor
     return floor + 1 if value >= floor + 0.5 else floor
+
+
+_JS_TRIM_CHARS = "".join(
+    map(
+        chr,
+        (9, 10, 11, 12, 13, 32, 0xA0, 0x1680, *range(0x2000, 0x200B), 0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF),
+    )
+)
+
+
+def js_trim(text: str) -> str:
+    """Return JS ``text.trim()``: U+FEFF is stripped, U+0085 and U+001C are kept, unlike ``str.strip``."""
+    return text.strip(_JS_TRIM_CHARS)
 
 
 def js_number_str(value: float) -> str:
