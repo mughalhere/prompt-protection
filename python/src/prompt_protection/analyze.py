@@ -241,6 +241,7 @@ def strip_prompt(
     disabled_rule_ids: Sequence[str] | None = None,
     allowlist_patterns: Sequence[re.Pattern[str]] | None = None,
     allowlist_rule_ids: Sequence[str] | None = None,
+    sentence_analysis: bool = False,
     analyze_roles: AnalyzeRoles | None = None,
     max_input_length: int | None = None,
     ml: MlMode | None = None,
@@ -261,6 +262,7 @@ def strip_prompt(
         disabled_rule_ids=disabled_rule_ids,
         allowlist_patterns=allowlist_patterns,
         allowlist_rule_ids=allowlist_rule_ids,
+        sentence_analysis=sentence_analysis,
         max_input_length=max_input_length,
         fail_mode=fail_mode,
     )
@@ -270,11 +272,7 @@ def strip_prompt(
     units = code_units(text)
     if strip_whole_segment:
         _widen_to_segments(spans, units)
-    pieces: list[str] = []
-    cursor = 0
-    for start, end in spans:
-        pieces.append(utf16_slice(text, cursor, start))
-        pieces.append(replacement)
-        cursor = end
-    pieces.append(utf16_slice(text, cursor))
-    return js_trim("".join(pieces))
+    stripped = text
+    for start, end in reversed(spans):
+        stripped = utf16_slice(stripped, 0, start) + replacement + utf16_slice(stripped, end)
+    return js_trim(stripped)
