@@ -2,7 +2,7 @@
 // Translates JS regex sources to Python-ready sources for python/.../_data/rules.json.
 // Plan design item 2 and owner decision 1 (py-port-4-5); errors per e-54dd32.
 
-const WS = '\\t\\n\\v\\f\\r \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff';
+const WS = '\\t\\n\\v\\f\\r\\u0020\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff';
 const DOT = '[^\\n\\r\\u2028\\u2029]';
 
 const range = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
@@ -23,6 +23,7 @@ function translateClass(source, start) {
   let i = start + 1;
   const negated = source[i] === '^';
   if (negated) i++;
+  if (source[i] === ']') throw fail(source, 'empty character class');
   let rest = '';
   let hasNonSpace = false;
   for (; i < source.length; i++) {
@@ -61,6 +62,10 @@ function translateSource(source) {
       if (e === 's') out += `[${WS}]`;
       else if (e === 'S') out += `[^${WS}]`;
       else out += `\\${e}`;
+    } else if (c === '$') {
+      throw fail(source, 'unanchored $ (Python also matches before a trailing newline)');
+    } else if (c === '(' && source.startsWith('(?<', i) && !/^\(\?<[=!]/.test(source.slice(i, i + 4))) {
+      throw fail(source, 'named group');
     } else if (c === '[') {
       const cls = translateClass(source, i);
       out += cls.text;
