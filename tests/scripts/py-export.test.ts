@@ -31,8 +31,8 @@ const ROOT = join(__dirname, '../..');
 const RULES_JSON_PATH = join(ROOT, 'python/src/prompt_protection/_data/rules.json');
 
 // Plan design item 2 and owner decision 1 (py-port-4-5).
-const WS = String.raw`\t\n\v\f\r    -     　﻿`;
-const DOT = String.raw`[^\n\r  ]`;
+const WS = '\\t\\n\\v\\f\\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
+const DOT = '[^\\n\\r\u2028\u2029]';
 
 const range = (from: number, to: number): number[] =>
   Array.from({ length: to - from + 1 }, (_, i) => from + i);
@@ -50,7 +50,7 @@ const separatorChars = (): string[] => lib().SEPARATORS.map(toChar);
 const nonSpaceSeparators = (): string[] => separatorChars().filter((c) => c !== ' ');
 
 const spans = (source: string, text: string): number[][] =>
-  Array.from(text.matchAll(new RegExp(source, 'gi')), (m) => [m.index as number, m[0].length]);
+  Array.from(text.matchAll(new RegExp(source, 'gi')), (m) => [m.index, m[0].length]);
 
 function scan(src: string): { dots: number; wsEscapes: number } {
   let inClass = false;
@@ -116,6 +116,15 @@ const SPAN_CASES: Array<[string, string]> = [
   ...ALTERNATION_CASES,
 ];
 
+function thrownBy(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (error) {
+    return error;
+  }
+  return undefined;
+}
+
 const PROBE_TEXT = (): string => `${separatorChars().join('')}a.b,-]x ${String.raw`a.b a\.b a\sb`}`;
 
 describe('translateSource', () => {
@@ -145,8 +154,11 @@ describe('translateSource', () => {
     },
   );
 
-  test.each(THROW_CASES)('throws on %s', (_name, input) => {
-    expect(() => lib().translateSource(input)).toThrow();
+  test.each(THROW_CASES)('throws on %s with an Error whose message contains the source', (_name, input) => {
+    const { translateSource } = lib();
+    const thrown = thrownBy(() => translateSource(input));
+    expect(Object.prototype.toString.call(thrown)).toBe('[object Error]');
+    expect((thrown as Error).message).toContain(input);
   });
 });
 
@@ -182,27 +194,22 @@ describe('translated ALL_RULES', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('uses both templates at a plain space against at least one rule', () => {
-    for (const [head, tail] of TEMPLATES) {
-      const text = `${head} ${tail}`;
-      const hits = ALL_RULES.filter((r) => spans(r.pattern.source, text).length > 0);
-      expect(hits.length).toBeGreaterThan(0);
-    }
-  });
-
-  test.each(TEMPLATES)('keeps JS match spans on "%s{sep}%s" for all 28 separators', (head, tail) => {
+  test.each(TEMPLATES)('keeps JS match spans on "%s{sep}%s" for all 28 separators, and a translated rule matches at a plain space', (head, tail) => {
     const mismatches: string[] = [];
+    let plainSpaceHits = 0;
     for (const rule of ALL_RULES) {
       const translated = lib().translateSource(rule.pattern.source);
       for (const sep of separatorChars()) {
         const text = `${head}${sep}${tail}`;
         const before = JSON.stringify(spans(rule.pattern.source, text));
         const after = JSON.stringify(spans(translated, text));
+        if (sep === ' ' && spans(translated, text).length > 0) plainSpaceHits++;
         if (before !== after) {
           mismatches.push(`${rule.id} U+${(sep.codePointAt(0) as number).toString(16).padStart(4, '0')}`);
         }
       }
     }
+    expect(plainSpaceHits).toBeGreaterThan(0);
     expect(mismatches).toEqual([]);
   });
 });
