@@ -18,14 +18,16 @@ const FIXTURES = join(ROOT, 'tests/__fixtures__');
 const GOLDEN = join(FIXTURES, 'analyze.golden.json');
 const UNICODE = join(FIXTURES, 'unicode-node.json');
 
-function collectTexts(value, out) {
-  if (Array.isArray(value)) {
-    value.forEach((v) => collectTexts(v, out));
+const CORPUS_KEYS = new Set(['text', 'user', 'args']);
+
+// Every string at any depth under a text, user or args key, depth-first in key order (e-6406d1).
+function collectTexts(value, inScope, out) {
+  if (typeof value === 'string') {
+    if (inScope) out.push(value);
+  } else if (Array.isArray(value)) {
+    value.forEach((v) => collectTexts(v, inScope, out));
   } else if (value !== null && typeof value === 'object') {
-    for (const [key, v] of Object.entries(value)) {
-      if ((key === 'text' || key === 'user') && typeof v === 'string') out.push(v);
-      else collectTexts(v, out);
-    }
+    for (const [key, v] of Object.entries(value)) collectTexts(v, inScope || CORPUS_KEYS.has(key), out);
   }
 }
 
@@ -36,7 +38,7 @@ function datasetTexts() {
   const files = readdirSync(join(ROOT, 'datasets')).filter((f) => f.endsWith('.jsonl')).sort();
   for (const file of files) {
     for (const line of nonEmptyLines(readFileSync(join(ROOT, 'datasets', file), 'utf8'))) {
-      collectTexts(JSON.parse(line), texts);
+      collectTexts(JSON.parse(line), false, texts);
     }
   }
   return texts.filter((t) => t !== '');
@@ -53,7 +55,11 @@ function buildCorpus() {
   const corpus = pyExport.corpusTexts(dataset, [...benign, ...malicious]).map((text) => ({ text, origin: originOf.get(text) }));
   const vectors = pyExport.separatorVectors().map((text) => ({ text, origin: 'separator' }));
   const all = [...corpus, ...vectors];
-  if (new Set(all.map((c) => c.text)).size !== all.length) throw new Error('a separator vector duplicates a corpus text');
+  const seen = new Set();
+  for (const { text } of all) {
+    if (seen.has(text)) throw new Error(`a separator vector duplicates a corpus text: ${JSON.stringify(text)}`);
+    seen.add(text);
+  }
   return all;
 }
 
