@@ -37,6 +37,14 @@ def _exp(value: float) -> float:
         return math.inf
 
 
+def _as_double(weight: int) -> float:
+    """Return ``weight`` as an IEEE double; an int beyond double range is a signed infinity, as in JS."""
+    try:
+        return float(weight)
+    except OverflowError:
+        return math.inf if weight > 0 else -math.inf
+
+
 def _normalize_score(raw_score: float) -> int:
     scaled = 100 * (1 - _exp(-raw_score / _SCORE_SCALE))
     if not math.isfinite(scaled):
@@ -88,10 +96,11 @@ def score(
                 PatternMatch(rule, utf16_slice(original_text, start_index, end_index), start_index, end_index)
             )
 
-    raw_score: float = 0
+    raw_score = 0.0
     seen: set[str] = set()
     for hit in matches:
-        raw_score += hit.rule.weight * _REPEAT_WEIGHT if hit.rule.id in seen else hit.rule.weight
+        weight = _as_double(hit.rule.weight)
+        raw_score += weight * _REPEAT_WEIGHT if hit.rule.id in seen else weight
         seen.add(hit.rule.id)
 
     return ScoreResult(raw_score, _normalize_score(raw_score), matches)
