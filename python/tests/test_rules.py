@@ -4,9 +4,9 @@ import re
 from typing import Any
 
 import pytest
-from prompt_protection._rules import DEFERRED_REFERENCE_RULE_IDS, RULES, RULES_VERSION, match_spans
 
 import prompt_protection
+from prompt_protection._rules import DEFERRED_REFERENCE_RULE_IDS, RULES, RULES_VERSION, match_spans
 
 RULE_FIELDS = ("id", "source", "weight", "category", "precision")
 

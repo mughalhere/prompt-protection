@@ -1,6 +1,7 @@
 """RED tests for prompt_protection.hash.fnv1a32 (plan design item 3, D32: expected values come from Node 22)."""
 
 import pytest
+
 from prompt_protection.hash import fnv1a32
 
 # Expected values: fnv1a32 body extracted from dist/index.js (src/utils/hash.ts), run under node 22.

@@ -11,6 +11,7 @@ import re
 from collections.abc import Callable
 
 import pytest
+
 from prompt_protection.canonical import (
     CanonicalJsonError,
     canonical_json,
