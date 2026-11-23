@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { ALL_RULES, DEFERRED_REFERENCE_RULE_IDS } from '../../src/patterns/index';
+import { RULE_MAPPINGS, withMappings } from '../../src/patterns/mappings';
 import { RULES_VERSION } from '../../src/patterns/version';
 import type { PatternRule } from '../../src/types';
 
@@ -31,8 +32,8 @@ const ROOT = join(__dirname, '../..');
 const RULES_JSON_PATH = join(ROOT, 'python/src/prompt_protection/_data/rules.json');
 
 // Plan design item 2 and owner decision 1 (py-port-4-5).
-const WS = '\\t\\n\\v\\f\\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
-const DOT = '[^\\n\\r\u2028\u2029]';
+const WS = '\\t\\n\\v\\f\\r \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff';
+const DOT = '[^\\n\\r\\u2028\\u2029]';
 
 const range = (from: number, to: number): number[] =>
   Array.from({ length: to - from + 1 }, (_, i) => from + i);
@@ -239,14 +240,28 @@ describe('buildRulesJson', () => {
       ],
     });
   });
+
+  it('omits the mappings key for a rule that carries none', () => {
+    const { rules } = lib().buildRulesJson([rule({ id: 'bare', pattern: /plain/i })], '2099.01.01', new Set());
+    expect(rules).toHaveLength(1);
+    expect(rules[0]).not.toHaveProperty('mappings');
+  });
 });
 
 describe('committed rules.json', () => {
   const committed = (): RulesJson => JSON.parse(readFileSync(RULES_JSON_PATH, 'utf8')) as RulesJson;
-  const fresh = (): RulesJson => lib().buildRulesJson(ALL_RULES, RULES_VERSION, DEFERRED_REFERENCE_RULE_IDS);
+  const fresh = (): RulesJson => lib().buildRulesJson(withMappings(ALL_RULES), RULES_VERSION, DEFERRED_REFERENCE_RULE_IDS);
 
-  it('is fresh: equals a new export of ALL_RULES', () => {
+  it('is fresh: equals a new export of withMappings(ALL_RULES)', () => {
     expect(committed()).toEqual(fresh());
+  });
+
+  it('carries RULE_MAPPINGS[id] as mappings for each mapped id and no mappings key for any other', () => {
+    const { rules } = committed();
+    const mapped = rules.filter((r) => r.id in RULE_MAPPINGS);
+    expect(mapped.length).toBeGreaterThan(0);
+    for (const r of mapped) expect(r.mappings).toEqual(RULE_MAPPINGS[r.id]);
+    for (const r of rules.filter((x) => !(x.id in RULE_MAPPINGS))) expect(r).not.toHaveProperty('mappings');
   });
 
   it('holds 107 entries in ALL_RULES order, carrying id, weight and category through', () => {
