@@ -8,7 +8,7 @@ from prompt_protection._js import JS_WHITESPACE, code_units, js_trim, utf16_len,
 from prompt_protection._result import JsResult
 from prompt_protection._rules import _FLAGS, RULES, Rule
 from prompt_protection._types import AnalyzeRoles, CustomRule, FailMode, MlMode, PromptInput, Severity
-from prompt_protection.errors import DeferredFeatureError
+from prompt_protection.errors import DeferredFeatureError, PromptInjectionError
 from prompt_protection.messages import resolve_prompt_input
 from prompt_protection.normalizer import normalize
 from prompt_protection.scorer import PatternMatch, score
@@ -27,6 +27,7 @@ __all__ = [
     "compute_severity",
     "failed_analysis",
     "strip_prompt",
+    "verify_prompt",
 ]
 
 DEFAULT_THRESHOLD = 35
@@ -190,6 +191,45 @@ def analyze_prompt(
         )
     except Exception as error:
         return failed_analysis(error, fail_mode, threshold)
+
+
+def verify_prompt(
+    prompt: PromptInput,
+    *,
+    threshold: float = DEFAULT_THRESHOLD,
+    flag_threshold: float | None = None,
+    custom_rules: Sequence[CustomRule] | None = None,
+    disabled_categories: Sequence[str] | None = None,
+    disabled_rule_ids: Sequence[str] | None = None,
+    allowlist_patterns: Sequence[re.Pattern[str]] | None = None,
+    allowlist_rule_ids: Sequence[str] | None = None,
+    sentence_analysis: bool = False,
+    analyze_roles: AnalyzeRoles | None = None,
+    max_input_length: int | None = None,
+    ml: MlMode | None = None,
+    fail_mode: FailMode = "closed",
+) -> None:
+    """Raise ``PromptInjectionError`` when ``analyze_prompt`` blocks ``prompt``; return ``None`` otherwise.
+
+    Raises ``DeferredFeatureError`` for any ``ml`` other than ``off``, whatever ``fail_mode`` says.
+    """
+    result = analyze_prompt(
+        prompt,
+        threshold=threshold,
+        flag_threshold=flag_threshold,
+        custom_rules=custom_rules,
+        disabled_categories=disabled_categories,
+        disabled_rule_ids=disabled_rule_ids,
+        allowlist_patterns=allowlist_patterns,
+        allowlist_rule_ids=allowlist_rule_ids,
+        sentence_analysis=sentence_analysis,
+        analyze_roles=analyze_roles,
+        max_input_length=max_input_length,
+        ml=ml,
+        fail_mode=fail_mode,
+    )
+    if result.action == "block":
+        raise PromptInjectionError(score=result.score, matches=result.matches, categories=result.categories)
 
 
 def _sentence_score(
