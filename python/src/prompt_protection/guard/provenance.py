@@ -132,6 +132,8 @@ _DEFAULT_INT_DIGIT_LIMIT = 4300
 _CONTAINERS = (list, tuple, dict, set, frozenset, deque)
 _STRUCTURED_REPRS = frozenset(kind.__repr__ for kind in (list, tuple, dict, set, frozenset, deque, OrderedDict))
 _UNSET_SLOTS = ("__dict__", "__weakref__")
+_MAX_DEPTH = 100
+_DEPTH_MARKER = "<too deep>"
 
 
 @lru_cache(maxsize=8)
@@ -232,11 +234,20 @@ def _revisit_text(value: object) -> str:
     return "[...]" if isinstance(value, (list, deque)) else "{...}"
 
 
+def _range_text(value: range, limit: int, path: set[int]) -> str:
+    """Print a range as Python does (step 1 left out), with each over-limit bound as hex."""
+    bounds = [_render(bound, limit, path) for bound in (value.start, value.stop)]
+    if value.step != 1:
+        bounds.append(_render(value.step, limit, path))
+    return f"range({', '.join(bounds)})"
+
+
 def _render(value: object, limit: int, path: set[int], top: bool = False) -> str:
     """Return Python's ``str()`` of ``value``, with each over-limit int as hex and a plain object as its fields.
 
     ``top`` keeps a type's own ``__str__``. Deeper, Python's ``repr()`` shows, as in a list's ``str()``.
     An object met again on the way down prints ``Name(...)``, or ``[...]`` for a list, and the walk ends.
+    A value at nesting depth 100 or more (the root is depth 0) prints as ``<too deep>``.
     """
     if _is_int(value):
         return hex(cast(int, value)) if _over_limit(cast(int, value), limit) else repr(value)
@@ -244,6 +255,8 @@ def _render(value: object, limit: int, path: set[int], top: bool = False) -> str
     own_str = kind.__str__ is not object.__str__
     if top and own_str:
         return str(value)
+    if len(path) >= _MAX_DEPTH:
+        return _DEPTH_MARKER
     if id(value) in path:
         return _revisit_text(value)
     path.add(id(value))
@@ -253,6 +266,8 @@ def _render(value: object, limit: int, path: set[int], top: bool = False) -> str
             return _container_text(value, limit, path)
         if kind.__repr__ is object.__repr__:
             return str(value) if own_str else _named(kind.__name__, _fields_of(value), limit, path)
+        if kind is range:
+            return _range_text(cast(range, value), limit, path)
         if kind.__module__ == "builtins" and not isinstance(value, _CONTAINERS):
             return repr(value)
         text = _own_repr(value, limit)
