@@ -1,7 +1,8 @@
 """Gap tests for PY-12: a session's default ml at create_guard, and the stringify_value branches.
 
-The JS outputs below were measured with Node on src/guard/provenance.ts#stringifyValue.
-A Python int past float range is treated as a JS bigint. A case with no JS analog pins the Python output.
+The JS outputs named below were measured with Node on src/guard/provenance.ts#stringifyValue.
+A Python int past float range is treated as a JS bigint at top level.
+A test named owner_divergence pins Python's own text where the owner chose it over JS parity.
 """
 
 from typing import Any
@@ -70,34 +71,73 @@ NODE_CASES = [
     case(2**1024, str(2**1024), "first-int-past-float-range"),
     case(int(FLOAT_MAX), "1.7976931348623157e+308", "largest-float-int-is-a-number"),
     case({"a": int(FLOAT_MAX)}, '{"a":1.7976931348623157e+308}', "nested-largest-float-int"),
-    case({"a": BIG}, "[object Object]", "nested-bigint-in-a-dict"),
-    case({"a": 1, "b": BIG}, "[object Object]", "nested-bigint-after-a-key"),
-    case([{"a": BIG}], "[object Object]", "nested-bigint-in-a-dict-in-a-list"),
-    case([1, BIG], "1," + BIG_DIGITS, "nested-bigint-in-a-list"),
-    case((1, BIG), "1," + BIG_DIGITS, "nested-bigint-in-a-tuple"),
-    case({1, 2}, "{}", "set"),
-    case(set(), "{}", "empty-set"),
-    case(frozenset({1}), "{}", "frozenset"),
-    case({"a": {1}}, '{"a":{}}', "set-in-a-dict"),
-    case([{1}], "[{}]", "set-in-a-list"),
-    case(Fields(), '{"x":1,"y":"a"}', "instance-is-its-own-fields"),
-    case(NoFields(), "{}", "instance-without-fields"),
-    case({"a": Fields()}, '{"a":{"x":1,"y":"a"}}', "instance-in-a-dict"),
-    case([Fields(), 1], '[{"x":1,"y":"a"},1]', "instance-in-a-list"),
     case({1: "a", 2: "b"}, '{"1":"a","2":"b"}', "int-keys"),
     case({-1: 1}, '{"-1":1}', "negative-int-key"),
     case({"b": 1, 2: "x"}, '{"2":"x","b":1}', "int-key-sorts-as-an-array-index"),
     case({1: "a", "1": "b"}, '{"1":"b"}', "int-key-and-str-key-collide"),
     case({1.5: 1}, '{"1.5":1}', "float-key"),
     case({1e21: 1}, '{"1e+21":1}', "large-float-key"),
-    case({1.0: 1}, '{"1":1}', "integral-float-key-is-a-js-number-key"),
-    case({True: 1}, '{"true":1}', "bool-key-is-a-js-boolean-key"),
-    case({None: 1}, '{"null":1}', "none-key-is-the-js-null-key"),
 ]
 
 
 @pytest.mark.parametrize(("value", "expected"), NODE_CASES)
 def test_stringify_value_matches_node_on_the_closest_js_analog(value: Any, expected: str) -> None:
+    assert stringify_value(value) == expected
+
+
+def divergence(value: Any, case_id: str, expected: str | None = None) -> Any:
+    return pytest.param(value, str(value) if expected is None else expected, id="owner-divergence-" + case_id)
+
+
+# Owner decision 2026-11-24: Python keeps str() for these. JS prints [object Object], {} or the object's fields.
+NESTED_BIGINT_CASES = [
+    divergence({"a": BIG}, "dict", "{'a': " + BIG_DIGITS + "}"),
+    divergence({"a": 1, "b": BIG}, "dict-after-a-key", "{'a': 1, 'b': " + BIG_DIGITS + "}"),
+    divergence([{"a": BIG}], "dict-in-a-list", "[{'a': " + BIG_DIGITS + "}]"),
+    divergence([1, BIG], "list", "[1, " + BIG_DIGITS + "]"),
+    divergence((1, BIG), "tuple", "(1, " + BIG_DIGITS + ")"),
+]
+SET_CASES = [
+    divergence({1, 2}, "set", "{1, 2}"),
+    divergence(set(), "empty-set", "set()"),
+    divergence(frozenset({1}), "frozenset", "frozenset({1})"),
+    divergence({"a": {1}}, "set-in-a-dict", "{'a': {1}}"),
+    divergence([{1}], "set-in-a-list", "[{1}]"),
+]
+INSTANCE_CASES = [
+    divergence(Fields(), "instance"),
+    divergence(NoFields(), "instance-without-fields"),
+    divergence({"a": Fields()}, "instance-in-a-dict"),
+    divergence([Fields(), 1], "instance-in-a-list"),
+]
+KEY_CASES = [
+    divergence({1.0: 1}, "integral-float-key", '{"1.0":1}'),
+    divergence({True: 1}, "bool-key", '{"True":1}'),
+    divergence({None: 1}, "none-key", '{"None":1}'),
+]
+
+
+@pytest.mark.parametrize(("value", "expected"), NESTED_BIGINT_CASES)
+def test_stringify_value_keeps_python_str_for_a_nested_int_past_float_range_owner_divergence(
+    value: Any, expected: str
+) -> None:
+    assert stringify_value(value) == expected
+
+
+@pytest.mark.parametrize(("value", "expected"), SET_CASES)
+def test_stringify_value_keeps_python_str_for_a_set_owner_divergence(value: Any, expected: str) -> None:
+    assert stringify_value(value) == expected
+
+
+@pytest.mark.parametrize(("value", "expected"), INSTANCE_CASES)
+def test_stringify_value_keeps_python_str_for_a_plain_instance_owner_divergence(value: Any, expected: str) -> None:
+    assert stringify_value(value) == expected
+
+
+@pytest.mark.parametrize(("value", "expected"), KEY_CASES)
+def test_stringify_value_keeps_python_str_for_a_bool_none_or_integral_float_key_owner_divergence(
+    value: Any, expected: str
+) -> None:
     assert stringify_value(value) == expected
 
 
