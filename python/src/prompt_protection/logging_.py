@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal, Protocol, TypedDict
 
 from prompt_protection._js import utf16_len, utf16_slice
+from prompt_protection._result import JsResult
 from prompt_protection._types import Severity
 from prompt_protection.verdict import Action
 
@@ -41,8 +42,11 @@ class FlowSummary(TypedDict):
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class ProtectionEvent:
+class ProtectionEvent(JsResult):
     """One logged verdict. A field the JS event leaves absent is ``None``.
+
+    ``to_dict`` gives the JS event JSON: camelCase keys, with a ``None`` field left out and an empty
+    list or string kept.
 
     ``content_preview`` is for the output direction, which PY-12c adds.
     """
