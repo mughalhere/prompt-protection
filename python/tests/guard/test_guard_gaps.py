@@ -161,3 +161,26 @@ def test_stringify_value_returns_text_for_a_list_nested_past_the_recursion_limit
 
 def test_taint_accepts_a_list_nested_past_the_recursion_limit() -> None:
     assert isinstance(create_guard().taint("t", deep_list(100_000)).text, str)
+
+
+@pytest.mark.parametrize("fail_mode", ["closed", "open"])
+@pytest.mark.parametrize("session_ml", ["escalate", "hybrid"])
+def test_an_analyze_options_ml_off_overrides_a_session_default_ml_at_create_guard(
+    session_ml: str, fail_mode: str
+) -> None:
+    defaults: dict[str, Any] = {"ml": session_ml}
+    session = create_protection_session(**defaults)
+    guard = create_guard(session=session, analyze_options={"ml": "off"}, fail_mode=fail_mode)  # type: ignore[arg-type]
+    assert guard.session is session
+    assert guard.taint("t", "hello").injection.action == "allow"
+    assert guard.check_tool_call(ToolCall(tool_name="search", args={"q": "x"})).action == "allow"
+
+
+@pytest.mark.parametrize("fail_mode", ["closed", "open"])
+@pytest.mark.parametrize("call_ml", ["escalate", "hybrid"])
+def test_an_analyze_options_ml_other_than_off_raises_even_when_the_session_default_ml_is_off(
+    call_ml: str, fail_mode: str
+) -> None:
+    session = create_protection_session(ml="off")
+    with pytest.raises(DeferredFeatureError, match=ML_MESSAGE):
+        create_guard(session=session, analyze_options={"ml": call_ml}, fail_mode=fail_mode)  # type: ignore[arg-type]
