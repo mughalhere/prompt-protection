@@ -59,9 +59,14 @@ def test_every_benign_fixture_prompt_returns_none(repo_root: Path) -> None:
 
 
 def test_every_malicious_fixture_prompt_raises_prompt_injection_error(repo_root: Path) -> None:
+    not_raising = []
     for prompt in fixture_lines(repo_root, "malicious.txt"):
-        with pytest.raises(PromptInjectionError):
+        try:
             verify_prompt(prompt)
+        except PromptInjectionError:
+            continue
+        not_raising.append(prompt)
+    assert not_raising == []
 
 
 def test_a_blocking_prompt_raises_with_the_score_matches_categories_and_message() -> None:
