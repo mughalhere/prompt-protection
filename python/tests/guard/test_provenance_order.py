@@ -1,7 +1,8 @@
 """RED tests for JS-ordered containment and cross-source flows (PY-11b, twin of src/guard/provenance.ts).
 
-Six sources hold overlapping-by-five-words slices of one needle, so their shingle sets are disjoint. They are
-registered out of needle order. A seventh holds five words and only matches char shingles. Expected rows come
+Six sources hold overlapping-by-five-words slices of one needle. Their word shingle sets are disjoint, and
+their char shingle sets share windows inside each five-word overlap. They are registered out of needle order.
+A seventh holds five words and only matches char shingles. Expected rows come
 from Node 22 running SourceIndex and detectFlows from src bundled with esbuild. JS iterates the needle Set in
 token order, so the keys follow the needle and not registration or hash order.
 """
