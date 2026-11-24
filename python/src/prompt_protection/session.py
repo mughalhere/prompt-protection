@@ -109,6 +109,11 @@ class ProtectionSession:
         self._defaults: dict[str, Any] = dict(defaults)
         self._blocked: deque[str] = deque(maxlen=max_blocked_history)
 
+    @property
+    def default_ml(self) -> str | None:
+        """The ``ml`` mode the session applies when a call passes none, or ``None`` when it sets none."""
+        return self._defaults.get("ml")
+
     def _analyze(self, prompt: PromptInput, merged: dict[str, Any]) -> AnalysisResult:
         options = {key: value for key, value in merged.items() if key not in _STRIP_ONLY}
         threshold = options.get("threshold")
