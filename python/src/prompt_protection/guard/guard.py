@@ -5,7 +5,7 @@ model-proposed call goes through ``check_tool_call``. Only the 4.0 surface is he
 """
 
 import time
-from collections.abc import Callable, Collection, Mapping
+from collections.abc import Callable, Collection, Mapping, Sequence
 from typing import Any, cast
 
 from prompt_protection._js import utf16_len, utf16_slice
@@ -30,6 +30,7 @@ from prompt_protection.guard.provenance import (
     stringify_value,
 )
 from prompt_protection.guard.sinks import create_sink_resolver
+from prompt_protection.logging_ import LoggingOptions, LogLevel, ProtectionLogger
 from prompt_protection.normalizer import normalize
 from prompt_protection.session import ProtectionSession, create_protection_session
 from prompt_protection.shingle import build_shingles
@@ -95,6 +96,7 @@ class Guard:
         max_source_chars: int,
         trusted_identifiers: tuple[str, ...],
         fail_mode: FailMode,
+        logging: LoggingOptions,
     ) -> None:
         self._session = session
         self._analyze_options = analyze_options
@@ -105,6 +107,7 @@ class Guard:
         self._max_source_chars = max_source_chars
         self._trusted_identifiers = trusted_identifiers
         self._fail_mode = fail_mode
+        self._logging = logging
         self._index = SourceIndex(max_sources, max_source_chars)
         self._trust = TrustState(set(trusted_identifiers), "")
         self._plan: frozenset[str] | None = None
@@ -192,6 +195,7 @@ class Guard:
                 fail_mode=self._fail_mode,
                 label_of=self._label_of,
                 depth=0,
+                logging=self._logging,
             ),
         )
         if decision.tool_call_id is not None:
@@ -234,15 +238,21 @@ def create_guard(
     trusted_identifiers: Collection[str] | None = None,
     spotlight: object = None,
     fail_mode: FailMode = "closed",
-    logger: object = None,
+    logger: ProtectionLogger | None = None,
+    log_levels: Sequence[LogLevel] | None = None,
+    include_content: bool = False,
+    max_content_length: int | None = None,
+    on_logger_error: Callable[[Exception], None] | None = None,
     memory: Mapping[str, Any] | None = None,
 ) -> Guard:
     """Create a tool-call guard.
 
     ``analyze_options`` holds the ``analyze_prompt`` keywords and is copied. Its own ``fail_mode`` wins
-    over the guard's. ``logger`` is accepted and not used yet. Raises ``DeferredFeatureError`` for
-    ``spotlight``, for an effective ``ml`` other than ``off`` (the ``analyze_options`` value when that key is
-    present, else the passed session's default) and for an EdDSA ``memory`` key, whatever ``fail_mode`` says.
+    over the guard's. ``logger`` and the four options after it log one ``tool-call.*`` event per
+    ``check_tool_call``. They are not analyze options, so ``taint`` and ``analyze_user_turn`` log nothing.
+    Raises ``DeferredFeatureError`` for ``spotlight``, for an effective ``ml`` other than ``off`` (the
+    ``analyze_options`` value when that key is present, else the passed session's default) and for an EdDSA
+    ``memory`` key, whatever ``fail_mode`` says.
     """
     options = dict(analyze_options or {})
     _reject_deferred(spotlight, options, memory, session)
@@ -262,4 +272,11 @@ def create_guard(
         max_source_chars=DEFAULT_MAX_SOURCE_CHARS if max_source_chars is None else max_source_chars,
         trusted_identifiers=tuple(s.lower() for s in trusted_identifiers or ()),
         fail_mode=fail_mode,
+        logging=LoggingOptions(
+            logger=logger,
+            log_levels=log_levels,
+            include_content=include_content,
+            max_content_length=max_content_length,
+            on_logger_error=on_logger_error,
+        ),
     )

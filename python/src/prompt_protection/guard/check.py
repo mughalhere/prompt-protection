@@ -1,7 +1,7 @@
 """The pure tool-call decision function (twin of src/guard/check.ts, plan D1, D2, D40).
 
-State is passed in through ``CheckContext``, so ``create_guard`` stays thin. Approvals, locks, budgets,
-observe mode and logging belong to later tasks.
+State is passed in through ``CheckContext``, so ``create_guard`` stays thin. Each call emits one event
+through ``emit_tool_call_log``. Approvals, locks, budgets and observe mode belong to later tasks.
 """
 
 import re
@@ -37,6 +37,7 @@ from prompt_protection.guard.provenance import (
     collect_leaves,
     detect_flows,
 )
+from prompt_protection.logging_ import LoggingOptions, emit_tool_call_log
 from prompt_protection.scorer import PatternMatch
 from prompt_protection.verdict import Action
 
@@ -68,6 +69,7 @@ class CheckContext:
     fail_mode: FailMode
     label_of: Callable[[str], str]
     depth: int
+    logging: LoggingOptions
 
 
 @dataclass(frozen=True)
@@ -94,7 +96,7 @@ def _failed_decision(err: Exception, call: ToolCall, ctx: CheckContext) -> Guard
         sink = ctx.resolve_sink(call.tool_name)
     except Exception:
         pass
-    return GuardDecision(
+    decision = GuardDecision(
         action=args_analysis.action,
         requires_confirmation=False,
         tool_name=call.tool_name,
@@ -106,6 +108,8 @@ def _failed_decision(err: Exception, call: ToolCall, ctx: CheckContext) -> Guard
         args_analysis=args_analysis,
         depth=ctx.depth,
     )
+    emit_tool_call_log(decision, "", ctx.logging)
+    return decision
 
 
 def check_tool_call(call: ToolCall, ctx: CheckContext) -> GuardDecision:
@@ -171,7 +175,7 @@ def _run_check(call: ToolCall, ctx: CheckContext) -> GuardDecision:
         ctx.fail_mode,
     )
     enforced = _to_action(outcome.action)
-    return GuardDecision(
+    decision = GuardDecision(
         action=enforced,
         requires_confirmation=outcome.action == "confirm",
         tool_name=call.tool_name,
@@ -183,3 +187,5 @@ def _run_check(call: ToolCall, ctx: CheckContext) -> GuardDecision:
         args_analysis=_with_flow_matches(raw_args, report.flows, enforced, _threshold(ctx)),
         depth=ctx.depth,
     )
+    emit_tool_call_log(decision, args_text, ctx.logging)
+    return decision

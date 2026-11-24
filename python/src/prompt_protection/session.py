@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, TypedDict
 
@@ -19,6 +19,7 @@ from prompt_protection.analyze import (
     strip_prompt,
 )
 from prompt_protection.errors import PromptInjectionError
+from prompt_protection.logging_ import LogLevel, ProtectionLogger
 from prompt_protection.messages import resolve_prompt_input
 from prompt_protection.scorer import PatternMatch
 
@@ -57,6 +58,11 @@ class AnalyzeOptions(TypedDict, total=False):
     max_input_length: int | None
     ml: MlMode | None
     fail_mode: FailMode
+    logger: ProtectionLogger | None
+    log_levels: Sequence[LogLevel] | None
+    include_content: bool
+    max_content_length: int | None
+    on_logger_error: Callable[[Exception], None] | None
 
 
 class StripOptions(AnalyzeOptions, total=False):

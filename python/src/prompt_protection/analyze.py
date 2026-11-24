@@ -1,7 +1,7 @@
 """Prompt analysis and stripping, ported from src/core/analyze.ts and the two public functions of src/api.ts."""
 
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from prompt_protection._js import JS_WHITESPACE, code_units, js_trim, utf16_len, utf16_slice
@@ -9,6 +9,7 @@ from prompt_protection._result import JsResult
 from prompt_protection._rules import _FLAGS, RULES, Rule
 from prompt_protection._types import AnalyzeRoles, CustomRule, FailMode, MlMode, PromptInput, Severity
 from prompt_protection.errors import DeferredFeatureError, PromptInjectionError
+from prompt_protection.logging_ import LoggingOptions, LogLevel, ProtectionLogger, emit_input_log
 from prompt_protection.messages import resolve_prompt_input
 from prompt_protection.normalizer import normalize
 from prompt_protection.scorer import PatternMatch, score
@@ -152,12 +153,27 @@ def analyze_prompt(
     max_input_length: int | None = None,
     ml: MlMode | None = None,
     fail_mode: FailMode = "closed",
+    logger: ProtectionLogger | None = None,
+    log_levels: Sequence[LogLevel] | None = None,
+    include_content: bool = False,
+    max_content_length: int | None = None,
+    on_logger_error: Callable[[Exception], None] | None = None,
 ) -> AnalysisResult:
     """Score a prompt against the rules. An internal failure returns the ``fail_mode`` verdict.
+
+    A ``logger`` gets one input event per call, filtered by ``log_levels``. A logger error goes to
+    ``on_logger_error`` and never changes the verdict.
 
     Raises ``DeferredFeatureError`` for any ``ml`` other than ``off``, whatever ``fail_mode`` says.
     """
     _check_ml(ml)
+    logging = LoggingOptions(
+        logger=logger,
+        log_levels=log_levels,
+        include_content=include_content,
+        max_content_length=max_content_length,
+        on_logger_error=on_logger_error,
+    )
     try:
         rules = build_rule_set(
             disabled_categories=disabled_categories, disabled_rule_ids=disabled_rule_ids, custom_rules=custom_rules
@@ -179,7 +195,7 @@ def analyze_prompt(
                 SentenceScore(sentence, _sentence_score(rules, sentence, allowlist_patterns, allowlist_rule_ids))
                 for sentence in _split_sentences(text)
             ]
-        return AnalysisResult(
+        result = AnalysisResult(
             score=scored.normalized_score,
             severity=compute_severity(scored.normalized_score),
             is_malicious=action == "block",
@@ -189,8 +205,12 @@ def analyze_prompt(
             normalized_prompt=normalized.normalized,
             sentence_scores=sentence_scores,
         )
+        emit_input_log(result, text, logging)
+        return result
     except Exception as error:
-        return failed_analysis(error, fail_mode, threshold)
+        failed = failed_analysis(error, fail_mode, threshold)
+        emit_input_log(failed, prompt if isinstance(prompt, str) else "", logging)
+        return failed
 
 
 def verify_prompt(
@@ -208,6 +228,11 @@ def verify_prompt(
     max_input_length: int | None = None,
     ml: MlMode | None = None,
     fail_mode: FailMode = "closed",
+    logger: ProtectionLogger | None = None,
+    log_levels: Sequence[LogLevel] | None = None,
+    include_content: bool = False,
+    max_content_length: int | None = None,
+    on_logger_error: Callable[[Exception], None] | None = None,
 ) -> None:
     """Raise ``PromptInjectionError`` when ``analyze_prompt`` blocks ``prompt``; return ``None`` otherwise.
 
@@ -227,6 +252,11 @@ def verify_prompt(
         max_input_length=max_input_length,
         ml=ml,
         fail_mode=fail_mode,
+        logger=logger,
+        log_levels=log_levels,
+        include_content=include_content,
+        max_content_length=max_content_length,
+        on_logger_error=on_logger_error,
     )
     if result.action == "block":
         raise PromptInjectionError(score=result.score, matches=result.matches, categories=result.categories)
@@ -286,6 +316,11 @@ def strip_prompt(
     max_input_length: int | None = None,
     ml: MlMode | None = None,
     fail_mode: FailMode = "closed",
+    logger: ProtectionLogger | None = None,
+    log_levels: Sequence[LogLevel] | None = None,
+    include_content: bool = False,
+    max_content_length: int | None = None,
+    on_logger_error: Callable[[Exception], None] | None = None,
 ) -> str:
     """Splice every matched span out of the prompt text and trim the result with the JS whitespace set.
 
@@ -305,6 +340,11 @@ def strip_prompt(
         sentence_analysis=sentence_analysis,
         max_input_length=max_input_length,
         fail_mode=fail_mode,
+        logger=logger,
+        log_levels=log_levels,
+        include_content=include_content,
+        max_content_length=max_content_length,
+        on_logger_error=on_logger_error,
     )
     if not result.matches:
         return text
