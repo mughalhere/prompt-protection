@@ -1,7 +1,8 @@
 """stringify_value on an int past the int-to-str digit limit (bead j8o, owner decision 2026-11-24).
 
 At most 4300 decimal digits prints exact decimal. More prints hex() for that int only.
-The limit is sys.get_int_max_str_digits() when it exists, else 4300, and never depends on the version.
+The limit is min(4300, sys.get_int_max_str_digits()) when that exists, 4300 when it is 0 or absent,
+and never depends on the version. An object with no custom __str__ prints its fields, so none hides.
 """
 
 import sys
@@ -141,3 +142,83 @@ def test_the_same_threshold_applies_to_an_int_inside_a_list(
 ) -> None:
     set_limit(limit)
     assert stringify_value([value, SIBLING]) == f"[{expected}, '{SIBLING}']"
+
+
+class Plain:
+    def __init__(self, x: int, s: str) -> None:
+        self.x = x
+        self.s = s
+
+
+class Slotted:
+    __slots__ = ("x", "s")
+
+    def __init__(self, x: int, s: str) -> None:
+        self.x = x
+        self.s = s
+
+
+CUSTOM_TEXT = "custom-str-text"
+
+
+class CustomStr:
+    def __init__(self, x: int) -> None:
+        self.x = x
+
+    def __str__(self) -> str:
+        return CUSTOM_TEXT
+
+
+class Node:
+    def __init__(self, sibling: str) -> None:
+        self.sibling = sibling
+        self.other: Node | None = None
+
+
+def _stringify_or_fail(value: Any) -> str:
+    try:
+        return stringify_value(value)
+    except RecursionError:
+        pytest.fail("stringify_value raised RecursionError on a cycle")
+
+
+@pytest.mark.parametrize("number", [5, OVER], ids=["small-int-field", "over-limit-int-field"])
+@pytest.mark.parametrize("cls", [Plain, Slotted], ids=["dict-instance", "slots-instance"])
+def test_an_object_without_its_own_str_prints_its_fields_not_an_object_repr(cls: type, number: int) -> None:
+    text = stringify_value(cls(number, SIBLING))
+    assert SIBLING in text
+    assert (hex(number) if number == OVER else str(number)) in text
+    assert " object at 0x" not in text
+
+
+@pytest.mark.parametrize("number", [5, OVER], ids=["small-int-field", "over-limit-int-field"])
+def test_an_object_with_its_own_str_keeps_that_text_unchanged(number: int) -> None:
+    assert stringify_value(CustomStr(number)) == CUSTOM_TEXT
+
+
+def _self_cycle() -> Node:
+    node = Node(SIBLING)
+    node.other = node
+    return node
+
+
+def _two_object_cycle() -> Node:
+    first, second = Node(SIBLING), Node("visible-second")
+    first.other, second.other = second, first
+    return first
+
+
+@pytest.mark.parametrize(
+    ("build", "visible"),
+    [
+        pytest.param(_self_cycle, [SIBLING], id="self-cycle"),
+        pytest.param(_two_object_cycle, [SIBLING, "visible-second"], id="two-object-cycle"),
+    ],
+)
+def test_a_cycle_of_plain_objects_terminates_and_keeps_every_sibling_visible(
+    build: Callable[[], Node], visible: list[str]
+) -> None:
+    text = _stringify_or_fail(build())
+    for sibling in visible:
+        assert sibling in text
+    assert " object at 0x" not in text
