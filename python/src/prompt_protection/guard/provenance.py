@@ -7,8 +7,10 @@ dicts, and ``ShingleSet`` iterates in insertion order, so results follow the ord
 import copy
 import math
 import re
+import sys
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any, Protocol, TypeVar, cast
 
 from prompt_protection._js import JS_WHITESPACE, js_number_str, js_trim, utf16_len, utf16_slice
@@ -117,7 +119,7 @@ def _json_text(value: object, seen: set[int]) -> str:
     seen.add(id(value))
     try:
         if isinstance(value, Mapping):
-            pairs = {k if isinstance(k, str) else str(k): item for k, item in value.items()}
+            pairs = {k if isinstance(k, str) else _python_str(k): item for k, item in value.items()}
             body = ",".join(f"{_json_string(k)}:{_json_text(pairs[k], seen)}" for k in _js_key_order(list(pairs)))
             return "{" + body + "}"
         return "[" + ",".join(_json_text(item, seen) for item in value) + "]"
@@ -125,16 +127,96 @@ def _json_text(value: object, seen: set[int]) -> str:
         seen.discard(id(value))
 
 
+_DEFAULT_INT_DIGIT_LIMIT = 4300
+_PLAIN_CONTAINERS = (list, tuple, dict, set, frozenset)
+
+
+class _HexInt(int):
+    """An int that shows as ``hex()``, so a container's ``str()`` never converts it to decimal."""
+
+    def __repr__(self) -> str:
+        return hex(self)
+
+
+@lru_cache(maxsize=8)
+def _power_of_ten(digits: int) -> int:
+    return int(10**digits)
+
+
+def _digit_bound() -> int | None:
+    """Return 10**N for the int-to-str digit limit N, or ``None`` when the interpreter has no limit."""
+    getter = getattr(sys, "get_int_max_str_digits", None)
+    limit = getter() if getter is not None else _DEFAULT_INT_DIGIT_LIMIT
+    return _power_of_ten(limit) if limit else None
+
+
+def _is_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _holds_over_limit(value: object, bound: int, seen: set[int]) -> bool:
+    if _is_int(value):
+        return not -bound < cast(int, value) < bound
+    if type(value) not in _PLAIN_CONTAINERS or id(value) in seen:
+        return False
+    seen.add(id(value))
+    items = (*value.keys(), *value.values()) if isinstance(value, dict) else cast(Iterable[object], value)
+    return any(_holds_over_limit(item, bound, seen) for item in items)
+
+
+def _hexed(value: object, bound: int, memo: dict[int, Any]) -> Any:
+    """Copy plain containers, replacing each over-limit int with a ``_HexInt``. Cycles map to the copy."""
+    if _is_int(value):
+        return value if -bound < cast(int, value) < bound else _HexInt(cast(int, value))
+    kind = type(value)
+    if kind not in _PLAIN_CONTAINERS:
+        return value
+    if id(value) in memo:
+        return memo[id(value)]
+    if kind is list:
+        out_list: list[Any] = []
+        memo[id(value)] = out_list
+        out_list.extend(_hexed(item, bound, memo) for item in cast(list[Any], value))
+        return out_list
+    if kind is dict:
+        out_dict: dict[Any, Any] = {}
+        memo[id(value)] = out_dict
+        for key, item in cast(dict[Any, Any], value).items():
+            out_dict[_hexed(key, bound, memo)] = _hexed(item, bound, memo)
+        return out_dict
+    if kind is set:
+        out_set: set[Any] = set()
+        memo[id(value)] = out_set
+        out_set.update(_hexed(item, bound, memo) for item in cast(set[Any], value))
+        return out_set
+    copy_of = kind(_hexed(item, bound, memo) for item in cast(Iterable[Any], value))
+    memo[id(value)] = copy_of
+    return copy_of
+
+
+def _python_str(value: object) -> str:
+    """Return ``str(value)``, with an int past the digit limit shown as hex and its siblings kept."""
+    bound = _digit_bound()
+    if bound is not None and _holds_over_limit(value, bound, set()):
+        return str(_hexed(value, bound, {}))
+    return str(value)
+
+
 def stringify_value(value: object) -> str:
     """Return the text a tool result is scanned as: a string as is, ``None`` as ``""``, else compact JSON.
 
     An int or float is a JS number. Python has no bigint, so an int too large for a float is one.
     A value with no JSON form (a cycle, a set, bytes, an object) falls back to ``str(value)``.
+    An int past ``sys.get_int_max_str_digits()`` (4300 where absent) prints as ``hex()``, alone or
+    inside a list, tuple, dict, set or frozenset, so the rest of the container stays visible.
     """
     if isinstance(value, str):
         return value
     if value is None:
         return ""
+    bound = _digit_bound()
+    if bound is not None and _is_int(value) and not -bound < cast(int, value) < bound:
+        return hex(cast(int, value))
     try:
         if isinstance(value, bool):
             return "true" if value else "false"
@@ -144,7 +226,7 @@ def stringify_value(value: object) -> str:
     except (_NoJsonForm, RecursionError):
         pass
     try:
-        return str(value)
+        return _python_str(value)
     except Exception:
         return object.__repr__(value)
 
