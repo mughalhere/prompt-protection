@@ -184,3 +184,14 @@ def test_an_analyze_options_ml_other_than_off_raises_even_when_the_session_defau
     session = create_protection_session(ml="off")
     with pytest.raises(DeferredFeatureError, match=ML_MESSAGE):
         create_guard(session=session, analyze_options={"ml": call_ml}, fail_mode=fail_mode)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("fail_mode", ["closed", "open"])
+def test_an_analyze_options_ml_none_overrides_a_session_default_ml_at_create_guard(fail_mode: str) -> None:
+    """A present ml key set to None is the override: JS ``{...a, ...{ml: undefined}}`` leaves ml undefined (off)."""
+    defaults: dict[str, Any] = {"ml": "escalate"}
+    session = create_protection_session(**defaults)
+    guard = create_guard(session=session, analyze_options={"ml": None}, fail_mode=fail_mode)  # type: ignore[arg-type]
+    assert guard.session is session
+    assert guard.taint("t", "hello").injection.action == "allow"
+    assert guard.check_tool_call(ToolCall(tool_name="search", args={"q": "x"})).action == "allow"
