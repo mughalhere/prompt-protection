@@ -110,7 +110,7 @@ class ProtectionSession:
         self._blocked: deque[str] = deque(maxlen=max_blocked_history)
 
     @property
-    def default_ml(self) -> str | None:
+    def _default_ml(self) -> str | None:
         """The ``ml`` mode the session applies when a call passes none, or ``None`` when it sets none."""
         return self._defaults.get("ml")
 

@@ -75,7 +75,7 @@ def _reject_deferred(
     if "ml" in analyze_options:
         _reject_ml(analyze_options["ml"])
     elif session is not None:
-        _reject_ml(session.default_ml)
+        _reject_ml(session._default_ml)
     if _has_eddsa_key(memory):
         raise DeferredFeatureError("prompt-protection: an EdDSA memory key is not supported in the Python package yet")
 
