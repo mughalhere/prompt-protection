@@ -8,6 +8,7 @@ import copy
 import math
 import re
 import sys
+from collections import OrderedDict, deque
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
@@ -128,14 +129,9 @@ def _json_text(value: object, seen: set[int]) -> str:
 
 
 _DEFAULT_INT_DIGIT_LIMIT = 4300
-_PLAIN_CONTAINERS = (list, tuple, dict, set, frozenset)
-
-
-class _HexInt(int):
-    """An int that shows as ``hex()``, so a container's ``str()`` never converts it to decimal."""
-
-    def __repr__(self) -> str:
-        return hex(self)
+_CONTAINERS = (list, tuple, dict, set, frozenset, deque)
+_STRUCTURED_REPRS = frozenset(kind.__repr__ for kind in (list, tuple, dict, set, frozenset, deque, OrderedDict))
+_UNSET_SLOTS = ("__dict__", "__weakref__")
 
 
 @lru_cache(maxsize=8)
@@ -143,79 +139,151 @@ def _power_of_ten(digits: int) -> int:
     return int(10**digits)
 
 
-def _digit_bound() -> int | None:
-    """Return 10**N for the int-to-str digit limit N, or ``None`` when the interpreter has no limit."""
+def _digit_limit() -> int:
+    """Return N, the most digits an int prints with: min(4300, the interpreter's limit), and 4300 if that is 0."""
     getter = getattr(sys, "get_int_max_str_digits", None)
-    limit = getter() if getter is not None else _DEFAULT_INT_DIGIT_LIMIT
-    return _power_of_ten(limit) if limit else None
+    limit = getter() if getter is not None else 0
+    return min(_DEFAULT_INT_DIGIT_LIMIT, limit) if limit else _DEFAULT_INT_DIGIT_LIMIT
+
+
+def _over_limit(value: int, limit: int) -> bool:
+    bound = _power_of_ten(limit)
+    return not -bound < value < bound
+
+
+def _own_repr(value: object, limit: int) -> str | None:
+    """Return ``repr(value)``, or ``None`` when it raises or holds a run of over ``limit`` digits (3.10 prints one)."""
+    try:
+        text = repr(value)
+    except Exception:
+        return None
+    return None if re.search(f"[0-9]{{{limit + 1}}}", text) else text
 
 
 def _is_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
-def _holds_over_limit(value: object, bound: int, seen: set[int]) -> bool:
-    if _is_int(value):
-        return not -bound < cast(int, value) < bound
-    if type(value) not in _PLAIN_CONTAINERS or id(value) in seen:
-        return False
-    seen.add(id(value))
-    items = (*value.keys(), *value.values()) if isinstance(value, dict) else cast(Iterable[object], value)
-    return any(_holds_over_limit(item, bound, seen) for item in items)
-
-
-def _hexed(value: object, bound: int, memo: dict[int, Any]) -> Any:
-    """Copy plain containers, replacing each over-limit int with a ``_HexInt``. Cycles map to the copy."""
-    if _is_int(value):
-        return value if -bound < cast(int, value) < bound else _HexInt(cast(int, value))
+def _fields_of(value: object) -> list[tuple[object, object]]:
+    """Return an object's fields: set ``__slots__`` (base classes first), then its ``__dict__`` items."""
     kind = type(value)
-    if kind not in _PLAIN_CONTAINERS:
-        return value
-    if id(value) in memo:
-        return memo[id(value)]
-    if kind is list:
-        out_list: list[Any] = []
-        memo[id(value)] = out_list
-        out_list.extend(_hexed(item, bound, memo) for item in cast(list[Any], value))
-        return out_list
-    if kind is dict:
-        out_dict: dict[Any, Any] = {}
-        memo[id(value)] = out_dict
-        for key, item in cast(dict[Any, Any], value).items():
-            out_dict[_hexed(key, bound, memo)] = _hexed(item, bound, memo)
-        return out_dict
-    if kind is set:
-        out_set: set[Any] = set()
-        memo[id(value)] = out_set
-        out_set.update(_hexed(item, bound, memo) for item in cast(set[Any], value))
-        return out_set
-    copy_of = kind(_hexed(item, bound, memo) for item in cast(Iterable[Any], value))
-    memo[id(value)] = copy_of
-    return copy_of
+    out: list[tuple[object, object]] = []
+    for klass in reversed(kind.__mro__):
+        slots = klass.__dict__.get("__slots__", ())
+        for name in (slots,) if isinstance(slots, str) else slots:
+            if name in _UNSET_SLOTS:
+                continue
+            stored = (
+                f"_{klass.__name__.lstrip('_')}{name}" if name.startswith("__") and not name.endswith("__") else name
+            )
+            try:
+                out.append((name, klass.__dict__[stored].__get__(value, kind)))
+            except (KeyError, AttributeError):
+                continue
+    instance_dict = getattr(value, "__dict__", None)
+    if isinstance(instance_dict, dict):
+        out.extend(instance_dict.items())
+    return out
+
+
+def _named(name: str, pairs: Iterable[tuple[object, object]], limit: int, path: set[int]) -> str:
+    parts: list[str] = []
+    for key, item in pairs:
+        shown = key if isinstance(key, str) else _render(key, limit, path)
+        parts.append(f"{shown}={_render(item, limit, path)}")
+    return f"{name}({', '.join(parts)})"
+
+
+def _container_text(value: Any, limit: int, path: set[int]) -> str:
+    """Render a container over plain loops, so each level of nesting costs two Python frames."""
+    kind = type(value)
+    is_dict = isinstance(value, dict)
+    if isinstance(value, tuple) and hasattr(kind, "_fields"):
+        return _named(kind.__name__, zip(kind._fields, value, strict=False), limit, path)
+    parts: list[str] = []
+    if is_dict:
+        for key, item in value.items():
+            parts.append(f"{_render(key, limit, path)}: {_render(item, limit, path)}")
+    else:
+        for item in value:
+            parts.append(_render(item, limit, path))
+    body = ", ".join(parts)
+    if isinstance(value, deque):
+        tail = "" if value.maxlen is None else f", maxlen={value.maxlen}"
+        return f"{kind.__name__}([{body}]{tail})"
+    if is_dict:
+        if not isinstance(value, OrderedDict):
+            return "{" + body + "}"
+        return f"{kind.__name__}({{{body}}})" if value else f"{kind.__name__}()"
+    if isinstance(value, list):
+        return "[" + body + "]"
+    if isinstance(value, tuple):
+        return "(" + body + ("," if len(value) == 1 else "") + ")"
+    inner = "{" + body + "}" if value else ""
+    return (inner or "set()") if kind is set else f"{kind.__name__}({inner})"
+
+
+def _revisit_text(value: object) -> str:
+    kind = type(value)
+    if not isinstance(value, _CONTAINERS) or hasattr(kind, "_fields"):
+        return f"{kind.__name__}(...)"
+    if isinstance(value, tuple):
+        return "(...)"
+    return "[...]" if isinstance(value, (list, deque)) else "{...}"
+
+
+def _render(value: object, limit: int, path: set[int], top: bool = False) -> str:
+    """Return Python's ``str()`` of ``value``, with each over-limit int as hex and a plain object as its fields.
+
+    ``top`` keeps a type's own ``__str__``. Deeper, Python's ``repr()`` shows, as in a list's ``str()``.
+    An object met again on the way down prints ``Name(...)``, or ``[...]`` for a list, and the walk ends.
+    """
+    if _is_int(value):
+        return hex(cast(int, value)) if _over_limit(cast(int, value), limit) else repr(value)
+    kind = type(value)
+    own_str = kind.__str__ is not object.__str__
+    if top and own_str:
+        return str(value)
+    if id(value) in path:
+        return _revisit_text(value)
+    path.add(id(value))
+    try:
+        structured = isinstance(value, _CONTAINERS) and (kind.__repr__ in _STRUCTURED_REPRS or hasattr(kind, "_fields"))
+        if structured:
+            return _container_text(value, limit, path)
+        if kind.__repr__ is object.__repr__:
+            return str(value) if own_str else _named(kind.__name__, _fields_of(value), limit, path)
+        if kind.__module__ == "builtins" and not isinstance(value, _CONTAINERS):
+            return repr(value)
+        text = _own_repr(value, limit)
+        if text is not None:
+            return text
+        if isinstance(value, _CONTAINERS):
+            return _container_text(value, limit, path)
+        fields = _fields_of(value)
+        return _named(kind.__name__, fields, limit, path) if fields else repr(value)
+    finally:
+        path.discard(id(value))
 
 
 def _python_str(value: object) -> str:
-    """Return ``str(value)``, with an int past the digit limit shown as hex and its siblings kept."""
-    bound = _digit_bound()
-    if bound is not None and _holds_over_limit(value, bound, set()):
-        return str(_hexed(value, bound, {}))
-    return str(value)
+    return _render(value, _digit_limit(), set(), True)
 
 
 def stringify_value(value: object) -> str:
     """Return the text a tool result is scanned as: a string as is, ``None`` as ``""``, else compact JSON.
 
     An int or float is a JS number. Python has no bigint, so an int too large for a float is one.
-    A value with no JSON form (a cycle, a set, bytes, an object) falls back to ``str(value)``.
-    An int past ``sys.get_int_max_str_digits()`` (4300 where absent) prints as ``hex()``, alone or
-    inside a list, tuple, dict, set or frozenset, so the rest of the container stays visible.
+    A value with no JSON form (a cycle, a set, bytes, an object) falls back to Python's ``str()``.
+    There an int of more than N digits prints as ``hex()``, with N the smaller of 4300 and
+    ``sys.get_int_max_str_digits()`` (4300 when that is 0 or absent), and every other value stays visible.
+    An object with no ``__str__`` or ``__repr__`` of its own prints as ``Name(field=value, ...)``.
     """
     if isinstance(value, str):
         return value
     if value is None:
         return ""
-    bound = _digit_bound()
-    if bound is not None and _is_int(value) and not -bound < cast(int, value) < bound:
+    if _is_int(value) and _over_limit(cast(int, value), _digit_limit()):
         return hex(cast(int, value))
     try:
         if isinstance(value, bool):
