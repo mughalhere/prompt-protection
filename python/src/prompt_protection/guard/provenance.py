@@ -1,0 +1,461 @@
+"""Argument-to-source flow detection (twin of src/guard/provenance.ts, plan D1, D2, D32, D40).
+
+Lengths and slices count UTF-16 code units, as the JS ``.length`` and ``.slice`` do. Postings are
+dicts, never sets, so results come back in the insertion order JS ``Map`` and ``Set`` give.
+"""
+
+import copy
+import re
+from collections.abc import Hashable, Iterable, Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any, Protocol, TypeVar, cast
+
+from prompt_protection._js import JS_WHITESPACE, js_trim, utf16_len, utf16_slice
+from prompt_protection.encoding import decode_obfuscation
+from prompt_protection.identifiers import extract_identifiers
+from prompt_protection.normalizer import normalize
+from prompt_protection.shingle import WORD_SHINGLE, ShingleSet, build_shingles, containment
+from prompt_protection.unicode import normalize_unicode
+
+__all__ = [
+    "DESTINATION_KEYS",
+    "DESTINATION_KINDS",
+    "IDENTIFIER_STRENGTH",
+    "MIN_CONTENT_CHARS",
+    "MIN_CONTENT_WORDS",
+    "MIN_DESTINATION_CHARS",
+    "MIN_EXACT_CHARS",
+    "MIN_URL_PATH_CHARS",
+    "ArgLeaf",
+    "ContainmentScore",
+    "Flow",
+    "FlowReport",
+    "FlowThresholds",
+    "IndexableSource",
+    "IndexedSource",
+    "SourceIndex",
+    "TrustState",
+    "collect_leaves",
+    "containment_of",
+    "defang",
+    "detect_flows",
+    "identifier_values",
+    "key_of",
+    "url_path_of",
+]
+
+MIN_EXACT_CHARS = 12
+MIN_CONTENT_WORDS = WORD_SHINGLE + 2
+MIN_CONTENT_CHARS = 32
+IDENTIFIER_STRENGTH = 0.9
+MIN_DESTINATION_CHARS = 4
+MIN_URL_PATH_CHARS = 12
+_MAX_LEAF_DEPTH = 32
+_PREVIEW_UNITS = 64
+
+DESTINATION_KINDS: frozenset[str] = frozenset({"url", "host", "email", "ipv4", "phone", "handle"})
+DESTINATION_KEYS: frozenset[str] = frozenset(
+    (
+        "to cc bcc recipient recipients user userid channel address email url endpoint host hostname target "
+        "destination dest iban account accountid payee payeeurl phone number processor webhook"
+    ).split()
+)
+
+# JS /i without /u folds ASCII only, \s is the JS whitespace set and $ ends the string.
+_DEFANG_RE = re.compile(
+    r"\bh(?:xx|XX)ps?(?=://)|\[\.\]|\(\.\)|"
+    + JS_WHITESPACE
+    + r"\(?dot\)?"
+    + JS_WHITESPACE
+    + r"(?=[a-z0-9-]+(?:"
+    + JS_WHITESPACE
+    + r"|\Z|[/?#]))",
+    re.ASCII | re.IGNORECASE,
+)
+_XX_RE = re.compile(r"xx", re.ASCII | re.IGNORECASE)
+_INDEX_SUFFIX_RE = re.compile(r"\[[0-9]+\]\Z")
+_NOT_LETTER_RE = re.compile(r"[^a-z]")
+_QUERY_OR_FRAGMENT_RE = re.compile(r"[?#]")
+
+_K = TypeVar("_K", bound=Hashable)
+
+
+def defang(text: str) -> str:
+    """Undo common URL defanging (``hxxps://``, ``evil[.]com``, ``evil (dot) com``)."""
+    return _DEFANG_RE.sub(
+        lambda m: _XX_RE.sub("tt", m.group(), count=1) if m.group().lower().startswith("hxx") else ".", text
+    )
+
+
+def key_of(path: str) -> str:
+    """Return the last path segment, lowercased and stripped to letters (``args.items[0].to`` gives ``to``)."""
+    tail = _INDEX_SUFFIX_RE.sub("", path[path.rfind(".") + 1 :], count=1)
+    return _NOT_LETTER_RE.sub("", tail.lower())
+
+
+def url_path_of(url: str) -> str | None:
+    """Return the path of a URL when it is specific enough to correlate on its own, else ``None``."""
+    scheme = url.find("//")
+    after_scheme = url[scheme + 2 :] if scheme != -1 else utf16_slice(url, 1)
+    slash = after_scheme.find("/")
+    if slash == -1:
+        return None
+    path = _QUERY_OR_FRAGMENT_RE.split(after_scheme[slash:], maxsplit=1)[0]
+    segments = [segment for segment in path.split("/") if segment]
+    if not segments:
+        return None
+    return path if len(segments) >= 2 or utf16_len(path) >= MIN_URL_PATH_CHARS else None
+
+
+def _decoded_text(text: str) -> str:
+    return decode_obfuscation(normalize_unicode(text))
+
+
+def identifier_values(text: str, derived: bool = True) -> dict[str, str]:
+    """Map each lowercased identifier value to its kind over the raw, defanged and decoded forms of ``text``.
+
+    With ``derived`` (sources and trusted text) a URL also yields its specific path and an email its
+    domain, so a destination split across arguments still correlates. Argument leaves are indexed
+    without derivation. The first kind seen for a value wins, and the dict keeps first-seen order.
+    """
+    out: dict[str, str] = {}
+    defanged = defang(text)
+    variants = [text, _decoded_text(text)] if defanged == text else [text, defanged, _decoded_text(defanged)]
+    for variant in variants:
+        for found in extract_identifiers(variant):
+            value = found.value.lower()
+            out.setdefault(value, found.kind)
+            if not derived:
+                continue
+            if found.kind == "url":
+                path = url_path_of(value)
+                if path is not None:
+                    out.setdefault(path, "path")
+            elif found.kind == "email":
+                domain = value[value.rfind("@") + 1 :]
+                if domain:
+                    out.setdefault(domain, "host")
+    return out
+
+
+@dataclass(frozen=True, slots=True)
+class ArgLeaf:
+    path: str
+    value: str
+
+
+def _walk(args: Any, path: str, out: list[ArgLeaf], depth: int) -> None:
+    if depth > _MAX_LEAF_DEPTH:
+        return
+    if isinstance(args, str):
+        out.append(ArgLeaf(path, args))
+    elif isinstance(args, (list, tuple)):
+        for i, item in enumerate(args):
+            _walk(item, f"{path}[{i}]", out, depth + 1)
+    elif isinstance(args, Mapping):
+        for raw_key, item in args.items():
+            key = raw_key if isinstance(raw_key, str) else str(raw_key)
+            out.append(ArgLeaf(f"{path}.{key}", key))
+            _walk(item, f"{path}.{key}", out, depth + 1)
+
+
+def collect_leaves(args: object) -> list[ArgLeaf]:
+    """Deep-walk an argument value, collecting every string leaf and every mapping key. Stops below 32 levels."""
+    out: list[ArgLeaf] = []
+    _walk(args, "args", out, 0)
+    return out
+
+
+@dataclass(slots=True)
+class ContainmentScore:
+    word: float
+    char: float
+
+
+def containment_of(needle: str, hay: str) -> ContainmentScore:
+    """Return the word and char containment of ``needle`` in ``hay``, both normalized first."""
+    found = containment(normalize(needle).normalized, normalize(hay).normalized)
+    return ContainmentScore(found.word, found.char)
+
+
+class IndexableSource(Protocol):
+    """The attributes ``SourceIndex`` and ``detect_flows`` read from a registered source."""
+
+    id: str
+    tool: str
+    text: str
+    normalized: str
+    shingles: ShingleSet
+    identifiers: Mapping[str, str]
+
+
+class IndexedSource(IndexableSource, Protocol):
+    """A registered source. The hash sets are kept so eviction can remove its postings without a rebuild."""
+
+    word_hashes: frozenset[int]
+    char_hashes: frozenset[int]
+
+
+_Postings = dict[_K, dict[str, None]]
+
+
+def _post(postings: _Postings[_K], key: _K, source_id: str) -> None:
+    postings.setdefault(key, {})[source_id] = None
+
+
+def _unpost(postings: _Postings[_K], key: _K, source_id: str) -> None:
+    ids = postings.get(key)
+    if ids is None:
+        return
+    ids.pop(source_id, None)
+    if not ids:
+        del postings[key]
+
+
+def _count_hits(postings: _Postings[int], needle: Iterable[int]) -> dict[str, int]:
+    hits: dict[str, int] = {}
+    for shingle in needle:
+        for source_id in postings.get(shingle, ()):
+            hits[source_id] = hits.get(source_id, 0) + 1
+    return hits
+
+
+class SourceIndex:
+    """Inverted index over registered sources: shingle hash and identifier to source ids.
+
+    ``add`` stores a shallow copy of the source with ``word_hashes`` and ``char_hashes`` set, so the
+    source must accept new attributes. The copy is what ``get`` and ``sources`` return.
+    """
+
+    def __init__(self, max_sources: int, max_source_chars: int) -> None:
+        self._max_sources = max_sources
+        self._max_source_chars = max_source_chars
+        self._words: _Postings[int] = {}
+        self._chars: _Postings[int] = {}
+        self._ids: _Postings[str] = {}
+        self._by_id: dict[str, IndexedSource] = {}
+        self._order: list[IndexedSource] = []
+        self._total_chars = 0
+
+    @property
+    def sources(self) -> Sequence[IndexedSource]:
+        return self._order
+
+    def get(self, source_id: str) -> IndexedSource | None:
+        return self._by_id.get(source_id)
+
+    def has(self, source_id: str) -> bool:
+        return source_id in self._by_id
+
+    def add(self, source: IndexableSource) -> IndexedSource:
+        indexed = cast(IndexedSource, copy.copy(source))
+        indexed.word_hashes = source.shingles.words
+        indexed.char_hashes = source.shingles.chars
+        self._order.append(indexed)
+        self._by_id[indexed.id] = indexed
+        self._total_chars += utf16_len(indexed.text)
+        for shingle in indexed.word_hashes:
+            _post(self._words, shingle, indexed.id)
+        for shingle in indexed.char_hashes:
+            _post(self._chars, shingle, indexed.id)
+        for value in indexed.identifiers:
+            _post(self._ids, value, indexed.id)
+        self._evict()
+        return indexed
+
+    def clear(self) -> None:
+        self._words.clear()
+        self._chars.clear()
+        self._ids.clear()
+        self._by_id.clear()
+        self._order.clear()
+        self._total_chars = 0
+
+    def _evict(self) -> None:
+        while self._order and (len(self._order) > self._max_sources or self._total_chars > self._max_source_chars):
+            victim = self._order.pop(0)
+            self._by_id.pop(victim.id, None)
+            self._total_chars -= utf16_len(victim.text)
+            for shingle in victim.word_hashes:
+                _unpost(self._words, shingle, victim.id)
+            for shingle in victim.char_hashes:
+                _unpost(self._chars, shingle, victim.id)
+            for value in victim.identifiers:
+                _unpost(self._ids, value, victim.id)
+
+    def identifier_hits(self, values: Iterable[str]) -> dict[str, tuple[str, ...]]:
+        """Map each value some source holds to the ids of every source holding it."""
+        out: dict[str, tuple[str, ...]] = {}
+        for value in values:
+            hit = self._ids.get(value)
+            if hit:
+                out[value] = tuple(hit)
+        return out
+
+    def containment(self, needle: ShingleSet) -> dict[str, ContainmentScore]:
+        """Map each source id sharing a shingle with ``needle`` to its word and char containment."""
+        out: dict[str, ContainmentScore] = {}
+        for source_id, hits in _count_hits(self._words, needle.words).items():
+            out[source_id] = ContainmentScore(hits / len(needle.words), 0)
+        for source_id, hits in _count_hits(self._chars, needle.chars).items():
+            entry = out.setdefault(source_id, ContainmentScore(0, 0))
+            entry.char = hits / len(needle.chars)
+        return out
+
+
+@dataclass(frozen=True, slots=True)
+class FlowThresholds:
+    min_containment: float
+    min_char_containment: float
+
+
+@dataclass(slots=True)
+class TrustState:
+    """``identifiers`` holds the lowercased values the user authored. ``text`` is the normalized user text."""
+
+    identifiers: set[str]
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
+class Flow:
+    """``identifier_kind`` is ``None`` for ``exact`` and ``content`` flows and ``handle`` for a verbatim destination."""
+
+    kind: str
+    source_id: str
+    source_tool: str
+    path: str
+    value: str
+    strength: float
+    identifier_kind: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class FlowReport:
+    flows: list[Flow]
+    untrusted_leaves: list[ArgLeaf]
+    destination_trusted: bool
+
+
+def _is_trusted(value: str, trust: TrustState) -> bool:
+    return value in trust.identifiers or (bool(trust.text) and value in trust.text)
+
+
+def _preview(text: str) -> str:
+    return text if utf16_len(text) <= _PREVIEW_UNITS else utf16_slice(text, 0, _PREVIEW_UNITS - 3) + "…"
+
+
+def _identifier_flows(leaf: ArgLeaf, ids: Mapping[str, str], index: SourceIndex, trust: TrustState) -> list[Flow]:
+    flows: list[Flow] = []
+    for value, source_ids in index.identifier_hits(ids).items():
+        if _is_trusted(value, trust):
+            continue
+        for source_id in source_ids:
+            source = index.get(source_id)
+            if source is None:
+                continue
+            flows.append(Flow("identifier", source_id, source.tool, leaf.path, value, IDENTIFIER_STRENGTH, ids[value]))
+    return flows
+
+
+def _handle_flows(leaf: ArgLeaf, compact: str, index: SourceIndex) -> list[Flow]:
+    return [
+        Flow("identifier", source.id, source.tool, leaf.path, compact, IDENTIFIER_STRENGTH, "handle")
+        for source in index.sources
+        if compact in source.normalized
+    ]
+
+
+def _content_strength(score: ContainmentScore, word_ok: bool, char_ok: bool, limits: FlowThresholds) -> float | None:
+    word_flow = word_ok and score.word >= limits.min_containment
+    char_flow = char_ok and score.char >= limits.min_char_containment
+    if not (word_flow or char_flow):
+        return None
+    return max(score.word if word_flow else 0.0, score.char if char_flow else 0.0)
+
+
+def _content_flows(leaf: ArgLeaf, compact: str, index: SourceIndex, limits: FlowThresholds) -> list[Flow]:
+    flows: list[Flow] = []
+    needle = build_shingles(compact)
+    word_ok = needle.word_count >= MIN_CONTENT_WORDS
+    compact_len = utf16_len(compact)
+    for source_id, score in index.containment(needle).items():
+        source = index.get(source_id)
+        if source is None:
+            continue
+        if compact_len >= MIN_EXACT_CHARS and score.char >= 1 and compact in source.normalized:
+            flows.append(Flow("exact", source_id, source.tool, leaf.path, _preview(compact), 1.0))
+            continue
+        strength = _content_strength(score, word_ok, compact_len >= MIN_CONTENT_CHARS, limits)
+        if strength is not None:
+            flows.append(Flow("content", source_id, source.tool, leaf.path, _preview(compact), strength))
+    return flows
+
+
+def _joined_flows(
+    untrusted: Sequence[ArgLeaf], implicated: set[str], index: SourceIndex, limits: FlowThresholds
+) -> list[Flow]:
+    """Score the joined untrusted values once, for sources no single leaf implicated."""
+    parts = (
+        js_trim(normalize(leaf.value).normalized) for leaf in untrusted if not leaf.path.endswith(f".{leaf.value}")
+    )
+    joined = " ".join(part for part in parts if part)
+    if utf16_len(joined) < MIN_CONTENT_CHARS:
+        return []
+    needle = build_shingles(joined)
+    word_ok = needle.word_count >= MIN_CONTENT_WORDS
+    flows: list[Flow] = []
+    for source_id, score in index.containment(needle).items():
+        source = index.get(source_id)
+        if source_id in implicated or source is None:
+            continue
+        strength = _content_strength(score, word_ok, True, limits)
+        if strength is not None:
+            flows.append(Flow("content", source_id, source.tool, "args", _preview(joined), strength))
+    return flows
+
+
+def detect_flows(
+    leaves: Sequence[ArgLeaf], index: SourceIndex, trust: TrustState, thresholds: FlowThresholds
+) -> FlowReport:
+    """Run the flow detectors on every string leaf of a call's arguments.
+
+    A leaf found verbatim in trusted user text never yields a flow. A destination-key leaf (``to``,
+    ``url``, ``user``) flows when its value appears verbatim in any source.
+    """
+    flows: list[Flow] = []
+    untrusted: list[ArgLeaf] = []
+    destinations = 0
+    trusted_destinations = 0
+
+    for leaf in leaves:
+        compact = js_trim(normalize(leaf.value).normalized)
+        if not compact:
+            continue
+        user_authored = bool(trust.text) and compact in trust.text
+        if not user_authored:
+            untrusted.append(leaf)
+
+        ids = identifier_values(leaf.value, False)
+        handle = key_of(leaf.path) in DESTINATION_KEYS and not ids and utf16_len(compact) >= MIN_DESTINATION_CHARS
+        for value, kind in ids.items():
+            if kind in DESTINATION_KINDS:
+                destinations += 1
+                trusted_destinations += _is_trusted(value, trust)
+        if handle:
+            destinations += 1
+            trusted_destinations += user_authored or _is_trusted(compact, trust)
+        if not index.sources:
+            continue
+
+        flows.extend(_identifier_flows(leaf, ids, index, trust))
+        if user_authored:
+            continue
+        if handle and not _is_trusted(compact, trust):
+            flows.extend(_handle_flows(leaf, compact, index))
+        flows.extend(_content_flows(leaf, compact, index, thresholds))
+
+    if len(untrusted) >= 2 and index.sources:
+        flows.extend(_joined_flows(untrusted, {flow.source_id for flow in flows}, index, thresholds))
+
+    return FlowReport(flows, untrusted, destinations > 0 and trusted_destinations == destinations)
