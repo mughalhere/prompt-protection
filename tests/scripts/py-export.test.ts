@@ -10,6 +10,12 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeF
 import { tmpdir } from 'node:os';
 import { createGuard } from '../../src/guard';
 import type { GuardDecision } from '../../src/guard';
+import { createHmac } from 'node:crypto';
+import { EnvelopeError, exportPublicKey, generateKey, importPublicKey, open } from '../../src/envelope/index';
+import type { EnvelopeKey } from '../../src/envelope/index';
+import { isTaintHandoff } from '../../src/guard/handoff';
+import type { ToolLock, ToolSet } from '../../src/guard/pin';
+import { canonicalJson } from '../../src/utils/canonical';
 
 interface RuleEntry {
   id: string;
@@ -772,5 +778,395 @@ describe('export-guard-golden.mjs (D11, D13)', () => {
     writeFileSync(join(dir, GUARD_GOLDEN_REL), goldenIn(dir).replace(/("rulesVersion":\s*")/, '$1x'));
     expect(run(dir).status).toBe(0);
     expect(goldenIn(dir)).toBe(committedText());
+  }, SPAWN_TIMEOUT);
+});
+
+interface EnvInputs {
+  payload?: unknown;
+  label?: string;
+  kid?: string;
+  ttlMs?: number;
+  from?: string;
+  tools?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+interface EnvVectorIn { name: string; kind: string; inputs: EnvInputs }
+interface Env { v: number; alg: string; kid?: string; iat: number; exp?: number; nonce: string; label: string; from?: string; payload: unknown; sig: string }
+interface EnvVector extends EnvVectorIn { output: unknown }
+interface EnvGolden { header: { secret: string; now: number }; vectors: EnvVector[] }
+interface Keyed { envelope: Env; publicKey: string }
+interface ErrorOut { envelope: Env; code: string; now: number }
+interface MemoryOut { v: number; id: string; label: string; sig?: string }
+interface Walked { values: unknown[]; keys: string[]; objects: Array<Record<string, unknown>>; arrays: unknown[][] }
+
+const ENV_SCRIPT = 'scripts/export-envelope-golden.mjs';
+const ENV_GOLDEN_REL = 'tests/guard/__fixtures__/envelope.golden.json';
+const ENV_PATH = join(ROOT, ENV_GOLDEN_REL);
+const ENV_NOW = 1_700_000_000_000;
+const ENV_LABELS = ['system', 'user', 'tool', 'untrusted', 'blocked'];
+const ENV_KINDS = ['eddsa', 'eddsa-handoff', 'error', 'handoff', 'hs256', 'lock', 'memory'];
+const NONCE = /^[0-9a-f]{32}$/;
+
+const envLib = (): { envelopeVectors: () => EnvVectorIn[] } =>
+  createRequire(__filename)('../../scripts/lib/py-export.cjs') as { envelopeVectors: () => EnvVectorIn[] };
+const readEnvGolden = (path: string = ENV_PATH): EnvGolden => JSON.parse(readFileSync(path, 'utf8')) as EnvGolden;
+const vectorsOf = (g: EnvGolden, ...kinds: string[]): EnvVector[] => g.vectors.filter((v) => kinds.includes(v.kind));
+const keyFor = (g: EnvGolden, v: EnvVectorIn): EnvelopeKey =>
+  ({ alg: 'HS256', secret: g.header.secret, ...(v.inputs.kid === undefined ? {} : { kid: v.inputs.kid }) });
+const hmacOf = (secret: string, env: Env): string => {
+  const rest: Partial<Env> = { ...env };
+  delete rest.sig;
+  return createHmac('sha256', secret).update(canonicalJson(rest)).digest('base64url');
+};
+const expOf = (env: Env, inputs: EnvInputs): number | undefined => (inputs.ttlMs === undefined ? undefined : env.iat + inputs.ttlMs);
+
+async function envCode(attempt: Promise<unknown>): Promise<string> {
+  try {
+    await attempt;
+    return 'ok';
+  } catch (error) {
+    return error instanceof EnvelopeError ? error.code : `other:${String(error)}`;
+  }
+}
+const openAt = (env: Env, key: EnvelopeKey, at: number = env.iat): Promise<unknown> => open(env, key, { now: () => at });
+
+async function failing<T extends { name: string }>(items: T[], ok: (item: T) => boolean | Promise<boolean>): Promise<string[]> {
+  const bad: string[] = [];
+  for (const item of items) {
+    let good = false;
+    try {
+      good = await ok(item);
+    } catch {
+      good = false;
+    }
+    if (!good) bad.push(item.name);
+  }
+  return bad;
+}
+
+const hsSealed = (g: EnvGolden): Array<{ name: string; vector: EnvVector; env: Env }> =>
+  vectorsOf(g, 'hs256', 'handoff', 'memory').map((vector) => ({
+    name: vector.name,
+    vector,
+    env: vector.kind === 'memory' ? (JSON.parse((vector.output as MemoryOut).sig ?? 'null') as Env) : (vector.output as Env),
+  }));
+
+type Check = (g: EnvGolden) => Promise<string[]> | string[];
+const CHECKS: Array<[string, Check]> = [
+  ['has exactly header and vectors, and a header with the fixed secret and now', (g) => {
+    const issues: string[] = [];
+    if (Object.keys(g).sort().join() !== 'header,vectors') issues.push('top-level keys');
+    if (Object.keys(g.header ?? {}).sort().join() !== 'now,secret') issues.push('header keys');
+    if (g.header?.now !== ENV_NOW) issues.push('header.now');
+    if (!/^[ -~]{16,}$/.test(String(g.header?.secret))) issues.push('header.secret');
+    return issues;
+  }],
+  ['gives every vector exactly name, kind, inputs and output, with unique names', (g) => {
+    const names = g.vectors.map((v) => v.name);
+    const shape = g.vectors.filter((v) => Object.keys(v).sort().join() !== 'inputs,kind,name,output').map((v) => v.name);
+    return [...shape, ...names.filter((n, i) => names.indexOf(n) !== i)];
+  }],
+  ['records the name, kind and inputs of envelopeVectors() in order', (g) => {
+    const expected = JSON.parse(JSON.stringify(envLib().envelopeVectors())) as EnvVectorIn[];
+    const recorded = g.vectors.map(({ name, kind, inputs }) => ({ name, kind, inputs }));
+    const issues = expected.length === recorded.length ? [] : [`vector count ${recorded.length}, expected ${expected.length}`];
+    expected.forEach((e, i) => {
+      if (canonicalJson(e) !== canonicalJson(recorded[i] ?? null)) issues.push(e.name);
+    });
+    return issues;
+  }],
+  ['seals every hs256 vector at the fixed now from its recorded inputs, with a valid HMAC-SHA256 sig', (g) =>
+    failing(vectorsOf(g, 'hs256'), (v) => {
+      const env = v.output as Env;
+      const i = v.inputs;
+      return env.v === 1 && env.alg === 'HS256' && env.iat === g.header.now && env.kid === i.kid && env.from === i.from
+        && env.label === i.label && env.exp === expOf(env, i) && canonicalJson(env.payload) === canonicalJson(i.payload)
+        && NONCE.test(env.nonce) && env.sig === hmacOf(g.header.secret, env);
+    })],
+  ['opens every HS256 envelope (hs256, handoff, memory) under JS open at its iat', (g) =>
+    failing(hsSealed(g), async (x) => (await envCode(openAt(x.env, keyFor(g, x.vector)))) === 'ok')],
+  ['gives every non-error envelope its own 32-hex nonce', (g) => {
+    const envs = [...hsSealed(g).map((x) => x.env), ...vectorsOf(g, 'eddsa', 'eddsa-handoff').map((v) => (v.output as Keyed).envelope)];
+    const nonces = envs.map((e) => e.nonce);
+    return [...nonces.filter((n, i) => nonces.indexOf(n) !== i), ...nonces.filter((n) => !NONCE.test(n)).map(() => 'nonce format')];
+  }],
+  ['seals each handoff as a tool-labelled TaintHandoff that a fresh guard absorbs', (g) =>
+    failing(vectorsOf(g, 'handoff'), async (v) => {
+      const env = v.output as Env;
+      const absorbed = await createGuard().absorbSealed(env, keyFor(g, v), { now: () => env.iat });
+      return env.alg === 'HS256' && env.label === 'tool' && isTaintHandoff(env.payload) && env.payload.sources.length > 0
+        && env.from === v.inputs.from && env.exp === expOf(env, v.inputs) && absorbed.opened;
+    })],
+  ['seals each memory entry with a sig that is an envelope over the entry without the sig', (g) =>
+    failing(vectorsOf(g, 'memory'), (v) => {
+      const { sig, ...body } = v.output as MemoryOut;
+      const env = JSON.parse(sig ?? 'null') as Env;
+      return body.v === 1 && typeof sig === 'string' && canonicalJson(env.payload) === canonicalJson(body)
+        && env.label === body.label && env.from === `memory:${body.id}`;
+    })],
+  ['pins each lock as an unsigned sha256 ToolLock that verifies against its tool set', (g) =>
+    failing(vectorsOf(g, 'lock'), async (v) => {
+      const lock = v.output as ToolLock;
+      const tools = v.inputs.tools ?? {};
+      const guard = createGuard();
+      guard.lock(lock);
+      return Object.keys(lock).sort().join() === 'algo,createdAt,rulesVersion,tools,v' && lock.v === 1 && lock.algo === 'sha256'
+        && lock.rulesVersion === RULES_VERSION && !Number.isNaN(Date.parse(lock.createdAt)) && Object.keys(tools).length >= 2
+        && Object.keys(lock.tools).sort().join() === Object.keys(tools).sort().join()
+        && Object.values(lock.tools).every((t) => /^sha256:[0-9a-f]{64}$/.test(t.digest))
+        && (await guard.verify(tools as ToolSet)).length === 0;
+    })],
+  ['signs each EdDSA vector so the exported public key opens it at its iat', (g) =>
+    failing(vectorsOf(g, 'eddsa', 'eddsa-handoff'), async (v) => {
+      const { envelope: env, publicKey } = v.output as Keyed;
+      const key = await importPublicKey(publicKey, v.inputs.kid);
+      const common = env.alg === 'EdDSA' && env.kid === v.inputs.kid && env.from === v.inputs.from && env.exp === expOf(env, v.inputs)
+        && (await envCode(openAt(env, key))) === 'ok';
+      return common && (v.kind === 'eddsa'
+        ? env.iat === g.header.now && env.label === v.inputs.label && canonicalJson(env.payload) === canonicalJson(v.inputs.payload)
+        : env.label === 'tool' && isTaintHandoff(env.payload));
+    })],
+  ['makes each error vector fail JS open with its recorded code, bad-signature and expired both present', async (g) => {
+    const errors = vectorsOf(g, 'error');
+    const bad = await failing(errors, async (v) => {
+      const { envelope: env, code, now } = v.output as ErrorOut;
+      const key = keyFor(g, v);
+      const resigned = hmacOf(g.header.secret, env) === env.sig;
+      const shaped = code === 'bad-signature'
+        ? !resigned
+        : code === 'expired' && resigned && env.exp !== undefined && env.exp < now && (await envCode(openAt(env, key))) === 'ok';
+      return shaped && env.kid === v.inputs.kid && typeof now === 'number' && (await envCode(openAt(env, key, now))) === code;
+    });
+    const codes = [...new Set(errors.map((v) => (v.output as ErrorOut).code))].sort().join();
+    return codes === 'bad-signature,expired' ? bad : [...bad, `codes ${codes}`];
+  }],
+];
+
+describe('committed envelope.golden.json (D17, D29)', () => {
+  it('ends with exactly one newline', () => {
+    const text = readFileSync(ENV_PATH, 'utf8');
+    expect(text.endsWith('}\n')).toBe(true);
+    expect(text.endsWith('\n\n')).toBe(false);
+  });
+
+  test.each(CHECKS)('%s', async (_name, check) => {
+    expect(await check(readEnvGolden())).toEqual([]);
+  });
+});
+
+function walkJson(value: unknown, into: Walked): Walked {
+  into.values.push(value);
+  if (Array.isArray(value)) {
+    into.arrays.push(value);
+    value.forEach((item) => walkJson(item, into));
+  } else if (value !== null && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    into.objects.push(record);
+    for (const [k, v] of Object.entries(record)) {
+      into.keys.push(k);
+      walkJson(v, into);
+    }
+  }
+  return into;
+}
+const codePointsOf = (s: string): number[] => Array.from(s, (c) => c.codePointAt(0) as number);
+function byCodePoint(a: string, b: string): number {
+  const [x, y] = [codePointsOf(a), codePointsOf(b)];
+  for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i] !== y[i]) return (x[i] as number) - (y[i] as number);
+  return x.length - y.length;
+}
+
+describe('envelopeVectors (D17, D29)', () => {
+  const vectors = (): EnvVectorIn[] => envLib().envelopeVectors();
+  const hs = (): EnvVectorIn[] => vectors().filter((v) => v.kind === 'hs256');
+  const walked = (): Walked => {
+    const into: Walked = { values: [], keys: [], objects: [], arrays: [] };
+    hs().forEach((v) => walkJson(v.inputs.payload, into));
+    return into;
+  };
+  const texts = (): string[] => [...walked().keys, ...walked().values.filter((v): v is string => typeof v === 'string')];
+
+  it('returns vectors with exactly name, kind and inputs, and unique non-empty names', () => {
+    const list = vectors();
+    expect(list.length).toBeGreaterThan(0);
+    for (const v of list) {
+      expect(Object.keys(v).sort()).toEqual(['inputs', 'kind', 'name']);
+      expect(typeof v.name === 'string' && v.name.length > 0).toBe(true);
+      expect(v.inputs !== null && typeof v.inputs === 'object').toBe(true);
+    }
+    expect(new Set(list.map((v) => v.name)).size).toBe(list.length);
+  });
+
+  it('uses exactly the kinds hs256, handoff, memory, lock, eddsa, eddsa-handoff and error', () => {
+    expect([...new Set(vectors().map((v) => v.kind))].sort()).toEqual(ENV_KINDS);
+  });
+
+  it('gives every hs256 vector a payload and an explicit label, and covers each of the five labels', () => {
+    for (const v of hs()) {
+      expect('payload' in v.inputs).toBe(true);
+      expect(typeof v.inputs.label).toBe('string');
+    }
+    expect([...new Set(hs().map((v) => v.inputs.label))].sort()).toEqual([...ENV_LABELS].sort());
+  });
+
+  test.each(['kid', 'ttlMs', 'from'])('covers hs256 vectors with and without %s', (field) => {
+    expect(hs().filter((v) => v.inputs[field] !== undefined).length).toBeGreaterThan(0);
+    expect(hs().filter((v) => !(field in v.inputs)).length).toBeGreaterThan(0);
+  });
+
+  it('keeps kid and from non-empty strings and ttlMs a positive integer wherever they appear', () => {
+    for (const v of vectors().filter((x) => x.kind !== 'lock')) {
+      for (const field of ['kid', 'from'] as const) if (field in v.inputs) expect(String(v.inputs[field]).length).toBeGreaterThan(0);
+      const ttl = v.inputs.ttlMs;
+      if ('ttlMs' in v.inputs) expect(typeof ttl === 'number' && Number.isInteger(ttl) && ttl > 0).toBe(true);
+    }
+  });
+
+  it('has a lock vector whose inputs.tools holds at least two tools', () => {
+    const locks = vectors().filter((v) => v.kind === 'lock');
+    expect(locks.length).toBeGreaterThan(0);
+    for (const v of locks) expect(Object.keys(v.inputs.tools ?? {}).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('has a payload object whose keys sort differently by UTF-16 code unit than by code point', () => {
+    const differing = walked().objects.filter((o) => {
+      const keys = Object.keys(o);
+      return [...keys].sort().join('\n') !== [...keys].sort(byCodePoint).join('\n');
+    });
+    expect(differing.length).toBeGreaterThan(0);
+  });
+
+  test.each<[string, number]>([
+    ['0', 0], ['-0', -0], ['0.1', 0.1], ['1e21', 1e21], ['1e-7', 1e-7], ['5e-324', 5e-324], ['2**53', 2 ** 53],
+  ])('has the number %s in an hs256 payload', (_label, n) => {
+    expect(walked().values.some((v) => Object.is(v, n))).toBe(true);
+  });
+
+  it('has true, false and null values and an array nested in an array', () => {
+    for (const literal of [true, false, null]) expect(walked().values).toContain(literal);
+    expect(walked().arrays.some((a) => a.some((item) => Array.isArray(item)))).toBe(true);
+  });
+
+  it('has U+2028 and an astral code point in an hs256 payload string or key', () => {
+    expect(texts().some((s) => s.includes(' '))).toBe(true);
+    expect(texts().some((s) => codePointsOf(s).some((cp) => cp > 0xffff))).toBe(true);
+  });
+
+  it('survives a JSON round trip unchanged, so the golden can record every input', () => {
+    const list = vectors();
+    expect(canonicalJson(JSON.parse(JSON.stringify(list)))).toBe(canonicalJson(list));
+  });
+
+  it('returns the same vectors on every call', () => {
+    expect(vectors()).toEqual(vectors());
+  });
+});
+
+describe('export-envelope-golden.mjs (D17, D29)', () => {
+  const dirs: string[] = [];
+  let otherPublic = '';
+  beforeAll(async () => {
+    otherPublic = await exportPublicKey(await generateKey('EdDSA'));
+  });
+  afterAll(() => dirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
+
+  function envSandbox(withGolden = true): string {
+    const dir = mkdtempSync(join(tmpdir(), 'envelope-golden-'));
+    dirs.push(dir);
+    mkdirSync(join(dir, 'tests/guard/__fixtures__'), { recursive: true });
+    ['scripts', 'package.json'].forEach((name) => cpSync(join(ROOT, name), join(dir, name), { recursive: true }));
+    ['dist', 'datasets', 'node_modules'].forEach((name) => symlinkSync(join(ROOT, name), join(dir, name)));
+    if (withGolden) cpSync(ENV_PATH, join(dir, ENV_GOLDEN_REL));
+    return dir;
+  }
+  const goldenPath = (dir: string): string => join(dir, ENV_GOLDEN_REL);
+  const runEnv = (dir: string, ...args: string[]): { status: number | null; stderr: string } => {
+    const out = spawnSync(process.execPath, [join(dir, ENV_SCRIPT), ...args], { cwd: dir, encoding: 'utf8', timeout: SPAWN_TIMEOUT });
+    return { status: out.status, stderr: out.stderr };
+  };
+  const expectStatus = (dir: string, status: number, ...args: string[]): void => {
+    const out = runEnv(dir, ...args);
+    expect(out.stderr).not.toMatch(/Cannot find module|ERR_MODULE_NOT_FOUND/);
+    expect(out.status).toBe(status);
+  };
+  const inputsOf = (g: EnvGolden): string => canonicalJson(g.vectors.map(({ name, kind, inputs }) => ({ name, kind, inputs })));
+  const nonces = (g: EnvGolden): string[] => hsSealed(g).map((x) => x.env.nonce);
+  const first = (g: EnvGolden, kind: string, code?: string): EnvVector =>
+    g.vectors.find((v) => v.kind === kind && (code === undefined || (v.output as ErrorOut).code === code)) as EnvVector;
+
+  const MUTATIONS: Array<[string, (g: EnvGolden) => void]> = [
+    ['an extra input key on a vector', (g) => { g.vectors[0]!.inputs = { ...g.vectors[0]!.inputs, extra: 1 }; }],
+    ['a dropped vector', (g) => { g.vectors.pop(); }],
+    ['a renamed vector', (g) => { g.vectors[0]!.name += '-renamed'; }],
+    ['a changed header secret', (g) => { g.header.secret += 'x'; }],
+    ['a changed hs256 payload', (g) => { (first(g, 'hs256').output as Env).payload = { changed: true }; }],
+    ['a tampered hs256 sig', (g) => { (first(g, 'hs256').output as Env).sig = 'A'.repeat(43); }],
+    ['a changed handoff payload', (g) => { (first(g, 'handoff').output as Env).payload = { changed: true }; }],
+    ['a changed EdDSA payload', (g) => { (first(g, 'eddsa').output as Keyed).envelope.payload = { changed: true }; }],
+    ['the public key of another EdDSA pair', (g) => { (first(g, 'eddsa').output as Keyed).publicKey = otherPublic; }],
+    ['an error vector with the wrong recorded code', (g) => { (first(g, 'error', 'bad-signature').output as ErrorOut).code = 'expired'; }],
+    ['a bad-signature vector holding a valid envelope', (g) => {
+      (first(g, 'error', 'bad-signature').output as ErrorOut).envelope = { ...(first(g, 'hs256').output as Env) };
+    }],
+    ['an expired vector opened before it expires', (g) => {
+      const out = first(g, 'error', 'expired').output as ErrorOut;
+      out.now = out.envelope.iat;
+    }],
+  ];
+
+  it('--check exits 0 on the committed golden', () => {
+    expectStatus(envSandbox(), 0, '--check');
+  }, SPAWN_TIMEOUT);
+
+  test.each(MUTATIONS)('--check exits 1 for %s', (_what, mutate) => {
+    const dir = envSandbox();
+    expectStatus(dir, 0, '--check');
+    const golden = readEnvGolden(goldenPath(dir));
+    const before = canonicalJson(golden);
+    mutate(golden);
+    expect(canonicalJson(golden)).not.toBe(before);
+    writeFileSync(goldenPath(dir), `${JSON.stringify(golden, null, 2)}\n`);
+    expectStatus(dir, 1, '--check');
+  }, SPAWN_TIMEOUT);
+
+  it('--check exits 1 for a missing file and for a file that is not JSON', () => {
+    const dir = envSandbox();
+    expectStatus(dir, 0, '--check');
+    writeFileSync(goldenPath(dir), '{"header":');
+    expectStatus(dir, 1, '--check');
+    rmSync(goldenPath(dir));
+    expectStatus(dir, 1, '--check');
+  }, SPAWN_TIMEOUT);
+
+  it('--check ignores layout: the committed golden re-serialised compactly still passes', () => {
+    const dir = envSandbox();
+    writeFileSync(goldenPath(dir), JSON.stringify(readEnvGolden(goldenPath(dir))));
+    expectStatus(dir, 0, '--check');
+  }, SPAWN_TIMEOUT);
+
+  it('write mode creates the golden and every golden check passes on it', async () => {
+    const dir = envSandbox(false);
+    expectStatus(dir, 0);
+    const written = readEnvGolden(goldenPath(dir));
+    for (const [name, check] of CHECKS) expect([name, await check(written)]).toEqual([name, []]);
+  }, SPAWN_TIMEOUT);
+
+  it('write mode is not byte-reproducible: a second run keeps the inputs and draws fresh nonces', () => {
+    const dir = envSandbox(false);
+    expectStatus(dir, 0);
+    const one = readEnvGolden(goldenPath(dir));
+    expectStatus(dir, 0);
+    const two = readEnvGolden(goldenPath(dir));
+    expect(inputsOf(two)).toBe(inputsOf(one));
+    expect(nonces(one).length).toBeGreaterThan(0);
+    nonces(one).forEach((nonce, i) => expect(nonces(two)[i]).not.toBe(nonce));
+  }, SPAWN_TIMEOUT);
+
+  it('--check accepts a golden written by another run, so it never compares bytes to a fresh export', () => {
+    const dir = envSandbox();
+    const committed = readFileSync(goldenPath(dir), 'utf8');
+    expectStatus(dir, 0);
+    expect(readFileSync(goldenPath(dir), 'utf8')).not.toBe(committed);
+    expectStatus(dir, 0, '--check');
   }, SPAWN_TIMEOUT);
 });
