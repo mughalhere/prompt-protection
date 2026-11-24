@@ -57,3 +57,17 @@ def test_a_container_with_an_over_limit_int_never_hides_its_siblings_behind_an_o
     assert SIBLING in text
     assert hex(OVER) in text
     assert " object at 0x" not in text
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        pytest.param({OVER: "v"}, f'{{"{hex(OVER)}":"v"}}', id="key-over-limit-alone"),
+        pytest.param({-OVER: "v"}, f'{{"{hex(-OVER)}":"v"}}', id="key-negative-over-limit-alone"),
+        pytest.param({OVER: "v", "b": SIBLING}, f'{{"{hex(OVER)}":"v","b":"{SIBLING}"}}', id="key-over-limit-sibling"),
+        pytest.param({AT: "v"}, f'{{"{AT_TEXT}":"v"}}', id="key-4300-digits-alone"),
+        pytest.param({AT: "v", "b": SIBLING}, f'{{"{AT_TEXT}":"v","b":"{SIBLING}"}}', id="key-4300-digits-sibling"),
+    ],
+)
+def test_a_mapping_key_prints_decimal_up_to_the_limit_and_hex_past_it(value: Any, expected: str) -> None:
+    assert stringify_value(value) == expected
