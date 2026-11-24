@@ -1102,6 +1102,10 @@ describe('export-envelope-golden.mjs (D17, D29)', () => {
     ['a changed hs256 payload', (g) => { (first(g, 'hs256').output as Env).payload = { changed: true }; }],
     ['a tampered hs256 sig', (g) => { (first(g, 'hs256').output as Env).sig = 'A'.repeat(43); }],
     ['a changed handoff payload', (g) => { (first(g, 'handoff').output as Env).payload = { changed: true }; }],
+    ['a changed payload inside the memory entry sig', (g) => {
+      const out = first(g, 'memory').output as MemoryOut;
+      out.sig = JSON.stringify({ ...(JSON.parse(out.sig ?? 'null') as Env), payload: { changed: true } });
+    }],
     ['a changed EdDSA payload', (g) => { (first(g, 'eddsa').output as Keyed).envelope.payload = { changed: true }; }],
     ['the public key of another EdDSA pair', (g) => { (first(g, 'eddsa').output as Keyed).publicKey = otherPublic; }],
     ['an error vector with the wrong recorded code', (g) => { (first(g, 'error', 'bad-signature').output as ErrorOut).code = 'expired'; }],
