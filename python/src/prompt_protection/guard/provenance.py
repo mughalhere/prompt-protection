@@ -57,6 +57,7 @@ IDENTIFIER_STRENGTH = 0.9
 MIN_DESTINATION_CHARS = 4
 MIN_URL_PATH_CHARS = 12
 _MAX_LEAF_DEPTH = 32
+_MAX_DEPTH = 300
 _PREVIEW_UNITS = 64
 
 DESTINATION_KINDS: frozenset[str] = frozenset({"url", "host", "email", "ipv4", "phone", "handle"})
@@ -106,7 +107,8 @@ def _js_key_order(keys: list[str]) -> list[str]:
     return sorted(indexes, key=int) + [k for k in keys if k not in indexes]
 
 
-def _json_text(value: object, seen: set[int]) -> str:
+def _json_text(value: object, seen: set[int], depth: int = 0) -> str:
+    """Return compact JSON text. A container deeper than ``_MAX_DEPTH`` has no JSON form (the root is depth 0)."""
     if value is None:
         return "null"
     if isinstance(value, str):
@@ -115,15 +117,19 @@ def _json_text(value: object, seen: set[int]) -> str:
         return "true" if value else "false"
     if isinstance(value, (int, float)):
         return _number_text(value, True)
-    if not isinstance(value, (list, tuple, Mapping)) or id(value) in seen:
+    if not isinstance(value, (list, tuple, Mapping)) or id(value) in seen or depth > _MAX_DEPTH:
         raise _NoJsonForm
     seen.add(id(value))
+    parts: list[str] = []
     try:
         if isinstance(value, Mapping):
             pairs = {k if isinstance(k, str) else _python_str(k): item for k, item in value.items()}
-            body = ",".join(f"{_json_string(k)}:{_json_text(pairs[k], seen)}" for k in _js_key_order(list(pairs)))
-            return "{" + body + "}"
-        return "[" + ",".join(_json_text(item, seen) for item in value) + "]"
+            for key in _js_key_order(list(pairs)):
+                parts.append(f"{_json_string(key)}:{_json_text(pairs[key], seen, depth + 1)}")
+            return "{" + ",".join(parts) + "}"
+        for item in value:
+            parts.append(_json_text(item, seen, depth + 1))
+        return "[" + ",".join(parts) + "]"
     finally:
         seen.discard(id(value))
 
@@ -132,7 +138,6 @@ _DEFAULT_INT_DIGIT_LIMIT = 4300
 _CONTAINERS = (list, tuple, dict, set, frozenset, deque)
 _STRUCTURED_REPRS = frozenset(kind.__repr__ for kind in (list, tuple, dict, set, frozenset, deque, OrderedDict))
 _UNSET_SLOTS = ("__dict__", "__weakref__")
-_MAX_DEPTH = 100
 _DEPTH_MARKER = "<too deep>"
 
 
@@ -242,12 +247,16 @@ def _range_text(value: range, limit: int, path: set[int]) -> str:
     return f"range({', '.join(bounds)})"
 
 
+def _is_scalar(value: object, kind: type) -> bool:
+    return kind.__module__ == "builtins" and not isinstance(value, _CONTAINERS)
+
+
 def _render(value: object, limit: int, path: set[int], top: bool = False) -> str:
     """Return Python's ``str()`` of ``value``, with each over-limit int as hex and a plain object as its fields.
 
     ``top`` keeps a type's own ``__str__``. Deeper, Python's ``repr()`` shows, as in a list's ``str()``.
     An object met again on the way down prints ``Name(...)``, or ``[...]`` for a list, and the walk ends.
-    A value at nesting depth 100 or more (the root is depth 0) prints as ``<too deep>``.
+    A container or object deeper than 300 (the root is depth 0) prints as ``<too deep>``. A builtin scalar stays.
     """
     if _is_int(value):
         return hex(cast(int, value)) if _over_limit(cast(int, value), limit) else repr(value)
@@ -255,7 +264,7 @@ def _render(value: object, limit: int, path: set[int], top: bool = False) -> str
     own_str = kind.__str__ is not object.__str__
     if top and own_str:
         return str(value)
-    if len(path) >= _MAX_DEPTH:
+    if len(path) > _MAX_DEPTH and not _is_scalar(value, kind):
         return _DEPTH_MARKER
     if id(value) in path:
         return _revisit_text(value)
@@ -268,7 +277,7 @@ def _render(value: object, limit: int, path: set[int], top: bool = False) -> str
             return str(value) if own_str else _named(kind.__name__, _fields_of(value), limit, path)
         if kind is range:
             return _range_text(cast(range, value), limit, path)
-        if kind.__module__ == "builtins" and not isinstance(value, _CONTAINERS):
+        if _is_scalar(value, kind):
             return repr(value)
         text = _own_repr(value, limit)
         if text is not None:
