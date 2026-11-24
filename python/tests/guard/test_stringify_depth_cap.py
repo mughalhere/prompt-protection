@@ -112,3 +112,25 @@ def test_check_tool_call_with_deep_arguments_still_flags_the_depth_1_sibling(n: 
         pytest.fail("check_tool_call raised RecursionError on deeply nested arguments")
     assert decision.policy != "internal-error"
     assert [(flow.source_id, flow.path) for flow in decision.flows] == [("memo", "args.body")]
+
+
+def nest_with_leaves(n: int) -> Any:
+    """Return n containers as nest does, each also holding the string leaf-<its depth>."""
+    node: Any = _EMPTY
+    for depth in range(n, 0, -1):
+        leaf = f"leaf-{depth}"
+        if depth % 2 == 1:
+            node = {"leaf": leaf} if node is _EMPTY else {"leaf": leaf, "k": node}
+        else:
+            node = [leaf] if node is _EMPTY else [leaf, node]
+    return node
+
+
+def test_a_string_leaf_in_every_container_prints_up_to_the_cap_and_only_deeper_containers_are_cut() -> None:
+    text = printed({"sib": SIBLING, "deep": nest_with_leaves(DEPTH + 2)})
+    assert text.count(MARKER) == 1
+    assert SIBLING in text
+    assert " object at 0x" not in text
+    missing = [d for d in range(1, DEPTH + 1) if f"'leaf-{d}'" not in text]
+    assert missing == []
+    assert text.count("leaf-") == DEPTH
