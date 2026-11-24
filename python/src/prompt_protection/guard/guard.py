@@ -72,8 +72,9 @@ def _reject_deferred(
 ) -> None:
     if spotlight is not None:
         raise DeferredFeatureError("prompt-protection: the spotlight option is not supported in the Python package yet")
-    _reject_ml(analyze_options.get("ml"))
-    if session is not None:
+    if "ml" in analyze_options:
+        _reject_ml(analyze_options["ml"])
+    elif session is not None:
         _reject_ml(session.default_ml)
     if _has_eddsa_key(memory):
         raise DeferredFeatureError("prompt-protection: an EdDSA memory key is not supported in the Python package yet")
@@ -240,8 +241,8 @@ def create_guard(
 
     ``analyze_options`` holds the ``analyze_prompt`` keywords and is copied. Its own ``fail_mode`` wins
     over the guard's. ``logger`` is accepted and not used yet. Raises ``DeferredFeatureError`` for
-    ``spotlight``, for an ``ml`` other than ``off`` (in ``analyze_options`` or the passed session's defaults)
-    and for an EdDSA ``memory`` key, whatever ``fail_mode`` says.
+    ``spotlight``, for an effective ``ml`` other than ``off`` (the ``analyze_options`` value when that key is
+    present, else the passed session's default) and for an EdDSA ``memory`` key, whatever ``fail_mode`` says.
     """
     options = dict(analyze_options or {})
     _reject_deferred(spotlight, options, memory, session)
