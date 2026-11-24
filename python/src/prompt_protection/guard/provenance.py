@@ -1,7 +1,7 @@
 """Argument-to-source flow detection (twin of src/guard/provenance.ts, plan D1, D2, D32, D40).
 
 Lengths and slices count UTF-16 code units, as the JS ``.length`` and ``.slice`` do. Postings are
-dicts, never sets, so results come back in the insertion order JS ``Map`` and ``Set`` give.
+dicts, and ``ShingleSet`` iterates in insertion order, so results follow the order JS ``Map`` and ``Set`` give.
 """
 
 import copy
@@ -14,7 +14,7 @@ from prompt_protection._js import JS_WHITESPACE, js_trim, utf16_len, utf16_slice
 from prompt_protection.encoding import decode_obfuscation
 from prompt_protection.identifiers import extract_identifiers
 from prompt_protection.normalizer import normalize
-from prompt_protection.shingle import WORD_SHINGLE, ShingleSet, build_shingles, containment
+from prompt_protection.shingle import WORD_SHINGLE, OrderedHashSet, ShingleSet, build_shingles, containment
 from prompt_protection.unicode import normalize_unicode
 
 __all__ = [
@@ -192,8 +192,8 @@ class IndexableSource(Protocol):
 class IndexedSource(IndexableSource, Protocol):
     """A registered source. The hash sets are kept so eviction can remove its postings without a rebuild."""
 
-    word_hashes: frozenset[int]
-    char_hashes: frozenset[int]
+    word_hashes: OrderedHashSet
+    char_hashes: OrderedHashSet
 
 
 _Postings = dict[_K, dict[str, None]]

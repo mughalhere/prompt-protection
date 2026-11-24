@@ -2,6 +2,7 @@
 
 import math
 import re
+from collections.abc import Iterable, Iterator, Set
 from dataclasses import dataclass
 
 from prompt_protection._js import code_units
@@ -13,6 +14,7 @@ __all__ = [
     "CHAR_STRIDE",
     "WORD_SHINGLE",
     "Containment",
+    "OrderedHashSet",
     "ShingleSet",
     "build_shingles",
     "containment",
@@ -26,10 +28,36 @@ CHAR_STRIDE = 4
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 
+class OrderedHashSet(Set[int]):
+    """An immutable, hashable set of ints that iterates in first-insertion order, like a JS ``Set``.
+
+    It compares equal to any ``set`` or ``frozenset`` with the same members, whatever their order.
+    """
+
+    __slots__ = ("_items",)
+
+    def __init__(self, items: Iterable[int] = ()) -> None:
+        self._items: dict[int, None] = dict.fromkeys(items)
+
+    def __contains__(self, item: object) -> bool:
+        return item in self._items
+
+    def __iter__(self) -> Iterator[int]:
+        return iter(self._items)
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    __hash__ = Set._hash
+
+    def __repr__(self) -> str:
+        return f"OrderedHashSet({list(self._items)!r})"
+
+
 @dataclass(frozen=True, slots=True)
 class ShingleSet(JsResult):
-    words: frozenset[int]
-    chars: frozenset[int]
+    words: OrderedHashSet
+    chars: OrderedHashSet
     word_count: int
 
 
@@ -57,22 +85,24 @@ def _stride(char_stride: float) -> float:
     return 1 if char_stride == -math.inf else max(1, math.floor(char_stride))
 
 
-def _char_hashes(normalized: str, char_stride: float) -> frozenset[int]:
+def _char_hashes(normalized: str, char_stride: float) -> OrderedHashSet:
     if not normalized:
-        return frozenset()
+        return OrderedHashSet()
     units = normalized if normalized.isascii() else "".join(map(chr, code_units(normalized)))
     if len(units) < CHAR_SHINGLE:
-        return frozenset({fnv1a32(normalized)})
+        return OrderedHashSet((fnv1a32(normalized),))
     stride = _stride(char_stride)
     last_start = len(units) - CHAR_SHINGLE
     starts = range(0, last_start + 1, int(stride)) if stride <= last_start else (0,)
-    return frozenset(fnv1a32(units[i : i + CHAR_SHINGLE]) for i in starts)
+    return OrderedHashSet(fnv1a32(units[i : i + CHAR_SHINGLE]) for i in starts)
 
 
-def _word_hashes(tokens: list[str]) -> frozenset[int]:
+def _word_hashes(tokens: list[str]) -> OrderedHashSet:
     if 0 < len(tokens) < WORD_SHINGLE:
-        return frozenset({fnv1a32(" ".join(tokens))})
-    return frozenset(fnv1a32(" ".join(tokens[i : i + WORD_SHINGLE])) for i in range(len(tokens) - WORD_SHINGLE + 1))
+        return OrderedHashSet((fnv1a32(" ".join(tokens)),))
+    return OrderedHashSet(
+        fnv1a32(" ".join(tokens[i : i + WORD_SHINGLE])) for i in range(len(tokens) - WORD_SHINGLE + 1)
+    )
 
 
 def build_shingles(normalized: str, char_stride: float = CHAR_STRIDE) -> ShingleSet:
@@ -85,7 +115,7 @@ def build_shingles(normalized: str, char_stride: float = CHAR_STRIDE) -> Shingle
     return ShingleSet(_word_hashes(tokens), _char_hashes(normalized, char_stride), len(tokens))
 
 
-def _fraction(needle: frozenset[int], hay: frozenset[int]) -> tuple[float, int]:
+def _fraction(needle: OrderedHashSet, hay: OrderedHashSet) -> tuple[float, int]:
     if not needle:
         return 0.0, 0
     hits = len(needle & hay)
