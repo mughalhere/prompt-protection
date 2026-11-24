@@ -5,7 +5,8 @@ The limit is sys.get_int_max_str_digits() when it exists, else 4300, and never d
 """
 
 import sys
-from collections.abc import Iterator
+from collections import OrderedDict, deque, namedtuple
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
@@ -71,3 +72,72 @@ def test_a_container_with_an_over_limit_int_never_hides_its_siblings_behind_an_o
 )
 def test_a_mapping_key_prints_decimal_up_to_the_limit_and_hex_past_it(value: Any, expected: str) -> None:
     assert stringify_value(value) == expected
+
+
+Pair = namedtuple("Pair", ["first", "second"])
+
+
+def _other_containers() -> list[Any]:
+    return [
+        pytest.param(OrderedDict([("a", OVER), ("b", SIBLING)]), id="ordered-dict"),
+        pytest.param(deque([OVER, SIBLING]), id="deque"),
+        pytest.param(Pair(OVER, SIBLING), id="namedtuple"),
+    ]
+
+
+@pytest.mark.parametrize("value", _other_containers())
+def test_an_ordereddict_deque_or_namedtuple_with_an_over_limit_int_shows_hex_and_keeps_its_siblings(value: Any) -> None:
+    text = stringify_value(value)
+    assert SIBLING in text
+    assert hex(OVER) in text
+    assert " object at 0x" not in text
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        pytest.param(deque([OVER, SIBLING]), f"deque([{hex(OVER)}, '{SIBLING}'])", id="deque"),
+        pytest.param(Pair(OVER, SIBLING), f"Pair(first={hex(OVER)}, second='{SIBLING}')", id="namedtuple"),
+    ],
+)
+def test_a_deque_or_namedtuple_prints_python_str_with_only_the_over_limit_int_as_hex(value: Any, expected: str) -> None:
+    assert stringify_value(value) == expected
+
+
+@pytest.fixture
+def set_limit(monkeypatch: pytest.MonkeyPatch) -> Callable[[int], None]:
+    def apply(limit: int) -> None:
+        monkeypatch.setattr(sys, "get_int_max_str_digits", lambda: limit, raising=False)
+
+    return apply
+
+
+LOW = 10**1000
+LOW_TEXT = "1" + "0" * 1000
+JUST_UNDER_LOW = 10**999
+JUST_UNDER_LOW_TEXT = "1" + "0" * 999
+
+LIMIT_CASES = [
+    pytest.param(0, OVER, hex(OVER), id="unlimited-4301-digits"),
+    pytest.param(0, AT, AT_TEXT, id="unlimited-4300-digits"),
+    pytest.param(1000, LOW, hex(LOW), id="limit-1000-1001-digits"),
+    pytest.param(1000, JUST_UNDER_LOW, JUST_UNDER_LOW_TEXT, id="limit-1000-1000-digits"),
+    pytest.param(5000, OVER, hex(OVER), id="limit-5000-4301-digits"),
+    pytest.param(5000, AT, AT_TEXT, id="limit-5000-4300-digits"),
+]
+
+
+@pytest.mark.parametrize(("limit", "value", "expected"), LIMIT_CASES)
+def test_the_threshold_is_the_smaller_of_4300_and_the_interpreter_limit_and_4300_when_it_is_zero(
+    set_limit: Callable[[int], None], limit: int, value: int, expected: str
+) -> None:
+    set_limit(limit)
+    assert stringify_value(value) == expected
+
+
+@pytest.mark.parametrize(("limit", "value", "expected"), LIMIT_CASES)
+def test_the_same_threshold_applies_to_an_int_inside_a_list(
+    set_limit: Callable[[int], None], limit: int, value: int, expected: str
+) -> None:
+    set_limit(limit)
+    assert stringify_value([value, SIBLING]) == f"[{expected}, '{SIBLING}']"
