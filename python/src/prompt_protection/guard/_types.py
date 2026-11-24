@@ -4,9 +4,14 @@ Nested records are structural: a policy reads them by attribute only, so the tas
 Flow, TaintedSource and LockView stay free to define those classes.
 """
 
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import Literal, Protocol
+
+from prompt_protection.analyze import AnalysisResult
+from prompt_protection.guard.provenance import Flow
+from prompt_protection.shingle import OrderedHashSet, ShingleSet
+from prompt_protection.verdict import Action
 
 __all__ = [
     "ApprovalLike",
@@ -16,6 +21,7 @@ __all__ = [
     "DriftLike",
     "FailMode",
     "FlowLike",
+    "GuardDecision",
     "GuardPolicy",
     "InjectionHolder",
     "LineageEdgeLike",
@@ -24,7 +30,9 @@ __all__ = [
     "PolicyContext",
     "SinkKind",
     "SinkResolver",
+    "SourceInjection",
     "SourceLike",
+    "TaintedSource",
     "ToolCall",
 ]
 
@@ -151,3 +159,48 @@ class GuardPolicy(Protocol):
     def evaluate(self, ctx: PolicyContext) -> PolicyAction | None:
         """Return the action this policy demands, or ``None`` when it does not apply."""
         ...
+
+
+@dataclass(frozen=True)
+class SourceInjection:
+    """How a tool result scored as an injection when it was tainted."""
+
+    score: float
+    action: str
+    categories: list[str]
+    ml_probability: float | None = None
+
+
+@dataclass(kw_only=True)
+class TaintedSource:
+    """A registered tool result. ``SourceIndex.add`` stores a copy and sets ``word_hashes`` and ``char_hashes``."""
+
+    id: str
+    tool: str
+    text: str
+    normalized: str
+    shingles: ShingleSet
+    identifiers: Mapping[str, str]
+    injection: SourceInjection
+    turn: int
+    timestamp: int
+    label: str | None = None
+    lineage: Sequence[LineageEdgeLike] | None = None
+    word_hashes: OrderedHashSet = field(init=False, repr=False, compare=False)
+    char_hashes: OrderedHashSet = field(init=False, repr=False, compare=False)
+
+
+@dataclass(frozen=True, kw_only=True)
+class GuardDecision:
+    """The verdict for one tool call. ``policy`` is ``None`` when the call is allowed."""
+
+    action: Action
+    requires_confirmation: bool
+    tool_name: str
+    tool_call_id: str | None = None
+    sink: SinkKind
+    flows: list[Flow]
+    reasons: list[str]
+    policy: str | None = None
+    args_analysis: AnalysisResult
+    depth: int

@@ -1,0 +1,185 @@
+"""The pure tool-call decision function (twin of src/guard/check.ts, plan D1, D2, D40).
+
+State is passed in through ``CheckContext``, so ``create_guard`` stays thin. Approvals, locks, budgets,
+observe mode and logging belong to later tasks.
+"""
+
+import re
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, replace
+from typing import Any, cast
+
+from prompt_protection._rules import _FLAGS, Rule
+from prompt_protection.analyze import (
+    DEFAULT_THRESHOLD,
+    AnalysisResult,
+    analyze_prompt,
+    compute_severity,
+    failed_analysis,
+)
+from prompt_protection.guard._types import (
+    DriftLike,
+    FailMode,
+    GuardDecision,
+    GuardPolicy,
+    PolicyAction,
+    PolicyContext,
+    SinkKind,
+    TaintedSource,
+    ToolCall,
+)
+from prompt_protection.guard.policy import evaluate_policies
+from prompt_protection.guard.provenance import (
+    Flow,
+    FlowThresholds,
+    SourceIndex,
+    TrustState,
+    collect_leaves,
+    detect_flows,
+)
+from prompt_protection.scorer import PatternMatch
+from prompt_protection.verdict import Action
+
+__all__ = ["CheckContext", "check_tool_call"]
+
+FLOW_RULE = Rule(
+    id="guard-data-flow",
+    source="(?!)",
+    weight=10,
+    category="data-flow",
+    precision="high",
+    pattern=re.compile("(?!)", _FLAGS),
+    description="Untrusted tool-result data reached a tool-call argument",
+)
+
+
+@dataclass(frozen=True, kw_only=True)
+class CheckContext:
+    """The guard state one decision reads. ``label_of`` answers the provenance label of a source id."""
+
+    index: SourceIndex
+    trust: TrustState
+    thresholds: FlowThresholds
+    policies: Sequence[GuardPolicy]
+    resolve_sink: Callable[[str], SinkKind]
+    plan: frozenset[str] | None
+    turn: int
+    analyze_options: Mapping[str, Any]
+    fail_mode: FailMode
+    label_of: Callable[[str], str]
+    depth: int
+
+
+@dataclass(frozen=True)
+class _Unlocked:
+    locked: bool = False
+    listed: bool = False
+    drift: DriftLike | None = None
+    drift_action: PolicyAction | None = None
+
+
+_UNLOCKED = _Unlocked()
+
+
+def _threshold(ctx: CheckContext) -> float:
+    value = ctx.analyze_options.get("threshold")
+    return DEFAULT_THRESHOLD if value is None else float(value)
+
+
+def _failed_decision(err: Exception, call: ToolCall, ctx: CheckContext) -> GuardDecision:
+    """Block unless ``fail_mode`` is ``open``; the sink is ``none`` when the resolver is what threw."""
+    args_analysis = failed_analysis(err, ctx.fail_mode, _threshold(ctx))
+    sink: SinkKind = "none"
+    try:
+        sink = ctx.resolve_sink(call.tool_name)
+    except Exception:
+        pass
+    return GuardDecision(
+        action=args_analysis.action,
+        requires_confirmation=False,
+        tool_name=call.tool_name,
+        tool_call_id=call.tool_call_id,
+        sink=sink,
+        flows=[],
+        reasons=["internal-error"],
+        policy="internal-error",
+        args_analysis=args_analysis,
+        depth=ctx.depth,
+    )
+
+
+def check_tool_call(call: ToolCall, ctx: CheckContext) -> GuardDecision:
+    """Decide one tool call. It never raises: an internal failure becomes the ``internal-error`` decision."""
+    try:
+        return _run_check(call, ctx)
+    except Exception as err:
+        return _failed_decision(err, call, ctx)
+
+
+def _to_action(action: PolicyAction) -> Action:
+    return "flag" if action == "confirm" else action
+
+
+def _with_flow_matches(result: AnalysisResult, flows: list[Flow], action: Action, threshold: float) -> AnalysisResult:
+    if not flows and action == result.action:
+        return result
+    synthetic = [PatternMatch(replace(FLOW_RULE, id=f"guard-data-flow-{f.kind}"), f.value, 0, 0) for f in flows]
+    categories = list(dict.fromkeys([*result.categories, "data-flow"])) if flows else result.categories
+    score = max(result.score, threshold) if action == "block" else result.score
+    return replace(
+        result,
+        score=score,
+        severity=compute_severity(score),
+        action=action,
+        is_malicious=action == "block",
+        matches=[*result.matches, *synthetic],
+        categories=categories,
+    )
+
+
+def _empty_analysis() -> AnalysisResult:
+    return AnalysisResult(0, "safe", False, "allow", [], [], "")
+
+
+def _run_check(call: ToolCall, ctx: CheckContext) -> GuardDecision:
+    leaves = collect_leaves(call.args)
+    sink = ctx.resolve_sink(call.tool_name)
+    report = detect_flows(leaves, ctx.index, ctx.trust, ctx.thresholds)
+    args_text = "\n".join(leaf.value for leaf in report.untrusted_leaves)
+    raw_args = analyze_prompt(args_text, **ctx.analyze_options) if args_text else _empty_analysis()
+
+    sources = cast(Sequence[TaintedSource], ctx.index.sources)
+    outcome = evaluate_policies(
+        ctx.policies,
+        PolicyContext(
+            call=call,
+            sink=sink,
+            flows=report.flows,
+            sources=sources,
+            turn_sources=[s for s in sources if s.turn == ctx.turn],
+            args_analysis=raw_args,
+            plan=ctx.plan,
+            destination_trusted=report.destination_trusted,
+            source_by_id=cast(Callable[[str], TaintedSource | None], ctx.index.get),
+            label_of=ctx.label_of,
+            depth=ctx.depth,
+            approval=None,
+            lock=_UNLOCKED,
+            budget=None,
+            require_lock=False,
+        ),
+        ctx.fail_mode,
+    )
+    enforced = _to_action(outcome.action)
+    return GuardDecision(
+        action=enforced,
+        requires_confirmation=outcome.action == "confirm",
+        tool_name=call.tool_name,
+        tool_call_id=call.tool_call_id,
+        sink=sink,
+        flows=report.flows,
+        reasons=list(outcome.reasons),
+        policy=outcome.policy if outcome.action != "allow" else None,
+        args_analysis=_with_flow_matches(raw_args, report.flows, enforced, _threshold(ctx)),
+        depth=ctx.depth,
+    )

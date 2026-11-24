@@ -5,12 +5,14 @@ dicts, and ``ShingleSet`` iterates in insertion order, so results follow the ord
 """
 
 import copy
+import math
 import re
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol, TypeVar, cast
 
-from prompt_protection._js import JS_WHITESPACE, js_trim, utf16_len, utf16_slice
+from prompt_protection._js import JS_WHITESPACE, js_number_str, js_trim, utf16_len, utf16_slice
+from prompt_protection.canonical import _json_string
 from prompt_protection.encoding import decode_obfuscation
 from prompt_protection.identifiers import extract_identifiers
 from prompt_protection.normalizer import normalize
@@ -41,6 +43,7 @@ __all__ = [
     "detect_flows",
     "identifier_values",
     "key_of",
+    "stringify_value",
     "url_path_of",
 ]
 
@@ -75,9 +78,75 @@ _DEFANG_RE = re.compile(
 _XX_RE = re.compile(r"xx", re.ASCII | re.IGNORECASE)
 _INDEX_SUFFIX_RE = re.compile(r"\[[0-9]+\]\Z")
 _NOT_LETTER_RE = re.compile(r"[^a-z]")
+_ARRAY_INDEX_RE = re.compile(r"(?:0|[1-9][0-9]*)\Z", re.ASCII)
+_MAX_ARRAY_INDEX = 2**32 - 2
 _QUERY_OR_FRAGMENT_RE = re.compile(r"[?#]")
 
 _K = TypeVar("_K", bound=Hashable)
+
+
+class _NoJsonForm(Exception):
+    """A value ``JSON.stringify`` would throw on: a cycle, too deep, or a type JSON cannot hold."""
+
+
+def _number_text(value: float, nested: bool) -> str:
+    try:
+        number = float(value)
+    except OverflowError:
+        raise _NoJsonForm from None
+    return "null" if nested and not math.isfinite(number) else js_number_str(number)
+
+
+def _js_key_order(keys: list[str]) -> list[str]:
+    """Order keys as a JS object lists them: canonical array indexes ascending, then insertion order."""
+    indexes = {k for k in keys if _ARRAY_INDEX_RE.match(k) and int(k) <= _MAX_ARRAY_INDEX}
+    return sorted(indexes, key=int) + [k for k in keys if k not in indexes]
+
+
+def _json_text(value: object, seen: set[int]) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        return _json_string(value)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return _number_text(value, True)
+    if not isinstance(value, (list, tuple, Mapping)) or id(value) in seen:
+        raise _NoJsonForm
+    seen.add(id(value))
+    try:
+        if isinstance(value, Mapping):
+            pairs = {k if isinstance(k, str) else str(k): item for k, item in value.items()}
+            body = ",".join(f"{_json_string(k)}:{_json_text(pairs[k], seen)}" for k in _js_key_order(list(pairs)))
+            return "{" + body + "}"
+        return "[" + ",".join(_json_text(item, seen) for item in value) + "]"
+    finally:
+        seen.discard(id(value))
+
+
+def stringify_value(value: object) -> str:
+    """Return the text a tool result is scanned as: a string as is, ``None`` as ``""``, else compact JSON.
+
+    An int or float is a JS number. Python has no bigint, so an int too large for a float is one.
+    A value with no JSON form (a cycle, a set, bytes, an object) falls back to ``str(value)``.
+    """
+    if isinstance(value, str):
+        return value
+    if value is None:
+        return ""
+    try:
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, (int, float)):
+            return _number_text(value, False)
+        return _json_text(value, set())
+    except (_NoJsonForm, RecursionError):
+        pass
+    try:
+        return str(value)
+    except Exception:
+        return object.__repr__(value)
 
 
 def defang(text: str) -> str:
