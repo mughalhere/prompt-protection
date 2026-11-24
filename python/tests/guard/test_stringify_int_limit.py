@@ -6,7 +6,7 @@ and never depends on the version. An object with no custom __str__ prints its fi
 """
 
 import sys
-from collections import OrderedDict, deque, namedtuple
+from collections import OrderedDict, defaultdict, deque, namedtuple
 from collections.abc import Callable, Iterator
 from typing import Any
 
@@ -221,4 +221,61 @@ def test_a_cycle_of_plain_objects_terminates_and_keeps_every_sibling_visible(
     text = _stringify_or_fail(build())
     for sibling in visible:
         assert sibling in text
+    assert " object at 0x" not in text
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        pytest.param(defaultdict(list, {"a": OVER, "b": SIBLING}), id="defaultdict"),
+        pytest.param(defaultdict(None, {"a": OVER, "b": SIBLING}), id="defaultdict-without-factory"),
+        pytest.param([defaultdict(list, {"a": OVER}), SIBLING], id="defaultdict-in-a-list"),
+        pytest.param({"d": defaultdict(int, {"a": OVER}), "b": SIBLING}, id="defaultdict-in-a-dict"),
+    ],
+)
+def test_a_defaultdict_with_an_over_limit_int_is_walked_as_a_mapping_and_keeps_its_siblings(value: Any) -> None:
+    text = stringify_value(value)
+    assert SIBLING in text
+    assert hex(OVER) in text
+    assert " object at 0x" not in text
+
+
+RANGE_CASES = [
+    pytest.param(range(OVER), f"range(0, {hex(OVER)})", id="stop-over-limit"),
+    pytest.param(range(0, OVER, 1), f"range(0, {hex(OVER)})", id="explicit-step-1-is-not-printed"),
+    pytest.param(range(7, OVER, 3), f"range(7, {hex(OVER)}, 3)", id="stop-over-limit-with-step"),
+    pytest.param(range(-OVER, 0), f"range({hex(-OVER)}, 0)", id="negative-start-over-limit"),
+    pytest.param(range(0, 10, OVER), f"range(0, 10, {hex(OVER)})", id="step-over-limit"),
+    pytest.param(range(AT), f"range(0, {AT_TEXT})", id="stop-at-limit-stays-decimal"),
+    pytest.param(range(5), "range(0, 5)", id="in-range-stop-only"),
+    pytest.param(range(0, 10, 2), "range(0, 10, 2)", id="in-range-with-step"),
+    pytest.param(range(5, 0, -1), "range(5, 0, -1)", id="in-range-negative-step"),
+    pytest.param([range(0, OVER), SIBLING], f"[range(0, {hex(OVER)}), '{SIBLING}']", id="over-limit-range-in-a-list"),
+    pytest.param(
+        {"r": range(OVER), "b": SIBLING}, f"{{'r': range(0, {hex(OVER)}), 'b': '{SIBLING}'}}", id="range-in-a-dict"
+    ),
+]
+
+
+@pytest.mark.parametrize(("value", "expected"), RANGE_CASES)
+def test_a_range_prints_python_str_with_only_an_over_limit_bound_as_hex(value: Any, expected: str) -> None:
+    assert stringify_value(value) == expected
+
+
+def json_shaped(depth: int) -> dict[str, Any]:
+    """Build nested dicts and lists the way json.loads does, with SIBLING one level below the root."""
+    node: Any = "leaf"
+    for level in range(depth):
+        node = {"k": node} if level % 2 == 0 else [node]
+    return {"sibling": SIBLING, "k": node}
+
+
+@pytest.mark.parametrize("depth", [500, 1000, 5000])
+def test_json_shaped_nesting_past_the_renderer_depth_keeps_the_depth_1_sibling_visible(depth: int) -> None:
+    value = json_shaped(depth)
+    try:
+        text = stringify_value(value)
+    except RecursionError:
+        pytest.fail("stringify_value raised RecursionError on deeply nested JSON-shaped data")
+    assert SIBLING in text
     assert " object at 0x" not in text
