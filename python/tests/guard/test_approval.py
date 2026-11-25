@@ -727,3 +727,30 @@ def test_a_throwing_store_blocks_before_the_budget_counts() -> None:
     )
     assert (decision.action, decision.policy, decision.depth) == ("block", "internal-error", 0)
     assert (budget.state.turn_calls, dict(budget.state.tool_calls)) == (0, {})
+
+
+def test_an_approval_for_tool_a_is_not_applied_to_a_call_of_tool_b_with_the_same_call_id_diverges_from_js() -> None:
+    # owner ruling, bead ssn
+    guard, card = approved()
+    other = replace(PAY, tool_name="stripe_charge")
+    decision = guard.check_tool_call(other)
+    assert (decision.action, decision.requires_confirmation, decision.reasons) == ("flag", True, ["payment-confirm"])
+    assert decision.approval is None
+    back = guard.check_tool_call(PAY)
+    assert (back.action, back.reasons) == ("allow", ["approved", "payment-confirm"])
+    assert (back.approval.id, back.approval.status) == (card.id, "approved")
+
+
+def test_lookup_by_call_id_ignores_a_record_of_another_tool_name_and_keeps_it_unspent_diverges_from_js() -> None:
+    store = stored(make_card("a", "{}", "c1"), confirm=("a",))
+    assert probe(store, "c1", tool="other") is None
+    assert probe(store, "c1") == ("a", "approved")
+
+
+def test_clear_drops_the_approval_store_so_an_approved_call_asks_again_diverges_from_js() -> None:
+    # owner ruling, bead 6il
+    guard, _card = approved()
+    guard.clear()
+    decision = guard.check_tool_call(PAY)
+    assert (decision.action, decision.requires_confirmation, decision.reasons) == ("flag", True, ["payment-confirm"])
+    assert decision.approval is None
