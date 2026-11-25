@@ -754,3 +754,42 @@ def test_clear_drops_the_approval_store_so_an_approved_call_asks_again_diverges_
     decision = guard.check_tool_call(PAY)
     assert (decision.action, decision.requires_confirmation, decision.reasons) == ("flag", True, ["payment-confirm"])
     assert decision.approval is None
+
+
+# --- render_approval_card: values the JS walk skips or walks as objects ---
+# Expected fields from Node 22, dist/guard/index.cjs renderApprovalCard: Set and function give no field,
+# Uint8Array gives one field per index. Python twins: set, frozenset, callable; bytes, bytearray.
+
+
+def a_def_function() -> int:
+    return 1
+
+
+PLACEMENTS = [
+    pytest.param(lambda v: {"note": "hi", "v": v}, "args.v", id="top-level"),
+    pytest.param(lambda v: {"note": "hi", "o": {"v": v}}, "args.o.v", id="nested"),
+]
+
+
+UNWALKED = [
+    pytest.param({1, 2}, id="set"),
+    pytest.param(frozenset({1, 2}), id="frozenset"),
+    pytest.param(lambda: 1, id="lambda"),
+    pytest.param(a_def_function, id="def-function"),
+]
+
+
+@pytest.mark.parametrize("value", UNWALKED)
+@pytest.mark.parametrize(("place", "_path"), PLACEMENTS)
+def test_a_set_or_a_callable_gives_no_field_like_js_set_and_function(value: object, place: Any, _path: str) -> None:
+    assert values(render(place(value))) == [("args.note", "hi")]
+
+
+@pytest.mark.parametrize(
+    "value", [pytest.param(b"\x07\x08", id="bytes"), pytest.param(bytearray(b"\x07\x08"), id="bytearray")]
+)
+@pytest.mark.parametrize(("place", "path"), PLACEMENTS)
+def test_bytes_give_one_field_per_index_like_js_uint8array(value: object, place: Any, path: str) -> None:
+    rendered = render(place(value))
+    assert values(rendered) == [("args.note", "hi"), (f"{path}.0", "7"), (f"{path}.1", "8")]
+    assert kinds(rendered) == [("args.note", "other"), (f"{path}.0", "other"), (f"{path}.1", "other")]
