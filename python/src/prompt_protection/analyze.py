@@ -161,8 +161,9 @@ def analyze_prompt(
 ) -> AnalysisResult:
     """Score a prompt against the rules. An internal failure returns the ``fail_mode`` verdict.
 
-    A ``logger`` gets one input event per call, filtered by ``log_levels``. A logger error goes to
-    ``on_logger_error``. If that callback raises, the call returns the ``fail_mode`` verdict, and the
+    A ``logger`` gets one input event per call, filtered by ``log_levels``. A logger error, or an
+    awaitable a logger returns (loggers are sync-only), goes to ``on_logger_error``. If that
+    callback raises, the call returns the ``fail_mode`` verdict, and the
     exception escapes when that verdict is logged too.
 
     Raises ``DeferredFeatureError`` for any ``ml`` other than ``off``, whatever ``fail_mode`` says.
