@@ -246,10 +246,15 @@ def create_approval_store(
     )
 
 
+def _plain_str(value: str) -> str:
+    """An exact ``str`` with the same characters, never running a subclass ``__str__`` or ``__format__`` (D32)."""
+    return value if type(value) is str else str.__str__(value)
+
+
 def _scalar_text(value: object) -> str:
     """JS ``String(value)`` for a scalar."""
     if isinstance(value, str):
-        return value
+        return _plain_str(value)
     if value is None:
         return "null"
     if isinstance(value, bool):
@@ -258,8 +263,8 @@ def _scalar_text(value: object) -> str:
         try:
             return js_number_str(float(value))
         except OverflowError:
-            return str(value)
-    return str(value)
+            return _plain_str(str(value))
+    return _plain_str(str(value))
 
 
 # These types are scalars in JS or have no JS twin. Each keeps its str() text, never an attribute walk.
@@ -346,7 +351,7 @@ def _scalar_leaves(args: Any, path: str, out: list[tuple[str, str]], depth: int 
     elif (members := _members(args)) is not None:
         by_text: dict[str, list[Any]] = {}
         for raw_key, item in members.items():
-            by_text.setdefault(raw_key if isinstance(raw_key, str) else str(raw_key), []).append(item)
+            by_text.setdefault(_plain_str(raw_key if isinstance(raw_key, str) else str(raw_key)), []).append(item)
         for key in _js_key_order(list(by_text)):
             for item in by_text[key]:
                 _scalar_leaves(item, f"{path}.{key}", out, depth + 1)
