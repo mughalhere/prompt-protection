@@ -512,10 +512,13 @@ def _walk(args: Any, path: str, out: list[ArgLeaf], depth: int) -> None:
         for i, item in enumerate(args):
             _walk(item, f"{path}[{i}]", out, depth + 1)
     elif isinstance(args, Mapping):
+        by_text: dict[str, list[Any]] = {}
         for raw_key, item in args.items():
-            key = raw_key if isinstance(raw_key, str) else str(raw_key)
-            out.append(ArgLeaf(f"{path}.{key}", key))
-            _walk(item, f"{path}.{key}", out, depth + 1)
+            by_text.setdefault(raw_key if isinstance(raw_key, str) else str(raw_key), []).append(item)
+        for key in _js_key_order(list(by_text)):
+            for item in by_text[key]:
+                out.append(ArgLeaf(f"{path}.{key}", key))
+                _walk(item, f"{path}.{key}", out, depth + 1)
 
 
 def collect_leaves(args: object) -> list[ArgLeaf]:

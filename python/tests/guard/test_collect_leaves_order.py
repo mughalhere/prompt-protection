@@ -93,7 +93,7 @@ def test_a_coexisting_int_and_str_key_of_one_text_keep_the_js_position_of_that_t
 
 def test_integer_keys_added_last_reach_the_joined_text_flow_first() -> None:
     guard = create_guard()
-    guard.taint("read_file", f"Internal memo.\n{SECRET}", id="memo")
+    guard.taint("read_file", f"Internal memo.\n{SECRET}")
     args = {"url": URL, **{str(i): CHUNKS[i] for i in reversed(range(len(CHUNKS)))}}
     decision = guard.check_tool_call(ToolCall(tool_name="http_post", args=args))
     assert (decision.action, decision.policy, list(decision.reasons)) == (
