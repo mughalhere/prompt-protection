@@ -311,3 +311,80 @@ def test_a_subclass_of_an_allowlisted_type_keeps_its_value_visible_inside_an_obj
     text = stringify_value(Holder(leaf))
     assert shown in text
     assert " object at 0x" not in text
+
+
+# Owner decision 2026-11-24, "Base-type value": a subclass of an allowlisted leaf prints as its base leaf.
+OVER_LIMIT = 10**4300
+OVER_HEX = hex(OVER_LIMIT)
+
+
+class HiddenStr(str):
+    def __str__(self) -> str:
+        return "hidden"
+
+    def __repr__(self) -> str:
+        return "hidden"
+
+
+class HiddenInt(int):
+    def __str__(self) -> str:
+        return "hidden"
+
+    def __repr__(self) -> str:
+        return "hidden"
+
+
+class HiddenFloat(float):
+    def __repr__(self) -> str:
+        return "hidden"
+
+
+class Seven(IntEnum):
+    SEVEN = 7
+
+
+def _pin(case_id: str, value: Any, alone: str, listed: str, mixed: str) -> Any:
+    return pytest.param(value, {"alone": alone, "listed": listed, "mixed": mixed}, id=case_id)
+
+
+# "mixed" holds a bytes item, so the text cannot be JSON and takes the Python-text path.
+BASE_VALUE_PINS = [
+    _pin(
+        "str-subclass",
+        HiddenStr("real-text"),
+        "real-text",
+        f'["real-text","{SIBLING}"]',
+        f"['real-text', '{SIBLING}', b'x']",
+    ),
+    _pin("int-subclass", HiddenInt(31337), "31337", f'[31337,"{SIBLING}"]', f"[31337, '{SIBLING}', b'x']"),
+    _pin(
+        "int-subclass-over-limit",
+        HiddenInt(OVER_LIMIT),
+        OVER_HEX,
+        f"[{OVER_HEX}, '{SIBLING}']",
+        f"[{OVER_HEX}, '{SIBLING}', b'x']",
+    ),
+    _pin("int-enum-member", Seven.SEVEN, "7", f'[7,"{SIBLING}"]', f"[7, '{SIBLING}', b'x']"),
+    _pin("float-subclass", HiddenFloat(2.5), "2.5", f'[2.5,"{SIBLING}"]', f"[2.5, '{SIBLING}', b'x']"),
+    _pin("bool-true", True, "true", f'[true,"{SIBLING}"]', f"[True, '{SIBLING}', b'x']"),
+    _pin("bool-false", False, "false", f'[false,"{SIBLING}"]', f"[False, '{SIBLING}', b'x']"),
+]
+BASE_VALUE_PLACES = {
+    "alone": lambda v: v,
+    "listed": lambda v: [v, SIBLING],
+    "mixed": lambda v: [v, SIBLING, b"x"],
+}
+
+
+@pytest.mark.parametrize("place", BASE_VALUE_PLACES)
+@pytest.mark.parametrize(("value", "expected"), BASE_VALUE_PINS)
+def test_a_subclass_of_an_allowlisted_leaf_prints_the_text_of_its_base_leaf(
+    value: Any, expected: dict[str, str], place: str
+) -> None:
+    assert stringify_value(BASE_VALUE_PLACES[place](value)) == expected[place]
+
+
+def test_a_str_subclass_is_returned_as_an_exact_str_so_its_own_str_cannot_replace_it() -> None:
+    text = stringify_value(HiddenStr("real-text"))
+    assert type(text) is str
+    assert str(text) == "real-text"
