@@ -11,6 +11,7 @@ and a card's check counting against the budget.
 import datetime
 import decimal
 import enum
+import ipaddress
 import re
 import time
 import typing
@@ -1044,3 +1045,36 @@ def test_a_str_subclass_leaf_is_stored_as_a_plain_str_with_the_same_characters_n
     assert field.value == text
     assert f"{field.value}" == text
     assert format(field.value) == text
+
+
+# Owner ruling "Keep str() for ipaddress" (PY-16b): an ipaddress value is one str() leaf, not a slot walk.
+@pytest.mark.parametrize(
+    ("value", "text"),
+    [
+        pytest.param(ipaddress.ip_address("1.2.3.4"), "1.2.3.4", id="ipv4-address"),
+        pytest.param(ipaddress.ip_address("::1"), "::1", id="ipv6-address"),
+        pytest.param(ipaddress.ip_network("10.0.0.0/8"), "10.0.0.0/8", id="ipv4-network"),
+        pytest.param(ipaddress.ip_network("2001:db8::/32"), "2001:db8::/32", id="ipv6-network"),
+        pytest.param(ipaddress.ip_interface("10.0.0.1/24"), "10.0.0.1/24", id="ipv4-interface"),
+        pytest.param(ipaddress.ip_interface("2001:db8::1/64"), "2001:db8::1/64", id="ipv6-interface"),
+    ],
+)
+@pytest.mark.parametrize(("place", "path"), PLACEMENTS)
+def test_an_ipaddress_value_is_one_str_leaf_python_owner_ruling_keep_str_for_ipaddress(
+    value: object, text: str, place: Any, path: str
+) -> None:
+    assert values(render(place(value))) == [("args.note", "hi"), (path, text)]
+
+
+@pytest.mark.parametrize(
+    ("place", "path"),
+    [
+        pytest.param(lambda k: {k: "x"}, "args.b", id="top-level-key"),
+        pytest.param(lambda k: {"o": {k: "x"}}, "args.o.b", id="nested-key"),
+    ],
+)
+def test_a_str_subclass_mapping_key_enters_the_field_path_as_a_plain_str(place: Any, path: str) -> None:
+    field = render(place(Shouty("b"))).fields[-1]
+    assert field.path == path
+    assert type(field.path) is str
+    assert field.value == "x"
