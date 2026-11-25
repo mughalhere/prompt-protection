@@ -70,6 +70,7 @@ from prompt_protection.guard.pin import (
     verify_tools,
 )
 from prompt_protection.guard.policy import DEFAULT_POLICIES
+from prompt_protection.guard.presets import GuardPreset, resolve_preset
 from prompt_protection.guard.provenance import (
     FlowThresholds,
     SourceIndex,
@@ -179,6 +180,7 @@ class Guard:
         logging: LoggingOptions,
         require_lock: bool,
         annotations_default: Literal["destructive", "heuristic"],
+        mode: Literal["enforce", "observe"] | None,
         budget: Budget | None,
         approval_options: ApprovalOptions | None,
         fork_options: Mapping[str, Any],
@@ -198,6 +200,7 @@ class Guard:
         self._logging = logging
         self._require_lock = require_lock
         self._annotations_default = annotations_default
+        self._mode = mode
         self._budget = budget
         self._approval_options = approval_options
         self._approvals = self._new_approvals()
@@ -418,6 +421,7 @@ class Guard:
                 lock_of=self._lock_of,
                 require_lock=self._require_lock,
                 budget=self._budget,
+                mode=self._mode,
             ),
         )
         if decision.tool_call_id is not None:
@@ -503,7 +507,7 @@ class Guard:
         """Return a guard with this one's options and taint state. An option passed here wins.
 
         The child gets its own session and turn counter. The lock and the plan stay behind, and
-        ``require_lock`` and ``sinks`` carry over. ``inherit`` is always this guard's own handoff.
+        ``require_lock``, ``sinks``, ``preset`` and ``mode`` carry over. ``inherit`` is always this guard's own handoff.
         """
         return create_guard(**{**self._fork_options, **options, "inherit": self.handoff()})
 
@@ -665,10 +669,12 @@ def create_guard(
     on_logger_error: Callable[[Exception], None] | None = None,
     memory: Mapping[str, Any] | None = None,
     require_lock: bool = False,
-    annotations_default: Literal["destructive", "heuristic"] = "destructive",
+    annotations_default: Literal["destructive", "heuristic"] | None = None,
     budgets: BudgetOptions | None = None,
     approvals: ApprovalOptions | None = None,
     inherit: TaintHandoff | None = None,
+    preset: GuardPreset | None = None,
+    mode: Literal["enforce", "observe"] | None = None,
 ) -> Guard:
     """Create a tool-call guard.
 
@@ -682,9 +688,16 @@ def create_guard(
     ``annotations_default="destructive"`` makes an unannotated tool the name heuristics call ``none`` an
     ``unknown`` sink, and ``"heuristic"`` keeps ``none``. ``budgets`` turns on call and cost limits, and ``{}``
     takes the defaults. ``approvals`` sets ``ttl_ms``, ``max_pending`` and the ``now`` clock of the card store.
-    ``inherit`` absorbs a handoff now and after ``clear``.
+    ``inherit`` absorbs a handoff now and after ``clear``. ``preset`` supplies defaults for ``policies``,
+    ``budgets``, ``min_containment`` and ``annotations_default``. An option that is not ``None`` beats the preset
+    and an unknown preset raises ``TypeError``. ``mode="observe"`` returns ``allow`` for every call and keeps the
+    verdict enforce mode would have applied in ``observed_action``.
     """
-    forwarded = {k: v for k, v in locals().items() if k not in ("session", "inherit")}
+    forwarded = resolve_preset({k: v for k, v in locals().items() if k not in ("session", "inherit")})
+    policies = forwarded.get("policies")
+    min_containment = forwarded.get("min_containment")
+    budgets = forwarded.get("budgets")
+    annotations_default = forwarded.get("annotations_default")
     options = dict(analyze_options or {})
     _reject_deferred(spotlight, options, memory, session)
     chosen = session if session is not None else create_protection_session(**options)
@@ -717,7 +730,8 @@ def create_guard(
             on_logger_error=on_logger_error,
         ),
         require_lock=require_lock,
-        annotations_default=annotations_default,
+        annotations_default="destructive" if annotations_default is None else annotations_default,
+        mode=mode,
         budget=None if budgets is None else Budget(budgets),
         approval_options=approvals,
         fork_options=forwarded,

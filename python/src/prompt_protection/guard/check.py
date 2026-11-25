@@ -1,13 +1,13 @@
 """The pure tool-call decision function (twin of src/guard/check.ts, plan D1, D2, D40).
 
 State is passed in through ``CheckContext``, so ``create_guard`` stays thin. Each call emits one event
-through ``emit_tool_call_log``. Observe mode belongs to a later task.
+through ``emit_tool_call_log``. In observe mode the verdict is computed and logged but never applied.
 """
 
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from prompt_protection._rules import _FLAGS, Rule
 from prompt_protection.analyze import (
@@ -77,6 +77,7 @@ class CheckContext:
     lock_of: Callable[[str], LockView] | None = None
     require_lock: bool = False
     budget: Budget | None = None
+    mode: Literal["enforce", "observe"] | None = None
 
 
 def _threshold(ctx: CheckContext) -> float:
@@ -119,6 +120,22 @@ def check_tool_call(call: ToolCall, ctx: CheckContext) -> GuardDecision:
         return _run_check(call, ctx)
     except Exception as err:
         return _failed_decision(err, call, ctx)
+
+
+@dataclass(frozen=True, kw_only=True)
+class _ObservedEvent:
+    """What the logger sees for an observe-mode decision: the enforced action, the mode and the observed action."""
+
+    action: Action
+    tool_name: str
+    tool_call_id: str | None
+    policy: str | None
+    reasons: list[str]
+    sink: str
+    flows: list[Flow]
+    args_analysis: AnalysisResult
+    mode: str = "observe"
+    observed_action: Action
 
 
 def _snapshot(state: BudgetState) -> BudgetState:
@@ -201,9 +218,10 @@ def _run_check(call: ToolCall, ctx: CheckContext) -> GuardDecision:
         reasons = ["approved", *reasons]
         ctx.approvals.consume(approval.id)
     enforced = _to_action(policy_action)
+    observe = ctx.mode == "observe"
     decision = GuardDecision(
-        action=enforced,
-        requires_confirmation=policy_action == "confirm",
+        action="allow" if observe else enforced,
+        requires_confirmation=False if observe else policy_action == "confirm",
         tool_name=call.tool_name,
         tool_call_id=call.tool_call_id,
         sink=sink,
@@ -215,6 +233,22 @@ def _run_check(call: ToolCall, ctx: CheckContext) -> GuardDecision:
         approval=approval,
         lock=lock if lock.locked else None,
         budget=None if budget is None else _snapshot(budget),
+        observed_action=enforced if observe else None,
+        observed_requires_confirmation=policy_action == "confirm" if observe else None,
     )
-    emit_tool_call_log(decision, args_text, ctx.logging)
+    if observe:
+        event = _ObservedEvent(
+            action=enforced,
+            tool_name=decision.tool_name,
+            tool_call_id=decision.tool_call_id,
+            policy=decision.policy,
+            reasons=decision.reasons,
+            sink=decision.sink,
+            flows=decision.flows,
+            args_analysis=decision.args_analysis,
+            observed_action=enforced,
+        )
+        emit_tool_call_log(event, args_text, ctx.logging)
+    else:
+        emit_tool_call_log(decision, args_text, ctx.logging)
     return decision

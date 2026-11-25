@@ -23,6 +23,7 @@ __all__ = [
     "plan_violation",
     "tool_drift",
     "tool_unpinned",
+    "turn_untrusted_to_untrusted_destination",
     "untrusted_to_exec",
     "untrusted_to_exfil_sink",
     "untrusted_to_payment",
@@ -113,6 +114,14 @@ def payment_confirm(ctx: PolicyContext) -> PolicyAction | None:
 def injection_then_sink(ctx: PolicyContext) -> PolicyAction | None:
     if ctx.sink != "none" and any(s.injection.action == "block" for s in ctx.turn_sources):
         return "flag"
+    return None
+
+
+@_policy("turn-untrusted-to-untrusted-destination")
+def turn_untrusted_to_untrusted_destination(ctx: PolicyContext) -> PolicyAction | None:
+    """Strict preset only: an unnamed exfil destination in a turn with untrusted sources and no detected flow."""
+    if _exfil_risk(ctx) and len(ctx.flows) == 0 and len(ctx.turn_sources) > 0:
+        return "confirm"
     return None
 
 

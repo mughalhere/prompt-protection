@@ -152,7 +152,7 @@ class _FlowLike(Protocol):
 
 
 class ToolCallEventSource(Protocol):
-    """A guard decision as the logger sees it. ``mode`` and ``observed_action`` are read when present (PY-19)."""
+    """A guard decision as the logger sees it. ``mode`` and ``observed_action`` are read when present."""
 
     @property
     def action(self) -> Action: ...

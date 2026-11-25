@@ -204,6 +204,8 @@ class GuardDecision:
     """The verdict for one tool call. ``policy`` is ``None`` when the call is allowed, ``lock`` when unlocked.
 
     ``approval`` is what the approval store said about the call, ``None`` when no confirmed record applied.
+    In observe mode ``action`` is ``allow`` and ``observed_action`` and ``observed_requires_confirmation`` hold
+    the verdict that enforce mode would have applied. Both are ``None`` otherwise.
     """
 
     action: Action
@@ -219,3 +221,5 @@ class GuardDecision:
     approval: "ApprovalState | None" = None
     lock: LockView | None = None
     budget: BudgetState | None = None
+    observed_action: Action | None = None
+    observed_requires_confirmation: bool | None = None

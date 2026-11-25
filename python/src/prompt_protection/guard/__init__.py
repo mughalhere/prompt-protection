@@ -36,6 +36,7 @@ from prompt_protection.guard.budgets import (
 )
 from prompt_protection.guard.check import CheckContext, check_tool_call
 from prompt_protection.guard.errors import ToolCallBlockedError
+from prompt_protection.guard.explain import ExplainStep, Explanation, explain
 from prompt_protection.guard.guard import Guard, create_guard
 from prompt_protection.guard.handoff import (
     HandoffError,
@@ -94,9 +95,17 @@ from prompt_protection.guard.policy import (
     plan_violation,
     tool_drift,
     tool_unpinned,
+    turn_untrusted_to_untrusted_destination,
     untrusted_to_exec,
     untrusted_to_exfil_sink,
     untrusted_to_payment,
+)
+from prompt_protection.guard.presets import (
+    PERMISSIVE_POLICIES,
+    PRESETS,
+    STRICT_POLICIES,
+    GuardPreset,
+    resolve_preset,
 )
 from prompt_protection.guard.provenance import (
     DESTINATION_KEYS,
@@ -160,12 +169,15 @@ __all__ = [
     "DecisionReason",
     "EXEC_SINKS",
     "EXFIL_SINKS",
+    "ExplainStep",
+    "Explanation",
     "Flow",
     "FlowReport",
     "FlowThresholds",
     "Guard",
     "GuardDecision",
     "GuardPolicy",
+    "GuardPreset",
     "HandoffError",
     "HandoffSource",
     "IndexedSource",
@@ -182,10 +194,13 @@ __all__ = [
     "MemoryEntry",
     "MemoryReadResult",
     "MemoryWriteResult",
+    "PERMISSIVE_POLICIES",
+    "PRESETS",
     "PinnedTool",
     "PolicyAction",
     "PolicyContext",
     "PolicyOutcome",
+    "STRICT_POLICIES",
     "SinkKind",
     "SinkPattern",
     "STRONG_EDGE",
@@ -225,6 +240,7 @@ __all__ = [
     "detect_flows",
     "envelope_invalid",
     "evaluate_policies",
+    "explain",
     "handoff_untrusted",
     "identifier_values",
     "identity_text",
@@ -242,11 +258,13 @@ __all__ = [
     "plan_violation",
     "rank_of",
     "render_approval_card",
+    "resolve_preset",
     "stringify_value",
     "tool_drift",
     "tool_identities",
     "tool_identity",
     "tool_unpinned",
+    "turn_untrusted_to_untrusted_destination",
     "untrusted_to_exec",
     "untrusted_to_exfil_sink",
     "untrusted_to_payment",
