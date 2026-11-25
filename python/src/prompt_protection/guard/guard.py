@@ -35,6 +35,20 @@ from prompt_protection.guard.memory import (
     is_memory_entry,
     max_label,
 )
+from prompt_protection.guard.pin import (
+    UNLOCKED,
+    DriftAction,
+    LockState,
+    LockView,
+    ToolDrift,
+    ToolLock,
+    ToolSet,
+    identity_text,
+    is_tool_lock,
+    pin_tools,
+    tool_identities,
+    verify_tools,
+)
 from prompt_protection.guard.policy import DEFAULT_POLICIES
 from prompt_protection.guard.provenance import (
     FlowThresholds,
@@ -44,7 +58,7 @@ from prompt_protection.guard.provenance import (
     containment_of,
     identifier_values,
 )
-from prompt_protection.guard.sinks import create_sink_resolver
+from prompt_protection.guard.sinks import create_sink_resolver, default_sink
 from prompt_protection.guard.wrap import WrapHooks, wrap_tools
 from prompt_protection.logging_ import LoggingOptions, LogLevel, ProtectionLogger
 from prompt_protection.normalizer import normalize
@@ -92,6 +106,13 @@ def _has_eddsa_key(memory: Mapping[str, Any] | None) -> bool:
     return any(isinstance(k, Mapping) and k.get("alg") == "EdDSA" for k in keys)
 
 
+def _explicit_sink(sinks: Mapping[str, str | None] | SinkResolver | None) -> Callable[[str], str | None]:
+    if callable(sinks):
+        return sinks
+    table: Mapping[str, str | None] = {} if sinks is None else sinks
+    return table.get
+
+
 def _reject_ml(ml: object) -> None:
     if ml not in (None, "off"):
         raise DeferredFeatureError(f"prompt-protection: ml={ml!r} is not supported in the Python package, use ml='off'")
@@ -122,6 +143,7 @@ class Guard:
         session: ProtectionSession,
         analyze_options: dict[str, Any],
         resolve_sink: Callable[[str], str],
+        explicit_sink: Callable[[str], str | None],
         policies: tuple[GuardPolicy, ...] | list[GuardPolicy],
         thresholds: FlowThresholds,
         max_sources: int,
@@ -130,10 +152,13 @@ class Guard:
         trusted_identifiers: tuple[str, ...],
         fail_mode: FailMode,
         logging: LoggingOptions,
+        require_lock: bool,
+        annotations_default: Literal["destructive", "heuristic"],
     ) -> None:
         self._session = session
         self._analyze_options = analyze_options
         self._resolve_sink = resolve_sink
+        self._explicit_sink = explicit_sink
         self._policies = policies
         self._thresholds = thresholds
         self._max_sources = max_sources
@@ -142,12 +167,18 @@ class Guard:
         self._trusted_identifiers = trusted_identifiers
         self._fail_mode = fail_mode
         self._logging = logging
+        self._require_lock = require_lock
+        self._annotations_default = annotations_default
         self._index = SourceIndex(max_sources, max_source_chars)
         self._trust = TrustState(set(trusted_identifiers), "")
         self._plan: frozenset[str] | None = None
         self._turn = 0
         self._seq = 0
         self._recent: dict[str, GuardDecision] = {}
+        self._lock: ToolLock | None = None
+        self._drift_action: DriftAction = "block"
+        self._identities: dict[str, str] = {}
+        self._drift: dict[str, ToolDrift] = {}
 
     @property
     def session(self) -> ProtectionSession:
@@ -333,7 +364,7 @@ class Guard:
                 trust=self._trust,
                 thresholds=self._thresholds,
                 policies=self._policies,
-                resolve_sink=self._resolve_sink,
+                resolve_sink=self._resolve_sink_locked,
                 plan=self._plan,
                 turn=self._turn,
                 analyze_options=self._analyze_options,
@@ -341,6 +372,8 @@ class Guard:
                 label_of=self._label_of,
                 depth=0,
                 logging=self._logging,
+                lock_of=self._lock_of,
+                require_lock=self._require_lock,
             ),
         )
         if decision.tool_call_id is not None:
@@ -365,12 +398,96 @@ class Guard:
         self._turn = 0
         self._recent.clear()
         self._session.clear()
+        self._lock = None
+        self._identities = {}
+        self._drift = {}
 
     def wrap_tools(self, tools: Mapping[str, Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
-        """Return the tools with each ``execute`` checked first and its result tainted after (sync only)."""
+        """Return the tools with each ``execute`` checked first and its result tainted after (sync only).
+
+        After ``pin``, the definitions seen here are compared with the pinned ones, so a redefined tool drifts.
+        """
+        self._sync_drift(tools)
         return wrap_tools(
             tools, WrapHooks(check=self.check_tool_call, taint=lambda tool, value, id: self.taint(tool, value, id=id))
         )
+
+    def _lock_of(self, tool_name: str) -> LockView:
+        if self._lock is None:
+            return UNLOCKED
+        pinned = self._lock["tools"].get(tool_name)
+        return LockView(
+            locked=True,
+            listed=pinned is not None,
+            drift=self._drift.get(tool_name),
+            annotations=None if pinned is None else pinned.get("annotations"),
+            drift_action=self._drift_action,
+        )
+
+    def _resolve_sink_locked(self, tool_name: str) -> str:
+        """Under a lock: explicit sink, ``readOnlyHint``, then the heuristic. An unannotated ``none`` is ``unknown``."""
+        explicit = self._explicit_sink(tool_name)
+        if explicit is not None:
+            return explicit
+        if self._lock is None:
+            return self._resolve_sink(tool_name)
+        pinned = self._lock["tools"].get(tool_name)
+        annotations = None if pinned is None else pinned.get("annotations")
+        if annotations is not None and annotations.get("readOnlyHint") is True:
+            return "none"
+        heuristic = default_sink(tool_name)
+        if heuristic == "none" and annotations is None and self._annotations_default == "destructive":
+            return "unknown"
+        return heuristic
+
+    def _install_lock(self, lock: ToolLock, drift: DriftAction) -> None:
+        self._lock = lock
+        self._drift_action = drift
+        self._drift = {}
+
+    def _sync_drift(self, tools: ToolSet) -> None:
+        if self._lock is None or not self._identities:
+            return
+        found: dict[str, ToolDrift] = {}
+        for name, identity in tool_identities(tools).items():
+            expected = self._identities.get(name)
+            if expected is None:
+                found[name] = ToolDrift(name=name, kind="unlisted")
+            elif expected != identity_text(identity):
+                found[name] = ToolDrift(name=name, kind="changed")
+        self._drift = found
+
+    def pin(self, tools: ToolSet, *, drift: DriftAction = "block") -> ToolLock:
+        """Digest the tool definitions (never ``execute``), install the lock and return it for persisting.
+
+        ``drift`` picks the verdict for a tool whose definition changed: ``block`` or ``confirm``.
+        """
+        lock = pin_tools(tools)
+        self._identities = {name: identity_text(identity) for name, identity in tool_identities(tools).items()}
+        self._install_lock(lock, drift)
+        return lock
+
+    def lock(self, lock: ToolLock, *, drift: DriftAction = "block") -> None:
+        """Install a persisted lock. Drift is detected on the next ``verify``, or ``wrap_tools`` after ``pin``.
+
+        Raises ``TypeError`` for a value that is not a v1 ``ToolLock``.
+        """
+        if not is_tool_lock(lock):
+            raise TypeError("lock: not a v1 ToolLock")
+        self._identities = {}
+        self._install_lock(lock, drift)
+
+    def verify(self, tools: ToolSet) -> list[ToolDrift]:
+        """Re-check current definitions against the lock. The result drives ``tool-drift`` until the next call."""
+        if self._lock is None:
+            return []
+        found = verify_tools(tools, self._lock)
+        self._drift = {d.name: d for d in found}
+        return found
+
+    @property
+    def lock_state(self) -> LockState:
+        return LockState(lock=self._lock, drift=list(self._drift.values()), drift_action=self._drift_action)
 
     def last_decision(self, tool_call_id: str | None) -> GuardDecision | None:
         return None if tool_call_id is None else self._recent.get(tool_call_id)
@@ -395,6 +512,8 @@ def create_guard(
     max_content_length: int | None = None,
     on_logger_error: Callable[[Exception], None] | None = None,
     memory: Mapping[str, Any] | None = None,
+    require_lock: bool = False,
+    annotations_default: Literal["destructive", "heuristic"] = "destructive",
 ) -> Guard:
     """Create a tool-call guard.
 
@@ -404,6 +523,9 @@ def create_guard(
     Raises ``DeferredFeatureError`` for ``spotlight``, for an effective ``ml`` other than ``off`` (the
     ``analyze_options`` value when that key is present, else the passed session's default) and for an EdDSA
     ``memory`` key, whatever ``fail_mode`` says. ``memory["max_entries"]`` caps ``memory_read``.
+    ``require_lock`` blocks every call until ``pin`` or ``lock`` installs a lock. Under a lock,
+    ``annotations_default="destructive"`` makes an unannotated tool the name heuristics call ``none`` an
+    ``unknown`` sink, and ``"heuristic"`` keeps ``none``.
     """
     options = dict(analyze_options or {})
     _reject_deferred(spotlight, options, memory, session)
@@ -416,6 +538,7 @@ def create_guard(
         session=chosen,
         analyze_options=options,
         resolve_sink=create_sink_resolver(sinks),
+        explicit_sink=_explicit_sink(sinks),
         policies=DEFAULT_POLICIES if policies is None else policies,
         thresholds=FlowThresholds(
             DEFAULT_MIN_CONTAINMENT if min_containment is None else min_containment,
@@ -433,4 +556,6 @@ def create_guard(
             max_content_length=max_content_length,
             on_logger_error=on_logger_error,
         ),
+        require_lock=require_lock,
+        annotations_default=annotations_default,
     )

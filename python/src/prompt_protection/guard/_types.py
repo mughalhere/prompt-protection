@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
 from prompt_protection.analyze import AnalysisResult
+from prompt_protection.guard.pin import LockView
 from prompt_protection.guard.provenance import Flow
 from prompt_protection.shingle import OrderedHashSet, ShingleSet
 from prompt_protection.verdict import Action
@@ -196,7 +197,7 @@ class TaintedSource:
 
 @dataclass(frozen=True, kw_only=True)
 class GuardDecision:
-    """The verdict for one tool call. ``policy`` is ``None`` when the call is allowed."""
+    """The verdict for one tool call. ``policy`` is ``None`` when the call is allowed, ``lock`` when unlocked."""
 
     action: Action
     requires_confirmation: bool
@@ -208,3 +209,4 @@ class GuardDecision:
     policy: str | None = None
     args_analysis: AnalysisResult
     depth: int
+    lock: LockView | None = None
