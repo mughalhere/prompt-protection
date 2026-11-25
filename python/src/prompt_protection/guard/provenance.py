@@ -96,7 +96,7 @@ _K = TypeVar("_K", bound=Hashable)
 
 
 class _NoJsonForm(Exception):
-    """A value ``JSON.stringify`` would throw on: a cycle, too deep, or a type JSON cannot hold."""
+    """A value with no JSON form: a cycle, too deep, a type JSON cannot hold, or a dict with two keys of one text."""
 
 
 def _number_text(value: float, nested: bool) -> str:
@@ -139,7 +139,12 @@ def _json_text(value: object, seen: set[int], ctx: _Render, depth: int = 0) -> s
     parts: list[str] = []
     try:
         if kind is dict:
-            pairs = {_key_text(k, ctx): item for k, item in cast(dict[Any, Any], value).items()}
+            pairs: dict[str, Any] = {}
+            for key, item in cast(dict[Any, Any], value).items():
+                text = _key_text(key, ctx)
+                if text in pairs:
+                    raise _NoJsonForm
+                pairs[text] = item
             for key in _js_key_order(list(pairs)):
                 parts.append(f"{_json_string(key)}:{_json_text(pairs[key], seen, ctx, depth + 1)}")
             return "{" + ",".join(parts) + "}"
@@ -150,15 +155,25 @@ def _json_text(value: object, seen: set[int], ctx: _Render, depth: int = 0) -> s
         seen.discard(id(value))
 
 
+_ENUM_DICT = Enum.__dict__["__dict__"]
+_NO_VALUE = object()
+_LEAF_BASES = (str, int, float, complex, Decimal, timedelta, timezone, Fraction, UUID, PurePath, date, time, datetime)
+
+
 def _unwrap_enum(value: object) -> object:
-    """Return what an Enum member holds, through any chain of members, read from its own ``_value_`` slot."""
+    """Return what an Enum member holds, through any chain of members.
+
+    A member of a leaf subclass (an int or str mixin, say) stays: it prints through its base method. Any other
+    member gives its ``_value_`` from its own ``__dict__``, read with the base descriptor so no class code runs.
+    A member with no stored ``_value_`` stays, and prints as a marker.
+    """
     seen: set[int] = set()
-    while issubclass(type(value), Enum) and id(value) not in seen:
+    while issubclass(type(value), Enum) and not issubclass(type(value), _LEAF_BASES) and id(value) not in seen:
         seen.add(id(value))
-        try:
-            value = object.__getattribute__(value, "_value_")
-        except AttributeError:
+        stored = dict.get(_ENUM_DICT.__get__(value), "_value_", _NO_VALUE)
+        if stored is _NO_VALUE:
             break
+        value = stored
     return value
 
 
@@ -415,10 +430,11 @@ def stringify_value(value: object) -> str:
     ``dict``, ``list``, ``tuple``, ``set`` and ``frozenset`` print as Python does, and so do ``None``, ``bytes``,
     ``range``, and ``str``, ``int``, ``float`` and ``bool`` (a subclass prints its base value). These stdlib types
     are leaves, each printed through its base type: ``complex``, ``Decimal``, ``Fraction``, ``date``, ``time``,
-    ``datetime``, ``timedelta``, ``timezone``, ``UUID`` and ``PurePath``. An Enum member prints its value, a
-    ``re.Pattern`` its pattern, and a function, method or class its ``__qualname__``. Any other value prints
-    ``<Type not rendered>`` and none of its code runs. An int of more than N digits prints as ``hex()``, with N
-    the smaller of 4300 and ``sys.get_int_max_str_digits()`` (4300 when 0 or absent).
+    ``datetime``, ``timedelta``, ``timezone``, ``UUID`` and ``PurePath``. An Enum member prints its stored value,
+    or its base value for a leaf mixin. A ``re.Pattern`` prints its pattern, a function, method or class its
+    ``__qualname__``, any other value ``<Type not rendered>``, and none of its code runs. A dict with two keys
+    of one text falls back to the Python text. An int of more than N digits prints as ``hex()``, with N the
+    smaller of 4300 and ``sys.get_int_max_str_digits()`` (4300 when 0 or absent).
     """
     return _stringify_flagged(value)[0]
 
