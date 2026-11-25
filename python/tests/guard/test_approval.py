@@ -17,11 +17,13 @@ import enum
 import hmac
 import inspect
 import ipaddress
+import json
 import logging
 import queue
 import re
 import statistics
 import string
+import subprocess
 import tarfile
 import time
 import tracemalloc
@@ -35,6 +37,7 @@ import pytest
 from approval_support import TIMESTAMP_PATTERN, Clock, SpyStore, ThrowingStore, base_ctx
 
 import prompt_protection.guard as pp_guard
+from prompt_protection._js import utf16_len, utf16_slice
 from prompt_protection.canonical import CanonicalJsonError, digest
 from prompt_protection.guard import (
     DESTINATION_KEYS,
@@ -1122,6 +1125,10 @@ def no_addresses(text: str) -> str:
     return re.sub(r"0x[0-9a-f]+", "0x", text)
 
 
+def capped(text: str) -> str:
+    return utf16_slice(text, 0, 197) + "..." if utf16_len(text) > 200 else text
+
+
 @pytest.mark.parametrize("make", STDLIB_SLOTS + STDLIB_DICT)
 @pytest.mark.parametrize(("place", "path"), PLACEMENTS)
 def test_a_stdlib_class_is_one_str_leaf_owner_ruling_stdlib_keeps_str(make: Any, place: Any, path: str) -> None:
@@ -1129,7 +1136,7 @@ def test_a_stdlib_class_is_one_str_leaf_owner_ruling_stdlib_keeps_str(make: Any,
     fields = render(place(instance)).fields
     assert [(f.path, no_addresses(f.value)) for f in fields] == [
         ("args.note", "hi"),
-        (path, no_addresses(str(instance))),
+        (path, no_addresses(capped(str(instance)))),
     ]
     assert type(fields[-1].value) is str
 
@@ -1165,6 +1172,32 @@ def _value_error_with_extra() -> ValueError:
 )
 @pytest.mark.parametrize(("place", "path"), PLACEMENTS)
 def test_a_namespace_walks_and_an_exception_gives_its_own_attributes_owner_ruling_exempt_both(
+    make: Any, rows: list[tuple[str, str]], place: Any, path: str
+) -> None:
+    assert values(render(place(make()))) == leaf_table(path, *rows)
+
+
+# Owner ruling 2026-11-25 "Walk all stdlib exceptions": any BaseException walks its own attributes, as a JS Error does.
+# Node 22 (dist/guard/index.cjs renderApprovalCard): an Error subclass setting own properties lists them in
+# assignment order, and one with none gives no field. Python vars() keeps assignment order (dicts, 3.7+).
+@pytest.mark.parametrize(
+    ("make", "rows"),
+    [
+        pytest.param(
+            lambda: json.JSONDecodeError("m", "doc", 1),
+            [("msg", "m"), ("doc", "doc"), ("pos", "1"), ("lineno", "1"), ("colno", "2")],
+            id="json.JSONDecodeError",
+        ),
+        pytest.param(queue.Empty, [], id="queue.Empty-no-field"),
+        pytest.param(
+            lambda: subprocess.CalledProcessError(1, "cmd"),
+            [("returncode", "1"), ("cmd", "cmd"), ("output", "null"), ("stderr", "null")],
+            id="subprocess.CalledProcessError",
+        ),
+    ],
+)
+@pytest.mark.parametrize(("place", "path"), PLACEMENTS)
+def test_a_stdlib_exception_gives_its_own_attributes_owner_ruling_walk_all_stdlib_exceptions(
     make: Any, rows: list[tuple[str, str]], place: Any, path: str
 ) -> None:
     assert values(render(place(make()))) == leaf_table(path, *rows)
