@@ -8,11 +8,18 @@ import copy
 import math
 import re
 import sys
-from collections.abc import Collection, Hashable, Iterable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Collection, Hashable, Iterable, Iterator, Mapping, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal
+from enum import Enum
+from fractions import Fraction
 from functools import lru_cache
+from pathlib import PurePath, PurePosixPath, PureWindowsPath
+from types import BuiltinFunctionType, FunctionType, MethodType, ModuleType
 from typing import Any, Protocol, TypeVar, cast
+from uuid import UUID
 
 from prompt_protection._js import JS_WHITESPACE, js_number_str, js_trim, utf16_len, utf16_slice
 from prompt_protection.canonical import _json_string
@@ -109,6 +116,7 @@ def _js_key_order(keys: list[str]) -> list[str]:
 
 def _json_text(value: object, seen: set[int], depth: int = 0) -> str:
     """Return compact JSON text. A container deeper than ``_MAX_DEPTH`` has no JSON form (the root is depth 0)."""
+    value = _unwrap_enum(value)
     kind = type(value)
     if value is None:
         return "null"
@@ -124,10 +132,7 @@ def _json_text(value: object, seen: set[int], depth: int = 0) -> str:
     parts: list[str] = []
     try:
         if issubclass(kind, Mapping):
-            pairs = {
-                str.__str__(k) if isinstance(k, str) else _python_str(k): item
-                for k, item in cast(Mapping[Any, Any], value).items()
-            }
+            pairs = {_key_text(k): item for k, item in cast(Mapping[Any, Any], value).items()}
             for key in _js_key_order(list(pairs)):
                 parts.append(f"{_json_string(key)}:{_json_text(pairs[key], seen, depth + 1)}")
             return "{" + ",".join(parts) + "}"
@@ -136,6 +141,23 @@ def _json_text(value: object, seen: set[int], depth: int = 0) -> str:
         return "[" + ",".join(parts) + "]"
     finally:
         seen.discard(id(value))
+
+
+def _unwrap_enum(value: object) -> object:
+    """Return what an Enum member holds, through any chain of members, read from its own ``_value_`` slot."""
+    seen: set[int] = set()
+    while issubclass(type(value), Enum) and id(value) not in seen:
+        seen.add(id(value))
+        try:
+            value = object.__getattribute__(value, "_value_")
+        except AttributeError:
+            break
+    return value
+
+
+def _key_text(key: object) -> str:
+    key = _unwrap_enum(key)
+    return str.__str__(key) if isinstance(key, str) else _python_str(key)
 
 
 _DEFAULT_INT_DIGIT_LIMIT = 4300
@@ -172,6 +194,119 @@ def _int_text(value: int, limit: int) -> str:
     return hex(number) if _over_limit(number, limit) else repr(number)
 
 
+# Each base method below reads no overridable attribute of the instance (owner decision A, 2026-11-25).
+_BASE_TEXT: tuple[tuple[type, Callable[[Any], str]], ...] = (
+    (complex, complex.__repr__),
+    (Decimal, Decimal.__str__),
+    (timedelta, timedelta.__str__),
+    (timezone, timezone.__str__),
+)
+_DATE_PARTS = (date.year, date.month, date.day)
+_DATETIME_CLOCK = (datetime.hour, datetime.minute, datetime.second, datetime.microsecond)
+_TIME_CLOCK = (time.hour, time.minute, time.second, time.microsecond)
+_HOST_PATH: type[PurePath] = type(PurePath())
+_TYPE_QUALNAME = type.__dict__["__qualname__"]
+_FUNCTION_QUALNAME = FunctionType.__dict__["__qualname__"]
+_BUILTIN_SELF = BuiltinFunctionType.__dict__["__self__"]
+_BUILTIN_NAME = BuiltinFunctionType.__dict__["__name__"]
+_METHOD_FUNC = MethodType.__dict__["__func__"]
+
+
+def _plain_zone(zone: object) -> bool:
+    """True for no tzinfo or the final ``timezone``: its ``utcoffset`` is C code, so isoformat runs no user code."""
+    return zone is None or type(zone) is timezone
+
+
+def _moment_text(value: Any, kind: type) -> str | None:
+    """Print a date, time or datetime through the base ``isoformat``. Any other tzinfo is dropped, not called."""
+    if issubclass(kind, datetime):
+        if not _plain_zone(datetime.tzinfo.__get__(value)):
+            value = datetime(*(part.__get__(value) for part in (*_DATE_PARTS, *_DATETIME_CLOCK)))
+        return datetime.isoformat(value, " ")
+    if issubclass(kind, date):
+        return date.isoformat(value)
+    if issubclass(kind, time):
+        if not _plain_zone(time.tzinfo.__get__(value)):
+            value = time(*(part.__get__(value) for part in _TIME_CLOCK))
+        return time.isoformat(value)
+    return None
+
+
+def _fraction_text(value: object, limit: int) -> str | None:
+    try:
+        numerator = Fraction.__dict__["_numerator"].__get__(value)
+        denominator = Fraction.__dict__["_denominator"].__get__(value)
+    except AttributeError:
+        return None
+    if not (issubclass(type(numerator), int) and issubclass(type(denominator), int)):
+        return None
+    top = _int_text(numerator, limit)
+    return top if int.__int__(denominator) == 1 else f"{top}/{_int_text(denominator, limit)}"
+
+
+def _uuid_text(value: object) -> str | None:
+    try:
+        number = UUID.__dict__["int"].__get__(value)
+    except AttributeError:
+        return None
+    if not issubclass(type(number), int):
+        return None
+    digits = f"{int.__int__(number):032x}"
+    return "-".join((digits[:8], digits[8:12], digits[12:16], digits[16:20], digits[20:]))
+
+
+def _path_text(value: object, kind: type) -> str:
+    """Print a path from a copy of its slots held by the exact flavour, so no subclass attribute is read."""
+    flavour = next((base for base in (PureWindowsPath, PurePosixPath) if issubclass(kind, base)), _HOST_PATH)
+    clone = object.__new__(flavour)
+    for slot in PurePath.__slots__:
+        field = PurePath.__dict__[slot]
+        try:
+            field.__set__(clone, field.__get__(value))
+        except AttributeError:
+            continue
+    return str.__str__(PurePath.__str__(clone))
+
+
+def _pattern_text(value: object) -> str:
+    pattern = re.Pattern.pattern.__get__(value)
+    return bytes.__repr__(pattern) if issubclass(type(pattern), bytes) else str.__str__(pattern)
+
+
+def _name_text(value: object, kind: type) -> str | None:
+    """Return ``__qualname__`` of a function, method or class, read from the base descriptors so no hook runs."""
+    while kind is MethodType:
+        value = _METHOD_FUNC.__get__(value)
+        kind = type(value)
+    if kind is FunctionType:
+        return str.__str__(_FUNCTION_QUALNAME.__get__(value))
+    if kind is BuiltinFunctionType:
+        owner = _BUILTIN_SELF.__get__(value)
+        name = _BUILTIN_NAME.__get__(value)
+        if owner is None or issubclass(type(owner), ModuleType):
+            return str.__str__(name)
+        owner_type = owner if issubclass(type(owner), type) else type(owner)
+        return str.__str__(_TYPE_QUALNAME.__get__(owner_type)) + "." + str.__str__(name)
+    if issubclass(kind, type):
+        return str.__str__(_TYPE_QUALNAME.__get__(value))
+    return None
+
+
+def _stdlib_text(value: object, kind: type, limit: int) -> str | None:
+    for base, text in _BASE_TEXT:
+        if issubclass(kind, base):
+            return str.__str__(text(value))
+    if issubclass(kind, Fraction):
+        return _fraction_text(value, limit)
+    if issubclass(kind, UUID):
+        return _uuid_text(value)
+    if issubclass(kind, PurePath):
+        return _path_text(value, kind)
+    if issubclass(kind, re.Pattern):
+        return _pattern_text(value)
+    return _moment_text(value, kind) or _name_text(value, kind)
+
+
 def _leaf_text(value: object, limit: int) -> str | None:
     """Return the text of an allowlisted leaf, read through its base type so no override changes it."""
     kind = type(value)
@@ -193,7 +328,7 @@ def _leaf_text(value: object, limit: int) -> str | None:
         if span.step != 1:
             bounds.append(_int_text(span.step, limit))
         return f"range({', '.join(bounds)})"
-    return None
+    return _stdlib_text(value, kind, limit)
 
 
 def _fields_of(value: object) -> list[tuple[object, object]]:
@@ -269,6 +404,7 @@ def _render(value: object, limit: int, path: set[int]) -> str:
     A one-shot or unsized iterable is never read and prints ``<Type not read>``. Any other object prints as its fields.
     A value met again on the way down prints as ``Name(...)`` or ``[...]``. Past depth 300 (root 0), ``<too deep>``.
     """
+    value = _unwrap_enum(value)
     leaf = _leaf_text(value, limit)
     if leaf is not None:
         return leaf
@@ -298,10 +434,14 @@ def stringify_value(value: object) -> str:
     An int or float is a JS number. Python has no bigint, so an int too large for a float is one.
     A value with no JSON form (a cycle, a set, bytes, an object) falls back to a Python text built from a
     closed allowlist. Only ``str``, ``int``, ``float``, ``bool``, ``None``, ``bytes`` and ``range`` print as Python
-    does, and a subclass prints as its base type. A mapping prints by items, a sized collection by elements, any other
-    object by its fields, and an iterator or unsized iterable as ``<Type not read>``. An int of more than N digits
-    prints as ``hex()``, with N the smaller of 4300 and ``sys.get_int_max_str_digits()`` (4300 when 0 or absent).
+    does, and a subclass prints as its base type. These stdlib types are leaves too, each printed through its base
+    type: ``complex``, ``Decimal``, ``Fraction``, ``date``, ``time``, ``datetime``, ``timedelta``, ``timezone``,
+    ``UUID`` and ``PurePath``. An Enum member prints its value, a ``re.Pattern`` its pattern, and a function, method
+    or class its ``__qualname__``. A mapping prints by items, a sized collection by elements, any other object by its
+    fields, and an iterator or unsized iterable as ``<Type not read>``. An int of more than N digits prints as
+    ``hex()``, with N the smaller of 4300 and ``sys.get_int_max_str_digits()`` (4300 when 0 or absent).
     """
+    value = _unwrap_enum(value)
     if isinstance(value, str):
         return str.__str__(value)
     if value is None:
