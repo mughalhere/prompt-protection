@@ -432,11 +432,12 @@ class Guard:
         if self._lock is None:
             return self._resolve_sink(tool_name)
         pinned = self._lock["tools"].get(tool_name)
+        unannotated = pinned is None or "annotations" not in pinned
         annotations = None if pinned is None else pinned.get("annotations")
-        if annotations is not None and annotations.get("readOnlyHint") is True:
+        if isinstance(annotations, Mapping) and annotations.get("readOnlyHint") is True:
             return "none"
         heuristic = default_sink(tool_name)
-        if heuristic == "none" and annotations is None and self._annotations_default == "destructive":
+        if heuristic == "none" and unannotated and self._annotations_default == "destructive":
             return "unknown"
         return heuristic
 
