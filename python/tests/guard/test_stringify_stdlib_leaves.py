@@ -6,6 +6,7 @@ method or class its __qualname__. No __str__ or __repr__ override hides any of t
 (quoting, key position) is not fixed, so those placements assert that the text and the sibling are visible.
 """
 
+import datetime as dt
 import json
 import re
 from collections.abc import Callable
@@ -271,3 +272,130 @@ def test_an_enum_member_as_a_mapping_key_shows_its_value_and_the_sibling(
     member: Enum, alone: str, fragment: str
 ) -> None:
     assert_shows(stringify_value(PLACES["dict-key"](member)), fragment)
+
+
+def placed(value: Any, place: str) -> Any:
+    return value if place == "alone" else PLACES[place](value)
+
+
+def assert_prints(value: Any, expected: str, place: str) -> None:
+    """The real value prints: exactly alone, or in the pinned list forms beside the sibling. "hidden" never shows."""
+    text = stringify_value(placed(value, place))
+    assert text == expected if place == "alone" else text in accepted_texts(place, expected)
+    assert "hidden" not in text
+
+
+ALONE_OR_LISTED = ["alone", "listed"]
+
+
+def overriding(base: type, names: list[str], *args: Any) -> Any:
+    """Build an instance of a subclass of ``base`` whose methods ``names`` all return "hidden"."""
+    members = {name: (lambda self, *a, **k: "hidden") for name in names}
+    return type(f"Over{base.__name__}", (base,), members)(*args)
+
+
+MOMENTS = [
+    pytest.param(date, (2020, 1, 2), "2020-01-02", id="date"),
+    pytest.param(time, (1, 2, 3), "01:02:03", id="time"),
+    pytest.param(datetime, (2020, 1, 2, 3, 4, 5), "2020-01-02 03:04:05", id="datetime"),
+]
+
+
+@pytest.mark.parametrize("place", ALONE_OR_LISTED)
+@pytest.mark.parametrize("names", [["isoformat"], ["isoformat", "__str__"]], ids=["isoformat", "isoformat-and-str"])
+@pytest.mark.parametrize(("base", "args", "expected"), MOMENTS)
+def test_a_moment_subclass_overriding_isoformat_still_prints_its_real_value(
+    base: type, args: tuple[int, ...], expected: str, names: list[str], place: str
+) -> None:
+    assert_prints(overriding(base, names, *args), expected, place)
+
+
+class Zone(dt.tzinfo):
+    """A zone that counts every hook call, and raises from each when ``fail`` is set."""
+
+    def __init__(self, fail: bool) -> None:
+        self.calls = 0
+        self.fail = fail
+
+    def _hit(self) -> None:
+        self.calls += 1
+        if self.fail:
+            raise RuntimeError("zone hook ran")
+
+    def utcoffset(self, when: dt.datetime | None) -> dt.timedelta:
+        self._hit()
+        return timedelta(hours=9)
+
+    def dst(self, when: dt.datetime | None) -> dt.timedelta:
+        self._hit()
+        return timedelta(0)
+
+    def tzname(self, when: dt.datetime | None) -> str:
+        self._hit()
+        return "hidden"
+
+
+ZONED = [
+    pytest.param(lambda zone: datetime(2020, 1, 2, 3, 4, 5, tzinfo=zone), "2020-01-02 03:04:05", id="datetime"),
+    pytest.param(lambda zone: time(1, 2, 3, tzinfo=zone), "01:02:03", id="time"),
+]
+
+
+# Measured at GREEN7: a custom tzinfo's offset is dropped, so only the wall-clock fields print.
+@pytest.mark.parametrize("place", ALONE_OR_LISTED)
+@pytest.mark.parametrize("fail", [False, True], ids=["counting-zone", "raising-zone"])
+@pytest.mark.parametrize(("build", "expected"), ZONED)
+def test_a_custom_tzinfo_runs_no_user_code_and_its_wall_clock_fields_print(
+    build: Callable[[Zone], Any], expected: str, fail: bool, place: str
+) -> None:
+    zone = Zone(fail)
+    assert_prints(build(zone), expected, place)
+    assert zone.calls == 0
+
+
+def shadowing(base: type, name: str, wrong: Any) -> property:
+    """A property that reads ``wrong`` and still writes to the base attribute, so the real value is stored."""
+    attribute = next(vars(owner)[name] for owner in base.__mro__ if name in vars(owner))
+    return property(lambda self: wrong, lambda self, value: attribute.__set__(self, value))
+
+
+SHADOWS = [
+    pytest.param(Fraction, "_numerator", 99, (1, 3), "1/3", id="fraction-numerator"),
+    pytest.param(Fraction, "_denominator", 7, (1, 3), "1/3", id="fraction-denominator"),
+    pytest.param(UUID, "int", 5, (UUID_TEXT,), UUID_TEXT, id="uuid-int"),
+    pytest.param(PurePosixPath, "_str", "hidden/wrong", ("/visible/path",), "/visible/path", id="posix-path-_str"),
+    pytest.param(PurePosixPath, "drive", "Z:", ("/visible/path",), "/visible/path", id="posix-path-drive"),
+    pytest.param(PureWindowsPath, "_str", "hidden\\wrong", ("C:/visible",), "C:\\visible", id="windows-path-_str"),
+    pytest.param(PureWindowsPath, "drive", "Z:", ("C:/visible",), "C:\\visible", id="windows-path-drive"),
+]
+
+
+@pytest.mark.parametrize("place", ALONE_OR_LISTED)
+@pytest.mark.parametrize(("base", "name", "wrong", "args", "expected"), SHADOWS)
+def test_a_subclass_shadowing_a_private_name_of_its_base_still_prints_the_real_value(
+    base: type, name: str, wrong: Any, args: tuple[Any, ...], expected: str, place: str
+) -> None:
+    value = type(f"Shadow{base.__name__}", (base,), {name: shadowing(base, name, wrong)})(*args)
+    assert_prints(value, expected, place)
+
+
+QUALNAME_READS: list[str] = []
+
+
+class QualnameSpy(type):
+    def __getattribute__(cls, name: str) -> Any:
+        if name == "__qualname__":
+            QUALNAME_READS.append(name)
+            return "hidden"
+        return super().__getattribute__(name)
+
+
+class Spied(metaclass=QualnameSpy):
+    pass
+
+
+@pytest.mark.parametrize("place", ALONE_OR_LISTED)
+def test_a_class_with_a_metaclass_hooking_qualname_prints_the_real_name_and_the_hook_is_not_called(place: str) -> None:
+    QUALNAME_READS.clear()
+    assert_prints(Spied, "Spied", place)
+    assert QUALNAME_READS == []
