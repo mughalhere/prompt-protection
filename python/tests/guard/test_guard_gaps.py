@@ -74,7 +74,6 @@ NODE_CASES = [
     case({1: "a", 2: "b"}, '{"1":"a","2":"b"}', "int-keys"),
     case({-1: 1}, '{"-1":1}', "negative-int-key"),
     case({"b": 1, 2: "x"}, '{"2":"x","b":1}', "int-key-sorts-as-an-array-index"),
-    case({1: "a", "1": "b"}, '{"1":"b"}', "int-key-and-str-key-collide"),
     case({1.5: 1}, '{"1.5":1}', "float-key"),
     case({1e21: 1}, '{"1e+21":1}', "large-float-key"),
 ]
@@ -111,6 +110,8 @@ INSTANCE_CASES = [
     divergence({"a": Fields()}, "instance-in-a-dict", "{'a': <Fields not rendered>}"),
     divergence([Fields(), 1], "instance-in-a-list", "[<Fields not rendered>, 1]"),
 ]
+# Owner decision 2026-11-25 "Re-pin as divergence": JSON would keep one pair, so the Python text shows both.
+COLLISION_CASES = [divergence({1: "a", "1": "b"}, "int-key-and-str-key-collide", "{1: 'a', '1': 'b'}")]
 KEY_CASES = [
     divergence({1.0: 1}, "integral-float-key", '{"1.0":1}'),
     divergence({True: 1}, "bool-key", '{"True":1}'),
@@ -132,6 +133,13 @@ def test_stringify_value_keeps_python_str_for_a_set_owner_divergence(value: Any,
 
 @pytest.mark.parametrize(("value", "expected"), INSTANCE_CASES)
 def test_stringify_value_prints_a_plain_instance_as_a_marker_owner_decision(value: Any, expected: str) -> None:
+    assert stringify_value(value) == expected
+
+
+@pytest.mark.parametrize(("value", "expected"), COLLISION_CASES)
+def test_stringify_value_prints_both_pairs_of_an_int_and_str_key_collision_owner_divergence(
+    value: Any, expected: str
+) -> None:
     assert stringify_value(value) == expected
 
 
