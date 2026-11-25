@@ -31,7 +31,7 @@ class Explanation:
 def _unpinned(d: GuardDecision) -> str:
     if d.lock is not None and d.lock.locked:
         return f"{d.tool_name} is not in the tool lock"
-    return "requireLock is set and no lock is installed"
+    return "require_lock is set and no lock is installed"
 
 
 def _drift(d: GuardDecision) -> str:
@@ -74,7 +74,7 @@ _BECAUSE: dict[str, Callable[[GuardDecision], str]] = {
     "tool-drift": _drift,
     "budget-exceeded": _budget,
     "envelope-invalid": _fixed("a sealed envelope failed verification, so its payload is treated as blocked"),
-    "internal-error": _fixed("the guard itself threw; the verdict comes from failMode"),
+    "internal-error": _fixed("the guard itself threw; the verdict comes from fail_mode"),
 }
 
 
