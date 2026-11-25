@@ -1,14 +1,17 @@
 """The core tool-call guard (twin of src/guard/guard.ts, plan D1, D2, D40, owner decision 2).
 
 Tool results enter through ``taint``, user turns through ``trust`` and ``analyze_user_turn``, and every
-model-proposed call goes through ``check_tool_call``. Only the 4.0 surface is here.
+model-proposed call goes through ``check_tool_call``. Memory lineage is here too. Later tasks add the rest.
 """
 
 import time
-from collections.abc import Callable, Collection, Mapping, Sequence
-from typing import Any, cast
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
+from datetime import datetime, timezone
+from itertools import islice
+from typing import Any, Literal, cast
 
 from prompt_protection._js import utf16_len, utf16_slice
+from prompt_protection._rules import RULES_VERSION
 from prompt_protection.analyze import AnalysisResult, failed_analysis
 from prompt_protection.errors import DeferredFeatureError
 from prompt_protection.guard._types import (
@@ -21,12 +24,24 @@ from prompt_protection.guard._types import (
     ToolCall,
 )
 from prompt_protection.guard.check import CheckContext, check_tool_call
+from prompt_protection.guard.memory import (
+    MIN_EDGE,
+    STRONG_EDGE,
+    LineageEdge,
+    MemoryEntry,
+    MemoryReadResult,
+    MemoryWriteResult,
+    derive_label,
+    is_memory_entry,
+    max_label,
+)
 from prompt_protection.guard.policy import DEFAULT_POLICIES
 from prompt_protection.guard.provenance import (
     FlowThresholds,
     SourceIndex,
     TrustState,
     _stringify_flagged,
+    containment_of,
     identifier_values,
 )
 from prompt_protection.guard.sinks import create_sink_resolver
@@ -53,6 +68,22 @@ def _now_ms() -> int:
 
 def _own_label(injection: SourceInjection) -> str:
     return "blocked" if injection.action == "block" else "tool"
+
+
+def _iso_ms(ms: int) -> str:
+    stamp = datetime.fromtimestamp(ms // 1000, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    return f"{stamp}.{ms % 1000:03d}Z"
+
+
+def _injection_wire(injection: SourceInjection) -> dict[str, Any]:
+    out: dict[str, Any] = {
+        "score": injection.score,
+        "action": injection.action,
+        "categories": list(injection.categories),
+    }
+    if injection.ml_probability is not None:
+        out["mlProbability"] = injection.ml_probability
+    return out
 
 
 def _has_eddsa_key(memory: Mapping[str, Any] | None) -> bool:
@@ -95,6 +126,7 @@ class Guard:
         thresholds: FlowThresholds,
         max_sources: int,
         max_source_chars: int,
+        max_memory_entries: int,
         trusted_identifiers: tuple[str, ...],
         fail_mode: FailMode,
         logging: LoggingOptions,
@@ -106,6 +138,7 @@ class Guard:
         self._thresholds = thresholds
         self._max_sources = max_sources
         self._max_source_chars = max_source_chars
+        self._max_memory_entries = max_memory_entries
         self._trusted_identifiers = trusted_identifiers
         self._fail_mode = fail_mode
         self._logging = logging
@@ -140,6 +173,17 @@ class Guard:
 
     def taint(self, source: str, value: object, *, id: str | None = None) -> TaintedSource:
         """Register a tool result as untrusted text, scored as an injection. The same ``id`` returns the same source."""
+        return self._taint(source, value, id=id)
+
+    def _taint(
+        self,
+        source: str,
+        value: object,
+        *,
+        id: str | None,
+        label: str | None = None,
+        lineage: list[LineageEdge] | None = None,
+    ) -> TaintedSource:
         if id is None:
             self._seq += 1
             id = f"{source}#{self._seq}"
@@ -155,6 +199,7 @@ class Guard:
             threshold = self._analyze_options.get("threshold")
             result = failed_analysis(err, self._fail_mode, _DEFAULT_THRESHOLD if threshold is None else threshold)
         injection = SourceInjection(score=result.score, action=result.action, categories=list(result.categories))
+        own = _own_label(injection)
         entry = TaintedSource(
             id=id,
             tool=source,
@@ -165,9 +210,101 @@ class Guard:
             injection=injection,
             turn=self._turn,
             timestamp=_now_ms(),
+            label=None if label is None else max_label(own, label),
+            lineage=lineage,
             unrenderable=unrenderable,
         )
         return cast(TaintedSource, self._index.add(entry))
+
+    def _auto_edges(self, text: str, self_id: str) -> list[LineageEdge]:
+        """Containment of ``text`` in each live source other than ``self_id``, as ``derive`` edges."""
+        edges: list[LineageEdge] = []
+        for src in self._index.sources:
+            if src.id == self_id:
+                continue
+            found = containment_of(text, src.normalized)
+            strength = max(found.word, found.char)
+            if strength >= MIN_EDGE:
+                edges.append(LineageEdge(from_=src.id, kind="derive", strength=strength))
+        return edges
+
+    def taint_memory_write(
+        self,
+        source: str,
+        value: object,
+        *,
+        id: str | None = None,
+        policy: Literal["reject-blocked", "annotate"] = "reject-blocked",
+        derived_from: Sequence[str] | None = None,
+        key: str | None = None,
+        label: str | None = None,
+    ) -> MemoryWriteResult:
+        """Taint a value on its way into memory and return the wire entry to persist.
+
+        ``derived_from`` makes copy edges of strength 1. Without it the edges come from text overlap with the
+        live sources. A ``label`` can only raise the label. ``policy`` ``reject-blocked`` sets ``store`` false
+        for an injection-scored or blocked-label value.
+        """
+        src = self._taint(source, value, id=id)
+        explicit = [LineageEdge(from_=f, kind="copy", strength=1) for f in derived_from or ()]
+        lineage = explicit or self._auto_edges(src.text, src.id)
+        derived = derive_label(lineage, self._label_of, _own_label(src.injection))
+        resolved = derived if label is None else max_label(derived, label)
+        src.label = resolved
+        src.lineage = lineage
+        entry: MemoryEntry = {
+            "v": 1,
+            "id": src.id,
+            "value": src.text,
+            "label": resolved,
+            "sourceIds": [e.from_ for e in lineage if e.strength >= STRONG_EDGE],
+            "lineage": [{"from": e.from_, "kind": e.kind, "strength": e.strength} for e in lineage],
+            "injection": _injection_wire(src.injection),
+            "rulesVersion": RULES_VERSION,
+            "turn": self._turn,
+            "ts": _iso_ms(src.timestamp),
+        }
+        if key is not None:
+            entry = {**entry, "key": key}
+        action = src.injection.action
+        store = not (policy == "reject-blocked" and (action == "block" or resolved == "blocked"))
+        return MemoryWriteResult(source=src, action=action, store=store, entry=entry)
+
+    def memory_read(self, entries: Iterable[MemoryEntry]) -> MemoryReadResult:
+        """Register stored entries as sources, re-scored under the current rules. A stored label only raises the result.
+
+        Raises ``TypeError`` for an entry that is not a v1 ``MemoryEntry``. Reads at most ``memory.max_entries``
+        entries, which defaults to ``max_sources``.
+        """
+        sources: list[TaintedSource] = []
+        edges: list[LineageEdge] = []
+        label = "tool"
+        worst = SourceInjection(score=0, action="allow", categories=[])
+        for entry in islice(entries, self._max_memory_entries):
+            if not is_memory_entry(entry):
+                raise TypeError("memory_read: not a v1 MemoryEntry")
+            lineage = [LineageEdge(from_=e["from"], kind=e["kind"], strength=e["strength"]) for e in entry["lineage"]]
+            lineage.append(LineageEdge(from_=entry["id"], kind="read", strength=1))
+            name = entry.get("key")
+            src = self._taint(
+                f"memory:{entry['id'] if name is None else name}",
+                entry["value"],
+                id=f"mem:{entry['id']}",
+                label=entry["label"],
+                lineage=lineage,
+            )
+            sources.append(src)
+            edges.extend(lineage)
+            label = max_label(label, src.label if src.label is not None else _own_label(src.injection))
+            if src.injection.score > worst.score:
+                worst = src.injection
+        return MemoryReadResult(sources=sources, label=label, edges=edges, injection=worst)
+
+    def derive(self, value: object, from_source_ids: Sequence[str], *, id: str | None = None) -> TaintedSource:
+        """Register a value derived from earlier sources. It takes the highest label among them and its own score."""
+        lineage = [LineageEdge(from_=f, kind="derive", strength=1) for f in from_source_ids]
+        label = max_label("tool", *(self._label_of(f) for f in from_source_ids))
+        return self._taint("derived", value, id=id, label=label, lineage=lineage)
 
     def trust(self, text: str) -> None:
         """Record user-authored text. A destination found in it is no longer a flow."""
@@ -266,13 +403,15 @@ def create_guard(
     ``check_tool_call``. They are not analyze options, so ``taint`` and ``analyze_user_turn`` log nothing.
     Raises ``DeferredFeatureError`` for ``spotlight``, for an effective ``ml`` other than ``off`` (the
     ``analyze_options`` value when that key is present, else the passed session's default) and for an EdDSA
-    ``memory`` key, whatever ``fail_mode`` says.
+    ``memory`` key, whatever ``fail_mode`` says. ``memory["max_entries"]`` caps ``memory_read``.
     """
     options = dict(analyze_options or {})
     _reject_deferred(spotlight, options, memory, session)
     chosen = session if session is not None else create_protection_session(**options)
     if options.get("fail_mode") is None:
         options["fail_mode"] = fail_mode
+    sources_cap = DEFAULT_MAX_SOURCES if max_sources is None else max_sources
+    memory_cap = None if memory is None else memory.get("max_entries")
     return Guard(
         session=chosen,
         analyze_options=options,
@@ -282,8 +421,9 @@ def create_guard(
             DEFAULT_MIN_CONTAINMENT if min_containment is None else min_containment,
             DEFAULT_MIN_CHAR_CONTAINMENT if min_char_containment is None else min_char_containment,
         ),
-        max_sources=DEFAULT_MAX_SOURCES if max_sources is None else max_sources,
+        max_sources=sources_cap,
         max_source_chars=DEFAULT_MAX_SOURCE_CHARS if max_source_chars is None else max_source_chars,
+        max_memory_entries=sources_cap if memory_cap is None else memory_cap,
         trusted_identifiers=tuple(s.lower() for s in trusted_identifiers or ()),
         fail_mode=fail_mode,
         logging=LoggingOptions(
