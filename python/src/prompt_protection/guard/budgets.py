@@ -86,7 +86,8 @@ class Budget:
         self._options = options
         repeat = options.get("max_repeat_identical")
         self._max_repeat = DEFAULT_MAX_REPEAT_IDENTICAL if repeat is None else repeat
-        self._on_exceed: OnExceed = options.get("on_exceed") or "block"
+        on_exceed = options.get("on_exceed")
+        self._on_exceed: OnExceed = "block" if on_exceed is None else on_exceed
         self._state = self._fresh()
 
     def _fresh(self) -> BudgetState:
