@@ -8,13 +8,24 @@ Not pinned: a call id matching a record of another tool name, confirm twice, cle
 and a card's check counting against the budget.
 """
 
+import dataclasses
 import datetime
 import decimal
+import email.message
 import enum
+import hmac
+import inspect
 import ipaddress
+import logging
+import queue
 import re
+import statistics
+import string
+import tarfile
 import time
+import tracemalloc
 import typing
+import zipfile
 from dataclasses import dataclass, replace
 from types import SimpleNamespace
 from typing import Any
@@ -1078,3 +1089,51 @@ def test_a_str_subclass_mapping_key_enters_the_field_path_as_a_plain_str(place: 
     assert field.path == path
     assert type(field.path) is str
     assert field.value == "x"
+
+
+# Owner ruling 2026-11-25 "stdlib keeps str()": a stdlib-module class is one str() leaf, slots or __dict__.
+def _sample_signature() -> inspect.Signature:
+    return inspect.signature(lambda a, b=1: None)
+
+
+STDLIB_SLOTS = [
+    pytest.param(lambda: hmac.new(b"k", b"m", "sha256"), id="hmac.HMAC"),
+    pytest.param(_sample_signature, id="inspect.Signature"),
+    pytest.param(lambda: _sample_signature().parameters["b"], id="inspect.Parameter"),
+    pytest.param(statistics.NormalDist, id="statistics.NormalDist"),
+    pytest.param(lambda: tracemalloc.Frame(("f.py", 1)), id="tracemalloc.Frame"),
+    pytest.param(lambda: typing.TypeVar("T"), id="typing.TypeVar"),
+    pytest.param(lambda: typing.ForwardRef("int"), id="typing.ForwardRef"),
+    pytest.param(lambda: zipfile.ZipInfo("a.txt"), id="zipfile.ZipInfo"),
+    pytest.param(lambda: tarfile.TarInfo("x"), id="tarfile.TarInfo"),
+    pytest.param(lambda: dataclasses.field(default=1), id="dataclasses.Field"),
+]
+
+STDLIB_DICT = [
+    pytest.param(lambda: logging.makeLogRecord({"msg": "m"}), id="logging.LogRecord"),
+    pytest.param(lambda: string.Template("$a"), id="string.Template"),
+    pytest.param(email.message.Message, id="email.message.Message"),
+    pytest.param(queue.Queue, id="queue.Queue"),
+]
+
+
+def no_addresses(text: str) -> str:
+    return re.sub(r"0x[0-9a-f]+", "0x", text)
+
+
+@pytest.mark.parametrize("make", STDLIB_SLOTS + STDLIB_DICT)
+@pytest.mark.parametrize(("place", "path"), PLACEMENTS)
+def test_a_stdlib_class_is_one_str_leaf_owner_ruling_stdlib_keeps_str(make: Any, place: Any, path: str) -> None:
+    instance = make()
+    fields = render(place(instance)).fields
+    assert [(f.path, no_addresses(f.value)) for f in fields] == [
+        ("args.note", "hi"),
+        (path, no_addresses(str(instance))),
+    ]
+    assert type(fields[-1].value) is str
+
+
+@pytest.mark.parametrize("make", [Tagged, SlotsPair])
+@pytest.mark.parametrize(("place", "path"), PLACEMENTS)
+def test_a_user_defined_class_still_walks_beside_the_stdlib_str_ruling(make: Any, place: Any, path: str) -> None:
+    assert values(render(place(make()))) == leaf_table(path, ("s", "a"), ("n", "7"))
