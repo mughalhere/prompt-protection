@@ -12,6 +12,7 @@ from datetime import time as day_time
 from decimal import Decimal
 from enum import Enum
 from fractions import Fraction
+from ipaddress import IPv4Address, IPv4Interface, IPv4Network, IPv6Address, IPv6Interface, IPv6Network
 from pathlib import PurePath
 from types import GetSetDescriptorType, MemberDescriptorType, ModuleType
 from typing import Any, Literal, Protocol, TypedDict
@@ -282,6 +283,12 @@ _SCALAR_TYPES = (
     day_time,
     Enum,
     ModuleType,
+    IPv4Address,
+    IPv6Address,
+    IPv4Network,
+    IPv6Network,
+    IPv4Interface,
+    IPv6Interface,
 )
 
 
