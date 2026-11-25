@@ -25,6 +25,7 @@ from prompt_protection.guard._types import (
     TaintedSource,
     ToolCall,
 )
+from prompt_protection.guard.budgets import Budget, BudgetOptions, BudgetState
 from prompt_protection.guard.check import CheckContext, check_tool_call
 from prompt_protection.guard.handoff import (
     HandoffSource,
@@ -168,6 +169,7 @@ class Guard:
         logging: LoggingOptions,
         require_lock: bool,
         annotations_default: Literal["destructive", "heuristic"],
+        budget: Budget | None,
         fork_options: Mapping[str, Any],
         inherit: TaintHandoff | None,
     ) -> None:
@@ -185,6 +187,7 @@ class Guard:
         self._logging = logging
         self._require_lock = require_lock
         self._annotations_default = annotations_default
+        self._budget = budget
         self._index = SourceIndex(max_sources, max_source_chars)
         self._trust = TrustState(set(trusted_identifiers), "")
         self._trusted_order: dict[str, None] = dict.fromkeys(trusted_identifiers)
@@ -400,6 +403,7 @@ class Guard:
                 logging=self._logging,
                 lock_of=self._lock_of,
                 require_lock=self._require_lock,
+                budget=self._budget,
             ),
         )
         if decision.tool_call_id is not None:
@@ -468,6 +472,20 @@ class Guard:
 
     def next_turn(self) -> None:
         self._turn += 1
+        if self._budget is not None:
+            self._budget.next_turn()
+
+    def budget(self) -> BudgetState:
+        """The live budget state, or zeros carrying this guard's depth when ``budgets`` is off."""
+        if self._budget is None:
+            return BudgetState(depth=self._depth)
+        return self._budget.state
+
+    def record_cost(self, *, usd: float | None = None, tokens: float | None = None) -> BudgetState:
+        """Add to the cost totals that ``max_cost`` limits. Without ``budgets`` it counts nothing and returns zeros."""
+        if self._budget is None:
+            return self.budget()
+        return self._budget.record_cost(usd=usd, tokens=tokens)
 
     def clear(self) -> None:
         """Forget sources, trusted text, the plan, the turn, remembered decisions and the session history."""
@@ -482,6 +500,8 @@ class Guard:
         self._lock = None
         self._identities = {}
         self._drift = {}
+        if self._budget is not None:
+            self._budget.reset()
         if self._inherit is not None:
             self.absorb(self._inherit)
 
@@ -598,6 +618,7 @@ def create_guard(
     memory: Mapping[str, Any] | None = None,
     require_lock: bool = False,
     annotations_default: Literal["destructive", "heuristic"] = "destructive",
+    budgets: BudgetOptions | None = None,
     inherit: TaintHandoff | None = None,
 ) -> Guard:
     """Create a tool-call guard.
@@ -610,7 +631,8 @@ def create_guard(
     ``memory`` key, whatever ``fail_mode`` says. ``memory["max_entries"]`` caps ``memory_read``.
     ``require_lock`` blocks every call until ``pin`` or ``lock`` installs a lock. Under a lock,
     ``annotations_default="destructive"`` makes an unannotated tool the name heuristics call ``none`` an
-    ``unknown`` sink, and ``"heuristic"`` keeps ``none``. ``inherit`` absorbs a handoff now and after ``clear``.
+    ``unknown`` sink, and ``"heuristic"`` keeps ``none``. ``budgets`` turns on call and cost limits, and ``{}``
+    takes the defaults. ``inherit`` absorbs a handoff now and after ``clear``.
     """
     forwarded = {k: v for k, v in locals().items() if k not in ("session", "inherit")}
     options = dict(analyze_options or {})
@@ -646,6 +668,7 @@ def create_guard(
         ),
         require_lock=require_lock,
         annotations_default=annotations_default,
+        budget=None if budgets is None else Budget(budgets),
         fork_options=forwarded,
         inherit=inherit,
     )

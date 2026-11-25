@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
 from prompt_protection.analyze import AnalysisResult
+from prompt_protection.guard.budgets import BudgetState
 from prompt_protection.guard.pin import LockView
 from prompt_protection.guard.provenance import Flow
 from prompt_protection.shingle import OrderedHashSet, ShingleSet
@@ -210,3 +211,4 @@ class GuardDecision:
     args_analysis: AnalysisResult
     depth: int
     lock: LockView | None = None
+    budget: BudgetState | None = None

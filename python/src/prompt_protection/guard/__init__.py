@@ -11,6 +11,13 @@ from prompt_protection.guard._types import (
     TaintedSource,
     ToolCall,
 )
+from prompt_protection.guard.budgets import (
+    DEFAULT_MAX_REPEAT_IDENTICAL,
+    Budget,
+    BudgetOptions,
+    BudgetState,
+    create_budget,
+)
 from prompt_protection.guard.check import CheckContext, check_tool_call
 from prompt_protection.guard.errors import ToolCallBlockedError
 from prompt_protection.guard.guard import Guard, create_guard
@@ -112,8 +119,12 @@ from prompt_protection.guard.wrap import WrapHooks, wrap_tools
 
 __all__ = [
     "ArgLeaf",
+    "Budget",
+    "BudgetOptions",
+    "BudgetState",
     "CheckContext",
     "DECISION_REASONS",
+    "DEFAULT_MAX_REPEAT_IDENTICAL",
     "DEFAULT_POLICIES",
     "DEFAULT_SINK_PATTERNS",
     "DESTINATION_KEYS",
@@ -176,6 +187,7 @@ __all__ = [
     "check_tool_call",
     "collect_leaves",
     "containment_of",
+    "create_budget",
     "create_guard",
     "create_sink_resolver",
     "defang",

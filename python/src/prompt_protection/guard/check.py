@@ -1,7 +1,7 @@
 """The pure tool-call decision function (twin of src/guard/check.ts, plan D1, D2, D40).
 
 State is passed in through ``CheckContext``, so ``create_guard`` stays thin. Each call emits one event
-through ``emit_tool_call_log``. Approvals, budgets and observe mode belong to later tasks.
+through ``emit_tool_call_log``. Approvals and observe mode belong to later tasks.
 """
 
 import re
@@ -27,6 +27,7 @@ from prompt_protection.guard._types import (
     TaintedSource,
     ToolCall,
 )
+from prompt_protection.guard.budgets import Budget, BudgetState
 from prompt_protection.guard.pin import UNLOCKED, LockView
 from prompt_protection.guard.policy import evaluate_policies
 from prompt_protection.guard.provenance import (
@@ -72,6 +73,7 @@ class CheckContext:
     logging: LoggingOptions
     lock_of: Callable[[str], LockView] | None = None
     require_lock: bool = False
+    budget: Budget | None = None
 
 
 def _threshold(ctx: CheckContext) -> float:
@@ -116,6 +118,11 @@ def check_tool_call(call: ToolCall, ctx: CheckContext) -> GuardDecision:
         return _failed_decision(err, call, ctx)
 
 
+def _snapshot(state: BudgetState) -> BudgetState:
+    """Copy the counts a decision keeps. ``cost`` stays shared with the live state, as in JS."""
+    return replace(state, tool_calls=dict(state.tool_calls), repeats=dict(state.repeats), exceeded=list(state.exceeded))
+
+
 def _to_action(action: PolicyAction) -> Action:
     return "flag" if action == "confirm" else action
 
@@ -149,6 +156,7 @@ def _run_check(call: ToolCall, ctx: CheckContext) -> GuardDecision:
     raw_args = analyze_prompt(args_text, **ctx.analyze_options) if args_text else _empty_analysis()
 
     lock = UNLOCKED if ctx.lock_of is None else ctx.lock_of(call.tool_name)
+    budget = None if ctx.budget is None else ctx.budget.record(call, ctx.depth)
     sources = cast(Sequence[TaintedSource], ctx.index.sources)
     outcome = evaluate_policies(
         ctx.policies,
@@ -166,7 +174,7 @@ def _run_check(call: ToolCall, ctx: CheckContext) -> GuardDecision:
             depth=ctx.depth,
             approval=None,
             lock=lock,
-            budget=None,
+            budget=budget,
             require_lock=ctx.require_lock,
         ),
         ctx.fail_mode,
@@ -184,6 +192,7 @@ def _run_check(call: ToolCall, ctx: CheckContext) -> GuardDecision:
         args_analysis=_with_flow_matches(raw_args, report.flows, enforced, _threshold(ctx)),
         depth=ctx.depth,
         lock=lock if lock.locked else None,
+        budget=None if budget is None else _snapshot(budget),
     )
     emit_tool_call_log(decision, args_text, ctx.logging)
     return decision
