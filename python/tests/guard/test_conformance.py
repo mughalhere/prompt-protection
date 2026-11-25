@@ -279,3 +279,76 @@ def test_conformance_16_fail_closed_a_throwing_approval_store_label_resolver_or_
         ToolCall(tool_name="http_post", args={}), base_ctx(approvals=ThrowingStore(), fail_mode="open")
     )
     assert (opened.action, opened.policy) == ("allow", "internal-error")
+
+
+def test_conformance_11_observe_mode_allows_records_the_verdict_never_throws_and_logs_the_would_be_action() -> None:
+    from presets_support import observing_guard
+
+    from prompt_protection.guard import ToolCall
+
+    guard, logger = observing_guard()
+    decision = guard.check_tool_call(ToolCall(tool_name="http_post", args={"url": ATTACKER}))
+    assert (decision.action, decision.requires_confirmation, decision.observed_action) == ("allow", False, "block")
+    event = logger.events[-1]
+    assert (event.mode, event.action, event.observed_action) == ("observe", "block", "block")
+    wrapped = guard.wrap_tools({"http_post": {"execute": lambda args, **options: "sent"}})
+    assert wrapped["http_post"]["execute"]({"url": ATTACKER}) == "sent"
+    pay = guard.check_tool_call(ToolCall(tool_name="stripe_transfer", args={"payee": "acct_1"}))
+    assert (pay.action, pay.requires_confirmation) == ("allow", False)
+    assert (pay.observed_action, pay.observed_requires_confirmation) == ("flag", True)
+
+
+def _legacy_row_cases() -> list[object]:
+    from presets_support import PRESETS_UNDER_TEST, legacy_rows
+
+    return [pytest.param(p, row, id=f"{p}-{row['id']}") for p in PRESETS_UNDER_TEST for row in legacy_rows()]
+
+
+@pytest.mark.parametrize(("preset", "row"), _legacy_row_cases())
+def test_conformance_12_a_preset_gives_the_js_verdict_on_every_legacy_row(preset: str, row: dict[str, object]) -> None:
+    from presets_support import expected_verdict, run_legacy_row, verdict_of
+
+    assert verdict_of(run_legacy_row(row, preset=preset)) == expected_verdict(preset, str(row["id"]))
+
+
+def test_conformance_12_no_preset_equals_balanced_and_strict_only_adds_while_permissive_only_relaxes() -> None:
+    from presets_support import legacy_rows, run_legacy_row
+
+    def rank(decision: object) -> int:
+        if decision.action == "block":  # type: ignore[attr-defined]
+            return 3
+        if decision.requires_confirmation:  # type: ignore[attr-defined]
+            return 2
+        return 1 if decision.action == "flag" else 0  # type: ignore[attr-defined]
+
+    for row in legacy_rows():
+        balanced = rank(run_legacy_row(row, preset="balanced"))
+        assert rank(run_legacy_row(row)) == balanced, row["id"]
+        assert rank(run_legacy_row(row, preset="strict")) >= balanced, row["id"]
+        assert rank(run_legacy_row(row, preset="permissive")) <= balanced, row["id"]
+
+
+def test_conformance_12_explicit_options_beat_the_preset() -> None:
+    from prompt_protection.guard import ToolCall, create_guard
+
+    guard = create_guard(preset="strict", policies=())
+    guard.taint("read_email", POISON, id="mail")
+    decision = guard.check_tool_call(ToolCall(tool_name="http_post", args={"url": ATTACKER}))
+    assert (decision.action, decision.reasons) == ("allow", [])
+
+
+def test_conformance_13_explain_yields_one_step_per_reason_code_and_a_generic_line_for_a_future_code() -> None:
+    from dataclasses import replace
+
+    from prompt_protection.guard import ToolCall, create_guard, explain
+
+    guard = create_guard(budgets={"max_repeat_identical": 1})
+    guard.taint("read_email", POISON, id="mail")
+    guard.check_tool_call(ToolCall(tool_name="http_post", args={"url": ATTACKER}))
+    decision = guard.check_tool_call(ToolCall(tool_name="http_post", args={"url": ATTACKER}))
+    chain = explain(decision).chain
+    assert [step.code for step in chain] == decision.reasons
+    assert {"budget-exceeded", "injection-source-flow"} <= set(decision.reasons)
+    assert all(step.because for step in chain)
+    future = explain(replace(decision, reasons=["from-a-future-minor"])).chain
+    assert future[0].because == 'policy or check "from-a-future-minor" fired'
