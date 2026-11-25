@@ -14,6 +14,13 @@ from prompt_protection.guard._types import (
 from prompt_protection.guard.check import CheckContext, check_tool_call
 from prompt_protection.guard.errors import ToolCallBlockedError
 from prompt_protection.guard.guard import Guard, create_guard
+from prompt_protection.guard.handoff import (
+    HandoffError,
+    HandoffSource,
+    TaintHandoff,
+    assert_taint_handoff,
+    is_taint_handoff,
+)
 from prompt_protection.guard.memory import (
     MIN_EDGE,
     STRONG_EDGE,
@@ -120,6 +127,8 @@ __all__ = [
     "Guard",
     "GuardDecision",
     "GuardPolicy",
+    "HandoffError",
+    "HandoffSource",
     "IndexedSource",
     "LineageEdge",
     "LineageKind",
@@ -144,6 +153,7 @@ __all__ = [
     "SinkResolver",
     "SourceIndex",
     "SourceInjection",
+    "TaintHandoff",
     "TaintedSource",
     "TRUST_LABEL_RANK",
     "ToolAnnotations",
@@ -161,6 +171,7 @@ __all__ = [
     "approval_expired",
     "approval_mismatch",
     "args_injection",
+    "assert_taint_handoff",
     "budget_exceeded",
     "check_tool_call",
     "collect_leaves",
@@ -180,6 +191,7 @@ __all__ = [
     "injection_then_sink",
     "is_decision_reason",
     "is_memory_entry",
+    "is_taint_handoff",
     "is_tool_lock",
     "key_of",
     "lineage_untrusted",

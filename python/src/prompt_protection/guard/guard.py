@@ -4,6 +4,7 @@ Tool results enter through ``taint``, user turns through ``trust`` and ``analyze
 model-proposed call goes through ``check_tool_call``. Memory lineage is here too. Later tasks add the rest.
 """
 
+import math
 import time
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from datetime import datetime, timezone
@@ -18,12 +19,20 @@ from prompt_protection.guard._types import (
     FailMode,
     GuardDecision,
     GuardPolicy,
+    LineageEdgeLike,
     SinkResolver,
     SourceInjection,
     TaintedSource,
     ToolCall,
 )
 from prompt_protection.guard.check import CheckContext, check_tool_call
+from prompt_protection.guard.handoff import (
+    HandoffSource,
+    TaintHandoff,
+    _lineage_from_wire,
+    _lineage_to_wire,
+    assert_taint_handoff,
+)
 from prompt_protection.guard.memory import (
     MIN_EDGE,
     STRONG_EDGE,
@@ -100,6 +109,11 @@ def _injection_wire(injection: SourceInjection) -> dict[str, Any]:
     return out
 
 
+def _js_max(first: float, second: float) -> float:
+    """``Math.max``: a NaN on either side gives NaN."""
+    return math.nan if math.isnan(first) or math.isnan(second) else max(first, second)
+
+
 def _has_eddsa_key(memory: Mapping[str, Any] | None) -> bool:
     key = None if memory is None else memory.get("key")
     keys = key if isinstance(key, (list, tuple)) else [key]
@@ -154,6 +168,8 @@ class Guard:
         logging: LoggingOptions,
         require_lock: bool,
         annotations_default: Literal["destructive", "heuristic"],
+        fork_options: Mapping[str, Any],
+        inherit: TaintHandoff | None,
     ) -> None:
         self._session = session
         self._analyze_options = analyze_options
@@ -171,8 +187,12 @@ class Guard:
         self._annotations_default = annotations_default
         self._index = SourceIndex(max_sources, max_source_chars)
         self._trust = TrustState(set(trusted_identifiers), "")
+        self._trusted_order: dict[str, None] = dict.fromkeys(trusted_identifiers)
+        self._fork_options = fork_options
+        self._inherit = inherit
         self._plan: frozenset[str] | None = None
         self._turn = 0
+        self._depth = 0
         self._seq = 0
         self._recent: dict[str, GuardDecision] = {}
         self._lock: ToolLock | None = None
@@ -194,7 +214,8 @@ class Guard:
 
     @property
     def depth(self) -> int:
-        return 0
+        """Hops from the root guard. ``absorb`` sets it to the larger of its own and the handoff's plus one."""
+        return self._depth
 
     def _label_of(self, source_id: str) -> str:
         source = cast(TaintedSource | None, self._index.get(source_id))
@@ -213,7 +234,7 @@ class Guard:
         *,
         id: str | None,
         label: str | None = None,
-        lineage: list[LineageEdge] | None = None,
+        lineage: Sequence[LineageEdgeLike] | None = None,
     ) -> TaintedSource:
         if id is None:
             self._seq += 1
@@ -340,10 +361,15 @@ class Guard:
     def trust(self, text: str) -> None:
         """Record user-authored text. A destination found in it is no longer a flow."""
         normalized = normalize(text).normalized
-        self._trust.identifiers.update(identifier_values(text))
+        self._remember_identifiers(identifier_values(text))
         joined = f"{self._trust.text}\n{normalized}" if self._trust.text else normalized
         length = utf16_len(joined)
         self._trust.text = utf16_slice(joined, length - MAX_TRUST_TEXT) if length > MAX_TRUST_TEXT else joined
+
+    def _remember_identifiers(self, values: Iterable[str]) -> None:
+        for value in values:
+            self._trust.identifiers.add(value)
+            self._trusted_order.setdefault(value)
 
     def analyze_user_turn(self, prompt: str, **options: Any) -> AnalysisResult:
         """Trust ``prompt`` first, even a blocked one, then score it through the session."""
@@ -370,7 +396,7 @@ class Guard:
                 analyze_options=self._analyze_options,
                 fail_mode=self._fail_mode,
                 label_of=self._label_of,
-                depth=0,
+                depth=self._depth,
                 logging=self._logging,
                 lock_of=self._lock_of,
                 require_lock=self._require_lock,
@@ -383,6 +409,59 @@ class Guard:
                 del self._recent[next(iter(self._recent))]
         return decision
 
+    def handoff(self) -> TaintHandoff:
+        """Return the taint state a sub-agent's guard can ``absorb``, as a plain dict with the JS keys."""
+        sources: list[HandoffSource] = [
+            {
+                "id": s.id,
+                "tool": s.tool,
+                "text": s.text,
+                "label": self._label_of(s.id),
+                "injection": _injection_wire(s.injection),
+                "turn": s.turn,
+                "lineage": _lineage_to_wire(s.lineage),
+            }
+            for s in self.sources
+        ]
+        return {
+            "v": 1,
+            "depth": self._depth,
+            "turn": self._turn,
+            "sources": sources,
+            "trustedIdentifiers": list(self._trusted_order),
+        }
+
+    def absorb(self, handoff: TaintHandoff) -> None:
+        """Take a parent's taint state. Raises ``HandoffError`` for anything but a v1 handoff, changing nothing.
+
+        Depth becomes the larger of its own and the handoff's plus one. A source this guard already holds keeps
+        its text and takes the less trusted label. Absorbed sources are scored again and take this guard's turn.
+        """
+        assert_taint_handoff(handoff)
+        self._depth = cast(int, _js_max(self._depth, handoff["depth"] + 1))
+        self._remember_identifiers(v.lower() for v in handoff["trustedIdentifiers"])
+        for wire in handoff["sources"]:
+            existing = cast(TaintedSource | None, self._index.get(wire["id"]))
+            if existing is not None:
+                own = existing.label if existing.label is not None else _own_label(existing.injection)
+                existing.label = max_label(own, wire["label"])
+                continue
+            self._taint(
+                wire["tool"],
+                wire["text"],
+                id=wire["id"],
+                label=wire["label"],
+                lineage=_lineage_from_wire(wire["lineage"]),
+            )
+
+    def fork(self, **options: Any) -> "Guard":
+        """Return a guard with this one's options and taint state. An option passed here wins.
+
+        The child gets its own session and turn counter. The lock and the plan stay behind, and
+        ``require_lock`` and ``sinks`` carry over. ``inherit`` is always this guard's own handoff.
+        """
+        return create_guard(**{**self._fork_options, **options, "inherit": self.handoff()})
+
     def plan(self, allowed_tools: Collection[str] | None) -> None:
         """Allow only these tools. ``None`` lifts the limit, and an empty collection blocks every tool."""
         self._plan = None if allowed_tools is None else frozenset(allowed_tools)
@@ -394,13 +473,17 @@ class Guard:
         """Forget sources, trusted text, the plan, the turn, remembered decisions and the session history."""
         self._index = SourceIndex(self._max_sources, self._max_source_chars)
         self._trust = TrustState(set(self._trusted_identifiers), "")
+        self._trusted_order = dict.fromkeys(self._trusted_identifiers)
         self._plan = None
         self._turn = 0
+        self._depth = 0
         self._recent.clear()
         self._session.clear()
         self._lock = None
         self._identities = {}
         self._drift = {}
+        if self._inherit is not None:
+            self.absorb(self._inherit)
 
     def wrap_tools(self, tools: Mapping[str, Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
         """Return the tools with each ``execute`` checked first and its result tainted after (sync only).
@@ -515,6 +598,7 @@ def create_guard(
     memory: Mapping[str, Any] | None = None,
     require_lock: bool = False,
     annotations_default: Literal["destructive", "heuristic"] = "destructive",
+    inherit: TaintHandoff | None = None,
 ) -> Guard:
     """Create a tool-call guard.
 
@@ -526,8 +610,9 @@ def create_guard(
     ``memory`` key, whatever ``fail_mode`` says. ``memory["max_entries"]`` caps ``memory_read``.
     ``require_lock`` blocks every call until ``pin`` or ``lock`` installs a lock. Under a lock,
     ``annotations_default="destructive"`` makes an unannotated tool the name heuristics call ``none`` an
-    ``unknown`` sink, and ``"heuristic"`` keeps ``none``.
+    ``unknown`` sink, and ``"heuristic"`` keeps ``none``. ``inherit`` absorbs a handoff now and after ``clear``.
     """
+    forwarded = {k: v for k, v in locals().items() if k not in ("session", "inherit")}
     options = dict(analyze_options or {})
     _reject_deferred(spotlight, options, memory, session)
     chosen = session if session is not None else create_protection_session(**options)
@@ -535,7 +620,9 @@ def create_guard(
         options["fail_mode"] = fail_mode
     sources_cap = DEFAULT_MAX_SOURCES if max_sources is None else max_sources
     memory_cap = None if memory is None else memory.get("max_entries")
-    return Guard(
+    trusted = tuple(s.lower() for s in trusted_identifiers or ())
+    forwarded["trusted_identifiers"] = trusted
+    guard = Guard(
         session=chosen,
         analyze_options=options,
         resolve_sink=create_sink_resolver(sinks),
@@ -548,7 +635,7 @@ def create_guard(
         max_sources=sources_cap,
         max_source_chars=DEFAULT_MAX_SOURCE_CHARS if max_source_chars is None else max_source_chars,
         max_memory_entries=sources_cap if memory_cap is None else memory_cap,
-        trusted_identifiers=tuple(s.lower() for s in trusted_identifiers or ()),
+        trusted_identifiers=trusted,
         fail_mode=fail_mode,
         logging=LoggingOptions(
             logger=logger,
@@ -559,4 +646,9 @@ def create_guard(
         ),
         require_lock=require_lock,
         annotations_default=annotations_default,
+        fork_options=forwarded,
+        inherit=inherit,
     )
+    if inherit is not None:
+        guard.absorb(inherit)
+    return guard
