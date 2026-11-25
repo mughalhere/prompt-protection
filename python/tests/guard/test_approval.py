@@ -9,6 +9,7 @@ and a card's check counting against the budget.
 """
 
 import datetime
+import decimal
 import re
 import time
 import typing
@@ -871,3 +872,23 @@ def test_a_plain_object_is_walked_by_its_own_attributes_like_a_js_class_instance
 
 def test_a_plain_object_as_the_whole_args_is_walked_like_a_js_class_instance() -> None:
     assert values(render(Tagged())) == [("args.s", "a"), ("args.n", "7")]
+
+
+# --- render_approval_card: Decimal and complex (owner ruling 2026-11-25, PY-16b) ---
+# Owner ruling "Both as str()": one leaf each, rendered through str(). JS has no twin for either.
+
+
+@pytest.mark.parametrize(
+    ("value", "text"),
+    [
+        pytest.param(decimal.Decimal("0.10"), "0.10", id="decimal-keeps-trailing-zero"),
+        pytest.param(decimal.Decimal("1E+3"), "1E+3", id="decimal-keeps-exponent-form"),
+        pytest.param(decimal.Decimal("1.5"), "1.5", id="decimal-plain"),
+        pytest.param(complex(1, 2), "(1+2j)", id="complex"),
+    ],
+)
+@pytest.mark.parametrize(("place", "path"), PLACEMENTS)
+def test_a_decimal_or_a_complex_is_one_leaf_rendered_through_str_owner_ruling_str(
+    value: object, text: str, place: Any, path: str
+) -> None:
+    assert values(render(place(value))) == [("args.note", "hi"), (path, text)]
