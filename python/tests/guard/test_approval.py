@@ -986,3 +986,35 @@ def test_an_enum_member_is_one_leaf_rendered_through_str_owner_ruling_enum_keeps
     value: object, text: str, place: Any, path: str
 ) -> None:
     assert values(render(place(value))) == [("args.note", "hi"), (path, text)]
+
+
+class Perm(enum.IntFlag):
+    READ = 1
+
+
+class Tag(str, enum.Enum):
+    A = "a"
+
+
+class Mode(enum.Flag):
+    ON = 1
+
+
+class Kind(enum.Enum):
+    ONE = 1
+
+
+@pytest.mark.parametrize(
+    ("value", "text"),
+    [
+        pytest.param(Perm.READ, "1", id="int-flag-number-text"),
+        pytest.param(Tag.A, "a", id="str-mixed-enum-its-value"),
+        pytest.param(Mode.ON, str(Mode.ON), id="flag-str"),
+        pytest.param(Kind.ONE, str(Kind.ONE), id="enum-str"),
+    ],
+)
+@pytest.mark.parametrize(("place", "path"), PLACEMENTS)
+def test_an_enum_family_member_is_one_leaf_with_the_same_text_on_every_python_owner_ruling_enum_keeps_str(
+    value: object, text: str, place: Any, path: str
+) -> None:
+    assert values(render(place(value))) == [("args.note", "hi"), (path, text)]
