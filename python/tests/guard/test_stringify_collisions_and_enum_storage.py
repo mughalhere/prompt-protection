@@ -2,8 +2,9 @@
 
 Two keys of one exact dict can print as the same key text. The JSON form would keep one pair, so the
 value of the other pair would vanish. A dict like that has no JSON form: the Python text prints every pair.
-An Enum member prints the value held in its own storage. No property getter, no ``__dict__`` property and
-no ``__getattribute__`` override of its class runs. A member with no stored value prints the marker.
+An int or str mixin Enum member prints its base value, as any int or str subclass does, before any Enum
+``_value_`` read. Any other Enum member prints the value held in its own storage. No class code runs.
+A non-leaf member with no stored value prints the marker.
 """
 
 import types
@@ -172,14 +173,53 @@ def enum_member(base: type | None, member: Any, meta: type = EnumMeta, **mixin_a
     return value
 
 
-# id -> (member, the value its getter would return). The stored value is absent, so the member prints its marker.
+OVER = 10**4300
+AT = 10**4299
+
+
+def _new_storing(base: type | None, stored: Any) -> Callable[..., Any]:
+    def new(cls: Any, *args: Any) -> Any:
+        member = base.__new__(cls, *args) if base else object.__new__(cls)
+        member._value_ = stored
+        return member
+
+    return new
+
+
+def _hook(name: str, result: str) -> Callable[[Any], str]:
+    def run(self: Any) -> str:
+        CALLS.append(name)
+        return result
+
+    return run
+
+
+# id -> (member, the value its getter would return). A non-leaf member has no stored value, so it prints its marker.
 NO_STORED_VALUE = {
-    "int-mixin-property": lambda: (enum_member(int, 5, _value_=_getter("_value_", 999)), "999"),
-    "str-mixin-property": lambda: (enum_member(str, "real", _value_=_getter("_value_", "BENIGN")), "BENIGN"),
     "plain-mixin-property": lambda: (enum_member(None, "stored", _value_=_getter("_value_", "BENIGN")), "BENIGN"),
+}
+# id -> (member, its plain base value, the text of the member alone). A leaf subclass prints through the base method.
+BASE_VALUE = {
+    "int-mixin-property": lambda: (enum_member(int, 5, _value_=_getter("_value_", 999)), 5, "5"),
+    "str-mixin-property": lambda: (enum_member(str, "real", _value_=_getter("_value_", "BENIGN")), "real", "real"),
+    "int-mixin-stored-differs": lambda: (enum_member(int, 5, __new__=_new_storing(int, "STORED")), 5, "5"),
+    "str-mixin-stored-differs": lambda: (enum_member(str, "real", __new__=_new_storing(str, "STORED")), "real", "real"),
+    "int-mixin-repr-hook": lambda: (enum_member(int, 6, __repr__=_hook("__repr__", "EVIL")), 6, "6"),
+    "str-mixin-str-hook": lambda: (enum_member(str, "text", __str__=_hook("__str__", "EVIL")), "text", "text"),
+    "int-mixin-over-digit-limit": lambda: (
+        enum_member(int, OVER, _value_=_getter("_value_", 999)),
+        OVER,
+        hex(OVER),
+    ),
+    "int-mixin-at-digit-limit": lambda: (enum_member(int, AT, _value_=_getter("_value_", 999)), AT, str(AT)),
 }
 NO_STORED_CASES = [
     pytest.param(build, place, id=f"{name}-{place}") for name, build in NO_STORED_VALUE.items() for place in PLACES
+]
+
+
+BASE_CASES = [
+    pytest.param(build, place, id=f"{name}-{place}") for name, build in BASE_VALUE.items() for place in PLACES
 ]
 
 
@@ -205,6 +245,29 @@ def test_taint_flags_an_enum_member_with_no_stored_value_and_runs_no_getter(
     assert CALLS == []
 
 
+@pytest.mark.parametrize(("build", "place"), BASE_CASES)
+def test_an_int_or_str_mixin_enum_member_prints_its_base_value_and_runs_no_class_code(
+    build: Callable[[], tuple[Any, Any, str]], place: str
+) -> None:
+    member, plain, alone = build()
+    text = stringify_value(PLACES[place][0](member))
+    assert stringify_value(member) == alone
+    assert text == stringify_value(PLACES[place][0](plain))
+    assert "EVIL" not in text
+    assert CALLS == []
+
+
+@pytest.mark.parametrize(("build", "place"), BASE_CASES)
+def test_taint_does_not_flag_an_int_or_str_mixin_enum_member_and_runs_no_class_code(
+    build: Callable[[], tuple[Any, Any, str]], place: str
+) -> None:
+    member, plain, _ = build()
+    source = flagged(PLACES[place][0](member))
+    assert source.unrenderable is False
+    assert source.text == stringify_value(PLACES[place][0](plain))
+    assert CALLS == []
+
+
 # id -> (member, the value held in its own storage). Each class hook below would show a value that is not stored.
 STORED_VALUE = {
     "int-mixin-dict-property": lambda: (enum_member(int, 7, __dict__=_getter("__dict__", {"_value_": "FAKE"})), 7),
@@ -214,6 +277,10 @@ STORED_VALUE = {
     ),
     "int-mixin-getattribute": lambda: (enum_member(int, 9, __getattribute__=_getattribute), 9),
     "str-mixin-getattribute": lambda: (enum_member(str, "nine", __getattribute__=_getattribute), "nine"),
+    "plain-mixin-stored-value": lambda: (
+        enum_member(None, "x", __new__=_new_storing(None, "stored-text")),
+        "stored-text",
+    ),
     "int-metaclass-getattribute": lambda: (enum_member(int, 11, COUNTING_META), 11),
     "str-metaclass-getattribute": lambda: (enum_member(str, "eleven", COUNTING_META), "eleven"),
 }
