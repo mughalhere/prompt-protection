@@ -189,3 +189,93 @@ def test_conformance_10_the_4th_identical_call_exceeds_the_default_repeat_budget
     decision = guard.check_tool_call(call)
     assert (decision.action, decision.policy) == ("block", "budget-exceeded")
     assert "budget-exceeded" in decision.reasons
+
+
+def _pay_call(**args: object) -> object:
+    from prompt_protection.guard import ToolCall
+
+    return ToolCall(tool_name="stripe_transfer", args=args or {"payee": "acct_1", "amount": 10}, tool_call_id="p1")
+
+
+def test_conformance_5_approving_a_card_and_then_changing_the_arguments_blocks_with_approval_mismatch() -> None:
+    from prompt_protection.guard import create_guard
+
+    guard = create_guard()
+    card = guard.approval_card(_pay_call())
+    guard.confirm(card.id, card.digest)
+    decision = guard.check_tool_call(_pay_call(payee="acct_evil", amount=10))
+    assert (decision.action, decision.policy) == ("block", "approval-mismatch")
+
+
+def test_conformance_6_approving_a_card_and_replaying_the_identical_call_allows_with_reason_approved() -> None:
+    from prompt_protection.guard import create_guard
+
+    guard = create_guard()
+    card = guard.approval_card(_pay_call())
+    guard.confirm(card.id, card.digest)
+    decision = guard.check_tool_call(_pay_call(amount=10, payee="acct_1"))
+    assert decision.action == "allow"
+    assert decision.reasons[0] == "approved"
+
+
+def test_conformance_7_an_expired_approval_asks_again_with_approval_expired() -> None:
+    from approval_support import Clock
+
+    from prompt_protection.guard import create_guard
+
+    clock = Clock(0)
+    guard = create_guard(approvals={"ttl_ms": 1000, "now": clock})
+    card = guard.approval_card(_pay_call())
+    guard.confirm(card.id, card.digest)
+    clock.now = 5000
+    decision = guard.check_tool_call(_pay_call())
+    assert decision.requires_confirmation is True
+    assert "approval-expired" in decision.reasons
+
+
+def _index_with_one_source() -> object:
+    from prompt_protection.guard import SourceIndex, SourceInjection, TaintedSource, identifier_values
+    from prompt_protection.normalizer import normalize
+    from prompt_protection.shingle import build_shingles
+
+    text = "see https://x.io/a/b"
+    normalized = normalize(text).normalized
+    index = SourceIndex(64, 200_000)
+    index.add(
+        TaintedSource(
+            id="s",
+            tool="t",
+            text=text,
+            normalized=normalized,
+            shingles=build_shingles(normalized, 1),
+            identifiers=identifier_values(text),
+            injection=SourceInjection(score=0, action="allow", categories=[]),
+            turn=0,
+            timestamp=0,
+        )
+    )
+    return index
+
+
+def test_conformance_16_fail_closed_a_throwing_approval_store_label_resolver_or_malformed_memory_never_allows() -> None:
+    from approval_support import ThrowingStore, base_ctx
+
+    from prompt_protection.guard import ToolCall, check_tool_call, create_guard
+
+    def labels_down(_source_id: str) -> str:
+        raise RuntimeError("labels down")
+
+    url_call = ToolCall(tool_name="http_post", args={"url": "https://x.io/a/b"})
+    via_store = check_tool_call(url_call, base_ctx(approvals=ThrowingStore()))
+    assert (via_store.action, via_store.policy, via_store.depth) == ("block", "internal-error", 0)
+
+    via_label = check_tool_call(url_call, base_ctx(index=_index_with_one_source(), label_of=labels_down))
+    assert (via_label.action, via_label.policy) == ("block", "lineage-untrusted")
+
+    with pytest.raises(TypeError):
+        create_guard(fail_mode="closed").memory_read([{"v": 1}])  # type: ignore[list-item]
+
+    opened = check_tool_call(
+        ToolCall(tool_name="http_post", args={}), base_ctx(approvals=ThrowingStore(), fail_mode="open")
+    )
+    assert (opened.action, opened.policy) == ("allow", "internal-error")
