@@ -115,8 +115,9 @@ def _failed_decision(err: Exception, call: ToolCall, ctx: CheckContext) -> Guard
 def check_tool_call(call: ToolCall, ctx: CheckContext) -> GuardDecision:
     """Decide one tool call. An internal failure becomes the ``internal-error`` decision.
 
-    If ``on_logger_error`` raises, the call becomes the ``internal-error`` decision, and the exception
-    escapes when that decision is logged too.
+    If the logger raises and ``on_logger_error`` raises too, the call becomes the ``internal-error``
+    decision, and the exception escapes when that decision is logged too. A callback that raises for an
+    awaitable result is swallowed and never changes the decision.
     """
     try:
         return _run_check(call, ctx)

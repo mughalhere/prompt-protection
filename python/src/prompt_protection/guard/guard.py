@@ -184,8 +184,9 @@ class Guard:
     def check_tool_call(self, call: ToolCall) -> GuardDecision:
         """Decide a tool call and keep the decision under its ``tool_call_id``.
 
-        An internal failure becomes the ``internal-error`` decision. If ``on_logger_error`` raises, the
-        exception escapes when that decision is logged too.
+        An internal failure becomes the ``internal-error`` decision. If the logger raises and
+        ``on_logger_error`` raises too, the exception escapes when that decision is logged too. A
+        callback that raises for an awaitable result is swallowed.
         """
         decision = check_tool_call(
             call,

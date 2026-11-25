@@ -4,6 +4,7 @@ The module is named ``logging_`` so it never shadows the standard library. ``emi
 deferred (entry e-988d3e). Loggers are sync-only: an awaitable result is reported, never awaited.
 """
 
+import contextlib
 import inspect
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -24,6 +25,8 @@ __all__ = [
     "emit_input_log",
     "emit_tool_call_log",
 ]
+
+_SYNC_ONLY_MESSAGE = "a logger returned an awaitable: loggers are sync-only and the result is not awaited"
 
 LogLevel = Literal["allowed", "flagged", "blocked", "clean"]
 Direction = Literal["input", "tool-call"]
@@ -211,13 +214,18 @@ def _emit_safe(logger: ProtectionLogger, event: ProtectionEvent, options: Loggin
         else:
             log: Callable[[ProtectionEvent], Any] = logger.log
             result = log(event)
-        if inspect.isawaitable(result):
-            if inspect.iscoroutine(result):
-                result.close()
-            raise TypeError("a logger returned an awaitable: loggers are sync-only and the result is not awaited")
+        if not inspect.isawaitable(result):
+            return
+        if inspect.iscoroutine(result):
+            result.close()
     except Exception as error:
         if options.on_logger_error is not None:
             options.on_logger_error(error)
+        return
+    if options.on_logger_error is not None:
+        # JS reports an awaitable through `void result.catch(...)`: a callback error never reaches the caller.
+        with contextlib.suppress(Exception):
+            options.on_logger_error(TypeError(_SYNC_ONLY_MESSAGE))
 
 
 def _summarize_flows(flows: Sequence[_FlowLike]) -> list[FlowSummary]:
