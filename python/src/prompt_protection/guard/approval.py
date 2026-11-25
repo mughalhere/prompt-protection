@@ -298,17 +298,20 @@ _DICT_SLOTS = (GetSetDescriptorType, MemberDescriptorType)
 
 
 def _slot_values(value: object) -> dict[str, Any] | None:
-    """Set slot values, base class first, read through each member descriptor. ``None`` if no slot is declared."""
+    """Set slot values, base class first, read through each member descriptor.
+
+    ``None`` unless a non-stdlib class declares ``__slots__``, even an empty one (e-b80c9f).
+    """
     found: dict[str, Any] = {}
     declared = False
     for base in reversed(type(value).__mro__):
         raw = base.__dict__.get("__slots__")
-        if raw is None:
+        if raw is None or _class_in_stdlib(base):
             continue
+        declared = True
         for name in (raw,) if isinstance(raw, str) else tuple(raw):
             if name in ("__dict__", "__weakref__"):
                 continue
-            declared = True
             key = f"_{base.__name__.lstrip('_')}{name}" if name.startswith("__") and not name.endswith("__") else name
             slot = base.__dict__.get(key)
             if isinstance(slot, MemberDescriptorType):
@@ -345,10 +348,15 @@ _CLASS_MODULE = type.__dict__["__module__"]
 _WALKED_STDLIB_TYPES = (SimpleNamespace, Namespace, BaseException)
 
 
-def _from_stdlib(value: object) -> bool:
-    """True when the class of ``value`` is defined in a stdlib module. Read off the class, so no class code runs."""
-    module = _CLASS_MODULE.__get__(type(value))
+def _class_in_stdlib(cls: type) -> bool:
+    """True when ``cls`` is defined in a stdlib module. Read off the class, so no class code runs."""
+    module = _CLASS_MODULE.__get__(cls)
     return isinstance(module, str) and module.partition(".")[0] in sys.stdlib_module_names
+
+
+def _from_stdlib(value: object) -> bool:
+    """True when the class of ``value`` is defined in a stdlib module."""
+    return _class_in_stdlib(type(value))
 
 
 def _walks_like_a_js_object(value: object) -> bool:
