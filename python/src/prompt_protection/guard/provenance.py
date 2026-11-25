@@ -8,8 +8,8 @@ import copy
 import math
 import re
 import sys
-from collections import OrderedDict, deque
-from collections.abc import Hashable, Iterable, Mapping, Sequence
+from collections.abc import Collection, Hashable, Iterable, Iterator, Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Protocol, TypeVar, cast
@@ -95,7 +95,7 @@ class _NoJsonForm(Exception):
 
 def _number_text(value: float, nested: bool) -> str:
     try:
-        number = float(value)
+        number = int.__float__(value) if isinstance(value, int) else float.__float__(value)
     except OverflowError:
         raise _NoJsonForm from None
     return "null" if nested and not math.isfinite(number) else js_number_str(number)
@@ -109,25 +109,29 @@ def _js_key_order(keys: list[str]) -> list[str]:
 
 def _json_text(value: object, seen: set[int], depth: int = 0) -> str:
     """Return compact JSON text. A container deeper than ``_MAX_DEPTH`` has no JSON form (the root is depth 0)."""
+    kind = type(value)
     if value is None:
         return "null"
-    if isinstance(value, str):
-        return _json_string(value)
-    if isinstance(value, bool):
+    if issubclass(kind, str):
+        return _json_string(str.__str__(cast(str, value)))
+    if kind is bool:
         return "true" if value else "false"
-    if isinstance(value, (int, float)):
-        return _number_text(value, True)
-    if not isinstance(value, (list, tuple, Mapping)) or id(value) in seen or depth > _MAX_DEPTH:
+    if issubclass(kind, (int, float)):
+        return _number_text(cast(float, value), True)
+    if not issubclass(kind, (list, tuple, Mapping)) or id(value) in seen or depth > _MAX_DEPTH:
         raise _NoJsonForm
     seen.add(id(value))
     parts: list[str] = []
     try:
-        if isinstance(value, Mapping):
-            pairs = {k if isinstance(k, str) else _python_str(k): item for k, item in value.items()}
+        if issubclass(kind, Mapping):
+            pairs = {
+                str.__str__(k) if isinstance(k, str) else _python_str(k): item
+                for k, item in cast(Mapping[Any, Any], value).items()
+            }
             for key in _js_key_order(list(pairs)):
                 parts.append(f"{_json_string(key)}:{_json_text(pairs[key], seen, depth + 1)}")
             return "{" + ",".join(parts) + "}"
-        for item in value:
+        for item in cast(Iterable[Any], value):
             parts.append(_json_text(item, seen, depth + 1))
         return "[" + ",".join(parts) + "]"
     finally:
@@ -135,10 +139,14 @@ def _json_text(value: object, seen: set[int], depth: int = 0) -> str:
 
 
 _DEFAULT_INT_DIGIT_LIMIT = 4300
-_CONTAINERS = (list, tuple, dict, set, frozenset, deque)
-_STRUCTURED_REPRS = frozenset(kind.__repr__ for kind in (list, tuple, dict, set, frozenset, deque, OrderedDict))
 _UNSET_SLOTS = ("__dict__", "__weakref__")
 _DEPTH_MARKER = "<too deep>"
+# Open, close and the plain type whose text carries no name, per shape of collection (owner decision A, 2026-11-24).
+_SHAPES: tuple[tuple[type, str, str, type], ...] = (
+    (Mapping, "{", "}", dict),
+    (tuple, "(", ")", tuple),
+    (AbstractSet, "{", "}", set),
+)
 
 
 @lru_cache(maxsize=8)
@@ -158,21 +166,38 @@ def _over_limit(value: int, limit: int) -> bool:
     return not -bound < value < bound
 
 
-def _own_repr(value: object, limit: int) -> str | None:
-    """Return ``repr(value)``, or ``None`` when it raises or holds a run of over ``limit`` digits (3.10 prints one)."""
-    try:
-        text = repr(value)
-    except Exception:
-        return None
-    return None if re.search(f"[0-9]{{{limit + 1}}}", text) else text
+def _int_text(value: int, limit: int) -> str:
+    """Print an int through its base type, as hex() once it is over ``limit`` digits."""
+    number = int.__int__(value)
+    return hex(number) if _over_limit(number, limit) else repr(number)
 
 
-def _is_int(value: object) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool)
+def _leaf_text(value: object, limit: int) -> str | None:
+    """Return the text of an allowlisted leaf, read through its base type so no override changes it."""
+    kind = type(value)
+    if value is None:
+        return "None"
+    if kind is bool:
+        return "True" if value else "False"
+    if issubclass(kind, str):
+        return str.__repr__(cast(str, value))
+    if issubclass(kind, int):
+        return _int_text(cast(int, value), limit)
+    if issubclass(kind, float):
+        return float.__repr__(cast(float, value))
+    if issubclass(kind, bytes):
+        return bytes.__repr__(cast(bytes, value))
+    if kind is range:
+        span = cast(range, value)
+        bounds = [_int_text(bound, limit) for bound in (span.start, span.stop)]
+        if span.step != 1:
+            bounds.append(_int_text(span.step, limit))
+        return f"range({', '.join(bounds)})"
+    return None
 
 
 def _fields_of(value: object) -> list[tuple[object, object]]:
-    """Return an object's fields: set ``__slots__`` (base classes first), then its ``__dict__`` items."""
+    """Return an object's fields: set ``__slots__`` (base classes first), then its ``vars()`` items."""
     kind = type(value)
     out: list[tuple[object, object]] = []
     for klass in reversed(kind.__mro__):
@@ -187,7 +212,10 @@ def _fields_of(value: object) -> list[tuple[object, object]]:
                 out.append((name, klass.__dict__[stored].__get__(value, kind)))
             except (KeyError, AttributeError):
                 continue
-    instance_dict = getattr(value, "__dict__", None)
+    try:
+        instance_dict = vars(value)
+    except TypeError:
+        return out
     if isinstance(instance_dict, dict):
         out.extend(instance_dict.items())
     return out
@@ -201,116 +229,87 @@ def _named(name: str, pairs: Iterable[tuple[object, object]], limit: int, path: 
     return f"{name}({', '.join(parts)})"
 
 
-def _container_text(value: Any, limit: int, path: set[int]) -> str:
-    """Render a container over plain loops, so each level of nesting costs two Python frames."""
+def _shape(kind: type) -> tuple[str, str, type]:
+    for base, opening, closing, plain in _SHAPES:
+        if issubclass(kind, base):
+            return opening, closing, plain
+    return "[", "]", list
+
+
+def _collection_text(value: Any, limit: int, path: set[int]) -> str:
+    """Render a mapping by items or a sized collection by elements, over plain loops (two Python frames a level)."""
     kind = type(value)
-    is_dict = isinstance(value, dict)
-    if isinstance(value, tuple) and hasattr(kind, "_fields"):
-        return _named(kind.__name__, zip(kind._fields, value, strict=False), limit, path)
+    opening, closing, plain = _shape(kind)
     parts: list[str] = []
-    if is_dict:
+    if issubclass(kind, Mapping):
         for key, item in value.items():
             parts.append(f"{_render(key, limit, path)}: {_render(item, limit, path)}")
     else:
         for item in value:
             parts.append(_render(item, limit, path))
     body = ", ".join(parts)
-    if isinstance(value, deque):
-        tail = "" if value.maxlen is None else f", maxlen={value.maxlen}"
-        return f"{kind.__name__}([{body}]{tail})"
-    if is_dict:
-        if not isinstance(value, OrderedDict):
-            return "{" + body + "}"
-        return f"{kind.__name__}({{{body}}})" if value else f"{kind.__name__}()"
-    if isinstance(value, list):
-        return "[" + body + "]"
-    if isinstance(value, tuple):
-        return "(" + body + ("," if len(value) == 1 else "") + ")"
-    inner = "{" + body + "}" if value else ""
-    return (inner or "set()") if kind is set else f"{kind.__name__}({inner})"
+    if issubclass(kind, tuple) and len(parts) == 1:
+        body += ","
+    if kind is plain and (parts or kind is not set):
+        return opening + body + closing
+    return f"{kind.__name__}({opening}{body}{closing})" if parts else f"{kind.__name__}()"
 
 
 def _revisit_text(value: object) -> str:
     kind = type(value)
-    if not isinstance(value, _CONTAINERS) or hasattr(kind, "_fields"):
+    if not issubclass(kind, Collection):
         return f"{kind.__name__}(...)"
-    if isinstance(value, tuple):
-        return "(...)"
-    return "[...]" if isinstance(value, (list, deque)) else "{...}"
+    opening, closing, _ = _shape(kind)
+    return f"{opening}...{closing}"
 
 
-def _range_text(value: range, limit: int, path: set[int]) -> str:
-    """Print a range as Python does (step 1 left out), with each over-limit bound as hex."""
-    bounds = [_render(bound, limit, path) for bound in (value.start, value.stop)]
-    if value.step != 1:
-        bounds.append(_render(value.step, limit, path))
-    return f"range({', '.join(bounds)})"
+def _render(value: object, limit: int, path: set[int]) -> str:
+    """Return the text of ``value`` from a closed allowlist: leaves, mappings by items, sized collections by elements.
 
-
-def _is_scalar(value: object, kind: type) -> bool:
-    return kind.__module__ == "builtins" and not isinstance(value, _CONTAINERS)
-
-
-def _render(value: object, limit: int, path: set[int], top: bool = False) -> str:
-    """Return Python's ``str()`` of ``value``, with each over-limit int as hex and a plain object as its fields.
-
-    ``top`` keeps a type's own ``__str__``. Deeper, Python's ``repr()`` shows, as in a list's ``str()``.
-    An object met again on the way down prints ``Name(...)``, or ``[...]`` for a list, and the walk ends.
-    A container or object deeper than 300 (the root is depth 0) prints as ``<too deep>``. A builtin scalar stays.
+    A one-shot or unsized iterable is never read and prints ``<Type not read>``. Any other object prints as its fields.
+    A value met again on the way down prints as ``Name(...)`` or ``[...]``. Past depth 300 (root 0), ``<too deep>``.
     """
-    if _is_int(value):
-        return hex(cast(int, value)) if _over_limit(cast(int, value), limit) else repr(value)
-    kind = type(value)
-    own_str = kind.__str__ is not object.__str__
-    if top and own_str:
-        return str(value)
-    if len(path) > _MAX_DEPTH and not _is_scalar(value, kind):
+    leaf = _leaf_text(value, limit)
+    if leaf is not None:
+        return leaf
+    if len(path) > _MAX_DEPTH:
         return _DEPTH_MARKER
     if id(value) in path:
         return _revisit_text(value)
+    kind = type(value)
     path.add(id(value))
     try:
-        structured = isinstance(value, _CONTAINERS) and (kind.__repr__ in _STRUCTURED_REPRS or hasattr(kind, "_fields"))
-        if structured:
-            return _container_text(value, limit, path)
-        if kind.__repr__ is object.__repr__:
-            return str(value) if own_str else _named(kind.__name__, _fields_of(value), limit, path)
-        if kind is range:
-            return _range_text(cast(range, value), limit, path)
-        if _is_scalar(value, kind):
-            return repr(value)
-        text = _own_repr(value, limit)
-        if text is not None:
-            return text
-        if isinstance(value, _CONTAINERS):
-            return _container_text(value, limit, path)
-        fields = _fields_of(value)
-        return _named(kind.__name__, fields, limit, path) if fields else repr(value)
+        if issubclass(kind, Iterator) or (issubclass(kind, Iterable) and not issubclass(kind, Collection)):
+            return f"<{kind.__name__} not read>"
+        if issubclass(kind, Collection):
+            return _collection_text(value, limit, path)
+        return _named(kind.__name__, _fields_of(value), limit, path)
     finally:
         path.discard(id(value))
 
 
 def _python_str(value: object) -> str:
-    return _render(value, _digit_limit(), set(), True)
+    return _render(value, _digit_limit(), set())
 
 
 def stringify_value(value: object) -> str:
     """Return the text a tool result is scanned as: a string as is, ``None`` as ``""``, else compact JSON.
 
     An int or float is a JS number. Python has no bigint, so an int too large for a float is one.
-    A value with no JSON form (a cycle, a set, bytes, an object) falls back to Python's ``str()``.
-    There an int of more than N digits prints as ``hex()``, with N the smaller of 4300 and
-    ``sys.get_int_max_str_digits()`` (4300 when that is 0 or absent), and every other value stays visible.
-    An object with no ``__str__`` or ``__repr__`` of its own prints as ``Name(field=value, ...)``.
+    A value with no JSON form (a cycle, a set, bytes, an object) falls back to a Python text built from a
+    closed allowlist. Only ``str``, ``int``, ``float``, ``bool``, ``None``, ``bytes`` and ``range`` print as Python
+    does, and a subclass prints as its base type. A mapping prints by items, a sized collection by elements, any other
+    object by its fields, and an iterator or unsized iterable as ``<Type not read>``. An int of more than N digits
+    prints as ``hex()``, with N the smaller of 4300 and ``sys.get_int_max_str_digits()`` (4300 when 0 or absent).
     """
     if isinstance(value, str):
-        return value
+        return str.__str__(value)
     if value is None:
         return ""
-    if _is_int(value) and _over_limit(cast(int, value), _digit_limit()):
-        return hex(cast(int, value))
+    if isinstance(value, int) and type(value) is not bool and _over_limit(int.__int__(value), _digit_limit()):
+        return hex(int.__int__(value))
     try:
-        if isinstance(value, bool):
+        if type(value) is bool:
             return "true" if value else "false"
         if isinstance(value, (int, float)):
             return _number_text(value, False)
