@@ -150,10 +150,10 @@ def test_stringify_value_with_no_js_analog_falls_back_to_the_python_str(value: A
     assert stringify_value(value) == expected
 
 
-def test_stringify_value_falls_back_to_the_object_repr_when_str_raises() -> None:
+def test_stringify_value_walks_a_dict_subclass_without_raising_when_its_str_raises() -> None:
     value = RaisingStr()
     value["self"] = value
-    assert stringify_value(value) == object.__repr__(value)
+    assert stringify_value(value) == "RaisingStr({'self': {...}})"
 
 
 def test_stringify_value_returns_text_for_a_list_nested_past_the_recursion_limit() -> None:

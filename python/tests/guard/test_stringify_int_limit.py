@@ -98,10 +98,10 @@ def test_an_ordereddict_deque_or_namedtuple_with_an_over_limit_int_shows_hex_and
     ("value", "expected"),
     [
         pytest.param(deque([OVER, SIBLING]), f"deque([{hex(OVER)}, '{SIBLING}'])", id="deque"),
-        pytest.param(Pair(OVER, SIBLING), f"Pair(first={hex(OVER)}, second='{SIBLING}')", id="namedtuple"),
+        pytest.param(Pair(OVER, SIBLING), f"Pair(({hex(OVER)}, '{SIBLING}'))", id="namedtuple"),
     ],
 )
-def test_a_deque_or_namedtuple_prints_python_str_with_only_the_over_limit_int_as_hex(value: Any, expected: str) -> None:
+def test_a_deque_or_namedtuple_prints_its_items_with_only_the_over_limit_int_as_hex(value: Any, expected: str) -> None:
     assert stringify_value(value) == expected
 
 
@@ -192,8 +192,11 @@ def test_an_object_without_its_own_str_prints_its_fields_not_an_object_repr(cls:
 
 
 @pytest.mark.parametrize("number", [5, OVER], ids=["small-int-field", "over-limit-int-field"])
-def test_an_object_with_its_own_str_keeps_that_text_unchanged(number: int) -> None:
-    assert stringify_value(CustomStr(number)) == CUSTOM_TEXT
+def test_an_object_with_its_own_str_prints_its_fields_and_not_that_str(number: int) -> None:
+    shown = hex(number) if number == OVER else str(number)
+    text = stringify_value(CustomStr(number))
+    assert text == f"CustomStr(x={shown})"
+    assert CUSTOM_TEXT not in text
 
 
 def _self_cycle() -> Node:
