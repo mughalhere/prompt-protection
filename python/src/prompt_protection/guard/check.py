@@ -17,6 +17,7 @@ from prompt_protection.analyze import (
     compute_severity,
     failed_analysis,
 )
+from prompt_protection.canonical import canonical_json
 from prompt_protection.guard._types import (
     FailMode,
     GuardDecision,
@@ -119,8 +120,14 @@ def check_tool_call(call: ToolCall, ctx: CheckContext) -> GuardDecision:
 
 
 def _snapshot(state: BudgetState) -> BudgetState:
-    """Copy the counts a decision keeps. ``cost`` stays shared with the live state, as in JS."""
-    return replace(state, tool_calls=dict(state.tool_calls), repeats=dict(state.repeats), exceeded=list(state.exceeded))
+    """Copy the state a decision keeps, ``cost`` included. JS shares ``cost``; owner ruling Q1."""
+    return replace(
+        state,
+        tool_calls=dict(state.tool_calls),
+        repeats=dict(state.repeats),
+        cost=replace(state.cost),
+        exceeded=list(state.exceeded),
+    )
 
 
 def _to_action(action: PolicyAction) -> Action:
@@ -156,6 +163,8 @@ def _run_check(call: ToolCall, ctx: CheckContext) -> GuardDecision:
     raw_args = analyze_prompt(args_text, **ctx.analyze_options) if args_text else _empty_analysis()
 
     lock = UNLOCKED if ctx.lock_of is None else ctx.lock_of(call.tool_name)
+    if ctx.budget is not None:
+        canonical_json(call.args)  # runs before the budget counts, as in JS; PY-16 keeps this order
     budget = None if ctx.budget is None else ctx.budget.record(call, ctx.depth)
     sources = cast(Sequence[TaintedSource], ctx.index.sources)
     outcome = evaluate_policies(

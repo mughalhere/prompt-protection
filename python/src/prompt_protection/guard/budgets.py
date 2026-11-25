@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from prompt_protection.canonical import digest_sync_weak
+from prompt_protection.guard.provenance import _js_key_order
 
 if TYPE_CHECKING:
     from typing_extensions import Unpack
@@ -101,9 +102,9 @@ class Budget:
         per_turn = options.get("max_calls_per_turn")
         if per_turn is not None and state.turn_calls > per_turn:
             exceeded.append("calls-per-turn")
-        for tool, n in state.tool_calls.items():
+        for tool in _js_key_order(list(state.tool_calls)):
             limit = _limit_for(options.get("max_calls_per_tool"), tool)
-            if limit is not None and n > limit:
+            if limit is not None and state.tool_calls[tool] > limit:
                 exceeded.append(f"calls-per-tool:{tool}")
         if any(n > self._max_repeat for n in state.repeats.values()):
             exceeded.append("repeat-identical")
