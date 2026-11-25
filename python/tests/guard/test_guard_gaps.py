@@ -104,12 +104,12 @@ SET_CASES = [
     divergence({"a": {1}}, "set-in-a-dict", "{'a': {1}}"),
     divergence([{1}], "set-in-a-list", "[{1}]"),
 ]
-# Owner decision 2026-11-24 "Print its fields": a plain instance prints Name(field=value), not its object repr.
+# Owner decision 2026-11-25 "Narrow + flag": a plain instance prints a <Name not rendered> marker, not its fields.
 INSTANCE_CASES = [
-    divergence(Fields(), "instance", "Fields(x=1, y='a')"),
-    divergence(NoFields(), "instance-without-fields", "NoFields()"),
-    divergence({"a": Fields()}, "instance-in-a-dict", "{'a': Fields(x=1, y='a')}"),
-    divergence([Fields(), 1], "instance-in-a-list", "[Fields(x=1, y='a'), 1]"),
+    divergence(Fields(), "instance", "<Fields not rendered>"),
+    divergence(NoFields(), "instance-without-fields", "<NoFields not rendered>"),
+    divergence({"a": Fields()}, "instance-in-a-dict", "{'a': <Fields not rendered>}"),
+    divergence([Fields(), 1], "instance-in-a-list", "[<Fields not rendered>, 1]"),
 ]
 KEY_CASES = [
     divergence({1.0: 1}, "integral-float-key", '{"1.0":1}'),
@@ -131,7 +131,7 @@ def test_stringify_value_keeps_python_str_for_a_set_owner_divergence(value: Any,
 
 
 @pytest.mark.parametrize(("value", "expected"), INSTANCE_CASES)
-def test_stringify_value_prints_a_plain_instance_as_its_fields_owner_decision(value: Any, expected: str) -> None:
+def test_stringify_value_prints_a_plain_instance_as_a_marker_owner_decision(value: Any, expected: str) -> None:
     assert stringify_value(value) == expected
 
 
@@ -150,10 +150,11 @@ def test_stringify_value_with_no_js_analog_falls_back_to_the_python_str(value: A
     assert stringify_value(value) == expected
 
 
-def test_stringify_value_walks_a_dict_subclass_without_raising_when_its_str_raises() -> None:
+def test_stringify_value_prints_a_marker_for_a_dict_subclass_without_raising_when_its_str_raises() -> None:
     value = RaisingStr()
     value["self"] = value
-    assert stringify_value(value) == "RaisingStr({'self': {...}})"
+    text = stringify_value(value)
+    assert text == "<RaisingStr not rendered>"
 
 
 def test_stringify_value_returns_text_for_a_list_nested_past_the_recursion_limit() -> None:
