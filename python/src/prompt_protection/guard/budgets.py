@@ -119,11 +119,21 @@ class Budget:
             exceeded.append("cost:tokens")
         state.exceeded = exceeded
 
+    def _count_tool(self, name: str) -> None:
+        """Count one call, keeping ``tool_calls`` in JS key order (owner ruling Q6). Reorders in place."""
+        counts = self._state.tool_calls
+        is_new = name not in counts
+        counts[name] = counts.get(name, 0) + 1
+        if is_new:
+            ordered = {key: counts[key] for key in _js_key_order(list(counts))}
+            counts.clear()
+            counts.update(ordered)
+
     def record(self, call: ToolCall, depth: int) -> BudgetState:
         """Count the attempt, blocked or not, and return the live state the policies see."""
         state = self._state
         state.turn_calls += 1
-        state.tool_calls[call.tool_name] = state.tool_calls.get(call.tool_name, 0) + 1
+        self._count_tool(call.tool_name)
         key = digest_sync_weak({"toolName": call.tool_name, "args": call.args})
         state.repeats[key] = state.repeats.get(key, 0) + 1
         state.depth = depth
