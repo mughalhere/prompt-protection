@@ -30,6 +30,7 @@ from prompt_protection.guard.provenance import (
     identifier_values,
 )
 from prompt_protection.guard.sinks import create_sink_resolver
+from prompt_protection.guard.wrap import WrapHooks, wrap_tools
 from prompt_protection.logging_ import LoggingOptions, LogLevel, ProtectionLogger
 from prompt_protection.normalizer import normalize
 from prompt_protection.session import ProtectionSession, create_protection_session
@@ -227,6 +228,12 @@ class Guard:
         self._turn = 0
         self._recent.clear()
         self._session.clear()
+
+    def wrap_tools(self, tools: Mapping[str, Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
+        """Return the tools with each ``execute`` checked first and its result tainted after (sync only)."""
+        return wrap_tools(
+            tools, WrapHooks(check=self.check_tool_call, taint=lambda tool, value, id: self.taint(tool, value, id=id))
+        )
 
     def last_decision(self, tool_call_id: str | None) -> GuardDecision | None:
         return None if tool_call_id is None else self._recent.get(tool_call_id)

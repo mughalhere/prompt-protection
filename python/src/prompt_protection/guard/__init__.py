@@ -68,6 +68,7 @@ from prompt_protection.guard.sinks import (
     create_sink_resolver,
     default_sink,
 )
+from prompt_protection.guard.wrap import WrapHooks, wrap_tools
 
 __all__ = [
     "ArgLeaf",
@@ -104,6 +105,7 @@ __all__ = [
     "ToolCall",
     "ToolCallBlockedError",
     "TrustState",
+    "WrapHooks",
     "approval_expired",
     "approval_mismatch",
     "args_injection",
@@ -134,4 +136,5 @@ __all__ = [
     "untrusted_to_exfil_sink",
     "untrusted_to_payment",
     "url_path_of",
+    "wrap_tools",
 ]
