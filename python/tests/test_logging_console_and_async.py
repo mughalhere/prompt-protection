@@ -13,7 +13,7 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
-from logging_support import ALL_LEVELS, ATTACK, BENIGN, ErrorSink, Recorder
+from logging_support import ALL_LEVELS, ATTACK, BENIGN, ErrorSink, RaisingLogger, Recorder
 
 import prompt_protection
 from prompt_protection import analyze_prompt, create_console_logger
@@ -287,3 +287,65 @@ def test_a_non_awaitable_result_is_never_reported(run: Callable[..., Any], metho
     sink = ErrorSink()
     assert run(logger=ReturnsValue(method, value), on_logger_error=sink) == baseline
     assert sink.errors == []
+
+
+class RaisingSink:
+    """An ``on_logger_error`` callback that raises ``cb-boom-N`` on its Nth call."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def __call__(self, error: Any) -> None:
+        self.calls += 1
+        raise RuntimeError(f"cb-boom-{self.calls}")
+
+
+BENIGN_CALL = ToolCall(tool_name="search", args={"query": "weather in Paris"})
+
+
+def analyze_benign(**options: Any) -> Any:
+    return analyze_prompt(BENIGN, **options).to_dict()
+
+
+def guard_benign(**options: Any) -> Any:
+    decision = create_guard(**options).check_tool_call(BENIGN_CALL)
+    return (decision.action, decision.policy, decision.sink, decision.reasons)
+
+
+SCENARIOS = pytest.mark.parametrize(
+    ("run", "levels"),
+    [
+        pytest.param(analyze_benign, ["allowed"], id="analyze_prompt-benign-allowed"),
+        pytest.param(analyze_benign, ALL_LEVELS, id="analyze_prompt-benign-all"),
+        pytest.param(run_analyze, ALL_LEVELS, id="analyze_prompt-attack-all"),
+        pytest.param(guard_benign, ["allowed"], id="check_tool_call-benign-allowed"),
+        pytest.param(guard_benign, ALL_LEVELS, id="check_tool_call-benign-all"),
+        pytest.param(run_guard, ALL_LEVELS, id="check_tool_call-attack-all"),
+    ],
+)
+
+
+def make_awaitable(loop: asyncio.AbstractEventLoop, kind: str) -> Any:
+    return pending_body() if kind == "coroutine" else loop.create_future()
+
+
+@SCENARIOS
+@pytest.mark.parametrize("fail_mode", ["closed", "open"])
+@pytest.mark.parametrize("kind", ["coroutine", "future"])
+def test_a_raising_on_logger_error_for_an_awaitable_result_neither_raises_nor_changes_the_verdict(
+    run: Callable[..., Any], levels: list[str], fail_mode: str, kind: str, loop: asyncio.AbstractEventLoop
+) -> None:
+    baseline = run(logger=Recorder(), fail_mode=fail_mode, log_levels=levels)
+    callback = RaisingSink()
+    logger = KeepsAwaitables("log", lambda: make_awaitable(loop, kind))
+    assert run(logger=logger, on_logger_error=callback, fail_mode=fail_mode, log_levels=levels) == baseline
+    assert callback.calls == 1
+
+
+def test_a_raising_on_logger_error_for_a_raising_logger_still_raises_out_of_the_call() -> None:
+    """PY-12a parity row: analyzePrompt benign allowed open cb=always is THROW cb-boom-2, log=2 cb=2."""
+    logger = RaisingLogger(RuntimeError("log-boom"))
+    callback = RaisingSink()
+    with pytest.raises(RuntimeError, match="cb-boom-2"):
+        analyze_prompt(BENIGN, logger=logger, on_logger_error=callback, fail_mode="open", log_levels=["allowed"])
+    assert (logger.calls, callback.calls) == (2, 2)
