@@ -177,3 +177,15 @@ def test_conformance_9_read_only_hint_counts_only_under_a_lock_and_unannotated_n
     assert (hinted.sink, hinted.action) == ("none", "allow")
     unannotated = guard.check_tool_call(via_unknown)
     assert (unannotated.sink, unannotated.action) == ("unknown", "block")
+
+
+def test_conformance_10_the_4th_identical_call_exceeds_the_default_repeat_budget() -> None:
+    from prompt_protection.guard import ToolCall, create_guard
+
+    guard = create_guard(budgets={})
+    call = ToolCall(tool_name="get_weather", args={"city": "Lahore"})
+    for _ in range(3):
+        assert guard.check_tool_call(call).action == "allow"
+    decision = guard.check_tool_call(call)
+    assert (decision.action, decision.policy) == ("block", "budget-exceeded")
+    assert "budget-exceeded" in decision.reasons
