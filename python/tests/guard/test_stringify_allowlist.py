@@ -1,9 +1,8 @@
 """stringify_value allowlist (bead j8o, owner decision 2026-11-24, "A, with safeguards").
 
-Only str, int, float, bool, None, bytes and range keep their own text. Mappings are walked by items,
-sized collections by elements, other objects by fields. A one-shot or unsized iterable is never consumed
-and prints a fixed marker that names its type. These tests assert properties, never the marker or the
-exact object form, because python-dev picks both.
+Only str, int, float, bool, None, bytes and range keep their own text. An exact dict, list, tuple, set or
+frozenset is walked by its items. Any other object, and any other container, prints a marker that names its
+type ("Narrow + flag", 2026-11-25). A one-shot or unsized iterable is never consumed.
 """
 
 import itertools
@@ -25,6 +24,10 @@ SIBLING = "visible-sibling"
 FIELD_TEXT = "visible-field"
 SAFE_NAMES = {"__dict__", "__slots__"}
 TOUCHED: list[str] = []
+
+
+def marker(qualname: str) -> str:
+    return f"<{qualname} not rendered>"
 
 
 class Plain:
@@ -69,7 +72,7 @@ class TaggedList(list[Any]):
         return f"TaggedList{list.__repr__(self)}"
 
 
-# Cases 1 and 2: a holder of a plain object must not hide that object's fields behind an object repr.
+# Cases 1 and 2: a holder of a plain object. An exact container shows that object's marker, any other holder is one.
 HOLDERS = {
     "audit-defaultdict": lambda p: defaultdict(list, {"a": p}),
     "audit-dataclass": DataHolder,
@@ -90,11 +93,35 @@ HOLDERS = {
 }
 
 
-@pytest.mark.parametrize("build", HOLDERS.values(), ids=HOLDERS.keys())
-def test_a_container_or_object_holding_a_plain_object_shows_that_objects_fields(build: Callable[[Any], Any]) -> None:
+HOLDER_TEXT = {
+    "audit-defaultdict": marker("defaultdict"),
+    "audit-dataclass": marker("DataHolder"),
+    "dataclass-with-slots": marker("SlotsDataHolder"),
+    "repr-only-type-showing-its-field": marker("ReprShowsInner"),
+    "repr-only-type-with-a-constant-repr": marker("ReprConstant"),
+    "user-dict": marker("UserDict"),
+    "mapping-proxy": marker("mappingproxy"),
+    "user-list": marker("UserList"),
+    "list-subclass-with-its-own-repr": marker("TaggedList"),
+    "set": f"{{{marker('Plain')}}}",
+    "frozenset": f"frozenset({{{marker('Plain')}}})",
+    "ordered-dict": marker("OrderedDict"),
+    "deque": marker("deque"),
+    "list": f"[{marker('Plain')}]",
+    "dict": f"{{'a': {marker('Plain')}}}",
+    "tuple": f"({marker('Plain')}, 1)",
+}
+
+
+@pytest.mark.parametrize(
+    ("build", "expected"), [pytest.param(build, HOLDER_TEXT[name], id=name) for name, build in HOLDERS.items()]
+)
+def test_a_container_or_object_holding_a_plain_object_prints_markers_and_none_of_that_objects_fields(
+    build: Callable[[Any], Any], expected: str
+) -> None:
     text = stringify_value(build(Plain()))
-    assert SECRET in text
-    assert " object at 0x" not in text
+    assert text == expected
+    assert SECRET not in text
 
 
 class Unsized:
@@ -174,7 +201,6 @@ PLACEMENTS = {
     "alone": lambda s: s,
     "in-a-list": lambda s: [s, SIBLING],
     "in-a-dict": lambda s: {"stream": s, "sibling": SIBLING},
-    "in-an-object": Holder,
 }
 
 
@@ -196,6 +222,19 @@ def test_a_one_shot_or_unsized_iterable_is_not_consumed_and_its_marker_names_its
     assert read() == expected
     if place is not PLACEMENTS["alone"]:
         assert SIBLING in text
+
+
+@pytest.mark.usefixtures("deadline")
+@pytest.mark.parametrize("make", STREAMS.values(), ids=STREAMS.keys())
+def test_a_one_shot_or_unsized_iterable_inside_an_object_is_not_consumed_and_the_object_prints_only_its_marker(
+    make: Callable[[str, Path, ExitStack], Stream], tmp_path: Path, stack: ExitStack
+) -> None:
+    value, read, expected = make("a", tmp_path, stack)
+    text = stringify_value(Holder(value))
+    assert text == marker("Holder")
+    assert type(value).__name__ not in text
+    assert SIBLING not in text
+    assert read() == expected
 
 
 @pytest.mark.usefixtures("deadline")
@@ -248,13 +287,17 @@ def touched() -> list[str]:
     return TOUCHED
 
 
-@pytest.mark.parametrize("wrap", [lambda o: o, lambda o: {"o": o}], ids=["alone", "in-a-dict"])
+@pytest.mark.parametrize(
+    ("wrap", "template"),
+    [pytest.param(lambda o: o, "{}", id="alone"), pytest.param(lambda o: {"o": o}, "{{'o': {}}}", id="in-a-dict")],
+)
 @pytest.mark.parametrize("cls", [HostileDict, HostileSlots], ids=["dict-instance", "slots-instance"])
-def test_an_object_is_walked_without_reading_a_property_or_any_name_but_its_fields(
-    cls: type, wrap: Callable[[Any], Any], touched: list[str]
+def test_an_object_prints_a_marker_without_reading_a_property_or_any_name_or_its_fields(
+    cls: type, wrap: Callable[[Any], Any], template: str, touched: list[str]
 ) -> None:
     text = stringify_value(wrap(cls()))
-    assert FIELD_TEXT in text
+    assert text == template.format(marker(cls.__name__))
+    assert FIELD_TEXT not in text
     assert touched == []
 
 
@@ -270,10 +313,11 @@ LEAVES = [
 
 
 @pytest.mark.parametrize("leaf", LEAVES)
-def test_an_allowlisted_leaf_keeps_its_own_python_text_inside_an_object(leaf: Any) -> None:
+def test_an_object_holding_an_allowlisted_leaf_prints_a_marker_and_neither_the_leaf_nor_its_sibling(leaf: Any) -> None:
     text = stringify_value(Holder(leaf))
-    assert repr(leaf) in text
-    assert SIBLING in text
+    assert text == marker("Holder")
+    assert repr(leaf) not in text
+    assert SIBLING not in text
 
 
 @pytest.mark.parametrize("leaf", [pytest.param(b"ab", id="bytes"), pytest.param(range(2, 9, 3), id="range")])
@@ -297,7 +341,7 @@ class Meters(float):
     pass
 
 
-# The decision lists exact types and is silent on subclasses, so only the value's visibility is asserted.
+# Each leaf sits in a Holder, which is not an exact container, so the Holder prints a marker.
 SUBCLASS_LEAVES = [
     pytest.param(Tag("visible-tag-value"), "visible-tag-value", id="str-subclass"),
     pytest.param(Level.HIGH, "4242", id="int-enum"),
@@ -307,10 +351,12 @@ SUBCLASS_LEAVES = [
 
 
 @pytest.mark.parametrize(("leaf", "shown"), SUBCLASS_LEAVES)
-def test_a_subclass_of_an_allowlisted_type_keeps_its_value_visible_inside_an_object(leaf: Any, shown: str) -> None:
+def test_an_object_holding_a_subclass_of_an_allowlisted_type_prints_a_marker_and_not_the_value(
+    leaf: Any, shown: str
+) -> None:
     text = stringify_value(Holder(leaf))
-    assert shown in text
-    assert " object at 0x" not in text
+    assert text == marker("Holder")
+    assert shown not in text
 
 
 # Owner decision 2026-11-24, "Base-type value": a subclass of an allowlisted leaf prints as its base leaf.

@@ -2,7 +2,7 @@
 
 At most 4300 decimal digits prints exact decimal. More prints hex() for that int only.
 The limit is min(4300, sys.get_int_max_str_digits()) when that exists, 4300 when it is 0 or absent,
-and never depends on the version. An object with no custom __str__ prints its fields, so none hides.
+and never depends on the version. A value outside the narrowed contract prints a marker, so no int in it prints.
 """
 
 import sys
@@ -18,6 +18,10 @@ OVER = 10**4300
 AT = 10**4299
 AT_TEXT = "1" + "0" * 4299
 SIBLING = "visible-sibling"
+
+
+def marker(qualname: str) -> str:
+    return f"<{qualname} not rendered>"
 
 
 @pytest.fixture(autouse=True, params=["interpreter-limit", "attribute-absent"])
@@ -87,21 +91,21 @@ def _other_containers() -> list[Any]:
 
 
 @pytest.mark.parametrize("value", _other_containers())
-def test_an_ordereddict_deque_or_namedtuple_with_an_over_limit_int_shows_hex_and_keeps_its_siblings(value: Any) -> None:
+def test_an_ordereddict_deque_or_namedtuple_with_an_over_limit_int_prints_only_its_marker(value: Any) -> None:
     text = stringify_value(value)
-    assert SIBLING in text
-    assert hex(OVER) in text
-    assert " object at 0x" not in text
+    assert text == marker(type(value).__qualname__)
+    assert SIBLING not in text
+    assert hex(OVER) not in text
 
 
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
-        pytest.param(deque([OVER, SIBLING]), f"deque([{hex(OVER)}, '{SIBLING}'])", id="deque"),
-        pytest.param(Pair(OVER, SIBLING), f"Pair(({hex(OVER)}, '{SIBLING}'))", id="namedtuple"),
+        pytest.param(deque([OVER, SIBLING]), "<deque not rendered>", id="deque"),
+        pytest.param(Pair(OVER, SIBLING), "<Pair not rendered>", id="namedtuple"),
     ],
 )
-def test_a_deque_or_namedtuple_prints_its_items_with_only_the_over_limit_int_as_hex(value: Any, expected: str) -> None:
+def test_a_deque_or_namedtuple_prints_a_marker_and_none_of_its_items(value: Any, expected: str) -> None:
     assert stringify_value(value) == expected
 
 
@@ -184,18 +188,19 @@ def _stringify_or_fail(value: Any) -> str:
 
 @pytest.mark.parametrize("number", [5, OVER], ids=["small-int-field", "over-limit-int-field"])
 @pytest.mark.parametrize("cls", [Plain, Slotted], ids=["dict-instance", "slots-instance"])
-def test_an_object_without_its_own_str_prints_its_fields_not_an_object_repr(cls: type, number: int) -> None:
+def test_an_object_without_its_own_str_prints_a_marker_and_none_of_its_fields(cls: type, number: int) -> None:
     text = stringify_value(cls(number, SIBLING))
-    assert SIBLING in text
-    assert (hex(number) if number == OVER else str(number)) in text
-    assert " object at 0x" not in text
+    assert text == marker(cls.__qualname__)
+    assert SIBLING not in text
+    assert (hex(number) if number == OVER else str(number)) not in text
 
 
 @pytest.mark.parametrize("number", [5, OVER], ids=["small-int-field", "over-limit-int-field"])
-def test_an_object_with_its_own_str_prints_its_fields_and_not_that_str(number: int) -> None:
+def test_an_object_with_its_own_str_prints_a_marker_and_neither_its_fields_nor_that_str(number: int) -> None:
     shown = hex(number) if number == OVER else str(number)
     text = stringify_value(CustomStr(number))
-    assert text == f"CustomStr(x={shown})"
+    assert text == marker("CustomStr")
+    assert shown not in text
     assert CUSTOM_TEXT not in text
 
 
@@ -218,29 +223,40 @@ def _two_object_cycle() -> Node:
         pytest.param(_two_object_cycle, [SIBLING, "visible-second"], id="two-object-cycle"),
     ],
 )
-def test_a_cycle_of_plain_objects_terminates_and_keeps_every_sibling_visible(
+def test_a_cycle_of_plain_objects_terminates_and_prints_a_marker_that_hides_every_sibling(
     build: Callable[[], Node], visible: list[str]
 ) -> None:
     text = _stringify_or_fail(build())
+    assert text == marker("Node")
     for sibling in visible:
-        assert sibling in text
-    assert " object at 0x" not in text
+        assert sibling not in text
 
 
 @pytest.mark.parametrize(
-    "value",
+    ("value", "expected"),
     [
-        pytest.param(defaultdict(list, {"a": OVER, "b": SIBLING}), id="defaultdict"),
-        pytest.param(defaultdict(None, {"a": OVER, "b": SIBLING}), id="defaultdict-without-factory"),
-        pytest.param([defaultdict(list, {"a": OVER}), SIBLING], id="defaultdict-in-a-list"),
-        pytest.param({"d": defaultdict(int, {"a": OVER}), "b": SIBLING}, id="defaultdict-in-a-dict"),
+        pytest.param(defaultdict(list, {"a": OVER, "b": SIBLING}), marker("defaultdict"), id="defaultdict"),
+        pytest.param(
+            defaultdict(None, {"a": OVER, "b": SIBLING}), marker("defaultdict"), id="defaultdict-without-factory"
+        ),
+        pytest.param(
+            [defaultdict(list, {"a": OVER}), SIBLING],
+            f"[{marker('defaultdict')}, '{SIBLING}']",
+            id="defaultdict-in-a-list",
+        ),
+        pytest.param(
+            {"d": defaultdict(int, {"a": OVER}), "b": SIBLING},
+            f"{{'d': {marker('defaultdict')}, 'b': '{SIBLING}'}}",
+            id="defaultdict-in-a-dict",
+        ),
     ],
 )
-def test_a_defaultdict_with_an_over_limit_int_is_walked_as_a_mapping_and_keeps_its_siblings(value: Any) -> None:
+def test_a_defaultdict_with_an_over_limit_int_prints_a_marker_and_keeps_the_siblings_of_exact_containers(
+    value: Any, expected: str
+) -> None:
     text = stringify_value(value)
-    assert SIBLING in text
-    assert hex(OVER) in text
-    assert " object at 0x" not in text
+    assert text == expected
+    assert hex(OVER) not in text
 
 
 RANGE_CASES = [

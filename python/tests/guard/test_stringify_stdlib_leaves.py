@@ -2,8 +2,8 @@
 
 complex, Decimal, Fraction, date, time, datetime, timedelta, timezone, UUID and PurePath, and their subclasses,
 print through their base type's str. An Enum member prints its value, a re.Pattern its pattern, and a function,
-method or class its __qualname__. No __str__ or __repr__ override hides any of them. Beside a sibling, the form
-(quoting, key position) is not fixed, so those placements assert that the text and the sibling are visible.
+method or class its __qualname__. No __str__ or __repr__ override hides any of them. Beside a sibling in an
+exact container, the form (quoting, key position) is not fixed. Inside any other object the object prints a marker.
 """
 
 import datetime as dt
@@ -24,6 +24,8 @@ from prompt_protection.guard import stringify_value
 
 SIBLING = "visible-sibling"
 SECRET = "visible-secret"
+HOLDER_MARKER = "<Holder not rendered>"
+PLAIN_MARKER = "<Plain not rendered>"
 UUID_TEXT = "12345678-1234-5678-1234-567812345678"
 
 
@@ -155,6 +157,7 @@ PLACES: dict[str, Callable[[Any], Any]] = {
     "dict-value": lambda v: {"key": v, "sibling": SIBLING},
     "dict-key": lambda v: {v: SIBLING},
 }
+EXACT_PLACES = [place for place in PLACES if place != "in-an-object"]
 
 
 def visible(text: str, shown: str) -> bool:
@@ -175,8 +178,6 @@ def accepted_texts(place: str, shown: str) -> set[str]:
     sibling = f"'{SIBLING}'"
     if place == "listed":
         return {f"[{x}, {sibling}]" for x in leaf}
-    if place == "in-an-object":
-        return {f"Holder(item={x}, sibling={sibling})" for x in leaf}
     if place == "dict-value":
         return {f"{{'key': {x}, 'sibling': {sibling}}}" for x in leaf}
     return {f"{{{x}: {sibling}}}" for x in leaf} | {f'{{{json.dumps(shown)}:"{SIBLING}"}}'}
@@ -192,7 +193,7 @@ def test_a_stdlib_leaf_alone_prints_its_base_text(value: Any, expected: str, der
     assert stringify_value(value) == expected
 
 
-@pytest.mark.parametrize("place", PLACES)
+@pytest.mark.parametrize("place", EXACT_PLACES)
 @pytest.mark.parametrize(("value", "expected", "derive"), CASES)
 def test_a_stdlib_leaf_beside_a_sibling_shows_both(
     value: Any, expected: str, derive: Callable[[Any], str], place: str
@@ -200,7 +201,21 @@ def test_a_stdlib_leaf_beside_a_sibling_shows_both(
     assert stringify_value(PLACES[place](value)) in accepted_texts(place, expected)
 
 
-@pytest.mark.parametrize("place", ["alone", *PLACES])
+IN_AN_OBJECT = [pytest.param(case.values[0], case.values[1], id=case.id) for case in CASES]
+IN_AN_OBJECT.append(pytest.param(re.compile(b"visible-bytes-pattern"), "visible-bytes-pattern", id="bytes-pattern"))
+
+
+@pytest.mark.parametrize(("value", "shown"), IN_AN_OBJECT)
+def test_a_stdlib_leaf_inside_an_object_prints_the_objects_marker_and_neither_the_leaf_nor_its_sibling(
+    value: Any, shown: str
+) -> None:
+    text = stringify_value(Holder(value))
+    assert text == HOLDER_MARKER
+    assert shown not in text
+    assert SIBLING not in text
+
+
+@pytest.mark.parametrize("place", ["alone", *EXACT_PLACES])
 def test_a_bytes_pattern_shows_its_pattern_text(place: str) -> None:
     compiled = re.compile(b"visible-bytes-pattern")
     value = compiled if place == "alone" else PLACES[place](compiled)
@@ -247,7 +262,7 @@ ENUMS = [
     pytest.param(Level.HIGH, "4242", "4242", id="int-enum"),
     pytest.param(Tint.RED, "visible-tint", "visible-tint", id="str-mixin-enum"),
     pytest.param(Point.ORIGIN, '[1,"visible-tuple"]', "visible-tuple", id="tuple-value"),
-    pytest.param(Vault.BOX, "Plain(secret='visible-secret')", SECRET, id="plain-object-value"),
+    pytest.param(Vault.BOX, PLAIN_MARKER, PLAIN_MARKER, id="plain-object-value"),
     pytest.param(Veiled.COVER, "visible-veiled", "visible-veiled", id="overridden-str-and-repr"),
     pytest.param(Wrap.INNER, "visible-enum-text", "visible-enum-text", id="member-of-another-enum-as-value"),
 ]
@@ -276,6 +291,21 @@ def test_an_enum_member_as_a_mapping_key_shows_its_value_and_the_sibling(
 
 def placed(value: Any, place: str) -> Any:
     return value if place == "alone" else PLACES[place](value)
+
+
+VAULT_TEXT = {
+    "alone": PLAIN_MARKER,
+    "listed": f"[{PLAIN_MARKER}, '{SIBLING}']",
+    "dict-value": f"{{'key': {PLAIN_MARKER}, 'sibling': '{SIBLING}'}}",
+    "dict-key": f'{{"{PLAIN_MARKER}":"{SIBLING}"}}',
+}
+
+
+@pytest.mark.parametrize("place", VAULT_TEXT)
+def test_an_enum_member_whose_value_is_a_plain_object_prints_that_objects_marker_and_not_its_fields(place: str) -> None:
+    text = stringify_value(placed(Vault.BOX, place))
+    assert text == VAULT_TEXT[place]
+    assert SECRET not in text
 
 
 def assert_prints(value: Any, expected: str, place: str) -> None:
