@@ -424,3 +424,46 @@ def test_lock_rejects_what_is_not_a_v1_tool_lock(bad: Any) -> None:
     with pytest.raises(TypeError, match="not a v1 ToolLock"):
         guard.lock(bad)
     assert guard.lock_state.lock is None
+
+
+# --- persisted-lock annotations of any shape (PY-17 audit r1; twin of resolveSinkLocked in guard.ts) ---
+
+ABSENT = object()
+BLOCK = ("block", "untrusted-to-exfil-sink")
+ALLOW = ("allow", None)
+
+LOCKED_ANNOTATION_CASES = [
+    pytest.param("frobnicate", ABSENT, "destructive", BLOCK, "unknown", id="key-absent-is-unknown"),
+    pytest.param("frobnicate", ABSENT, "heuristic", ALLOW, "none", id="key-absent-heuristic-default"),
+    pytest.param("frobnicate", None, "destructive", ALLOW, "none", id="null-is-not-absent"),
+    pytest.param("frobnicate", None, "heuristic", ALLOW, "none", id="null-heuristic-default"),
+    pytest.param("frobnicate", "x", "destructive", ALLOW, "none", id="string"),
+    pytest.param("frobnicate", 1, "destructive", ALLOW, "none", id="number"),
+    pytest.param("frobnicate", True, "destructive", ALLOW, "none", id="boolean"),
+    pytest.param("frobnicate", [], "destructive", ALLOW, "none", id="list"),
+    pytest.param("frobnicate", {}, "destructive", ALLOW, "none", id="empty-mapping"),
+    pytest.param("frobnicate", {"readOnlyHint": False}, "destructive", ALLOW, "none", id="read-only-false"),
+    pytest.param("frobnicate", {"readOnlyHint": "true"}, "destructive", ALLOW, "none", id="read-only-string"),
+    pytest.param("frobnicate", {"readOnlyHint": True}, "destructive", ALLOW, "none", id="read-only-true"),
+    pytest.param("send_email", None, "destructive", BLOCK, "email", id="email-null"),
+    pytest.param("send_email", "x", "destructive", BLOCK, "email", id="email-string"),
+    pytest.param("send_email", 1, "destructive", BLOCK, "email", id="email-number"),
+    pytest.param("send_email", [], "destructive", BLOCK, "email", id="email-list"),
+    pytest.param("send_email", {"readOnlyHint": "true"}, "destructive", BLOCK, "email", id="email-read-only-string"),
+    pytest.param("send_email", {"readOnlyHint": True}, "destructive", ALLOW, "none", id="email-read-only-true"),
+]
+
+
+@pytest.mark.parametrize(("tool", "annotations", "default", "verdict", "sink"), LOCKED_ANNOTATION_CASES)
+def test_a_persisted_lock_resolves_sinks_from_any_annotations_value_as_js_does(
+    tool: str, annotations: Any, default: str, verdict: tuple[str, str | None], sink: str
+) -> None:
+    lock = pp_guard.pin_tools({tool: make_tools()[tool]})
+    lock["tools"][tool].pop("annotations", None)
+    if annotations is not ABSENT:
+        lock["tools"][tool]["annotations"] = annotations
+    guard = create_guard(annotations_default=default)
+    guard.taint("read_doc", f"see {ATTACKER}", id="doc")
+    guard.lock(lock)
+    decision = call(guard, tool, url=ATTACKER)
+    assert (decision.action, decision.policy, decision.sink) == (*verdict, sink)
