@@ -1201,3 +1201,41 @@ def test_a_stdlib_exception_gives_its_own_attributes_owner_ruling_walk_all_stdli
     make: Any, rows: list[tuple[str, str]], place: Any, path: str
 ) -> None:
     assert values(render(place(make()))) == leaf_table(path, *rows)
+
+
+# --- render_approval_card: empty-slots objects (owner ruling 2026-11-25, PY-16c "Adopt one rule, close it") ---
+# A user object walks its own attributes, so no attribute means no field, as a JS `class E {}` does.
+
+
+class EmptySlots:
+    __slots__ = ()
+
+
+class EmptySlotsChild(EmptySlots):
+    __slots__ = ()
+
+
+class UnsetSlotOnly:
+    __slots__ = ("s",)
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        pytest.param(EmptySlots, id="empty-slots"),
+        pytest.param(EmptySlotsChild, id="subclass-of-empty-slots-neither-declares-a-name"),
+        pytest.param(UnsetSlotOnly, id="declared-slot-never-set-control"),
+    ],
+)
+@pytest.mark.parametrize(("place", "_path"), PLACEMENTS)
+def test_an_object_with_no_own_attribute_gives_no_field_owner_ruling_one_render_rule(
+    make: Any, place: Any, _path: str
+) -> None:
+    assert values(render(place(make()))) == [("args.note", "hi")]
+
+
+@pytest.mark.parametrize("make", [EmptySlots, EmptySlotsChild, UnsetSlotOnly])
+def test_an_object_with_no_own_attribute_as_the_whole_args_gives_no_field_owner_ruling_one_render_rule(
+    make: Any,
+) -> None:
+    assert values(render(make())) == []
