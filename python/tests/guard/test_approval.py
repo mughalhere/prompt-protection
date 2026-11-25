@@ -1239,3 +1239,74 @@ def test_an_object_with_no_own_attribute_as_the_whole_args_gives_no_field_owner_
     make: Any,
 ) -> None:
     assert values(render(make())) == []
+
+
+# --- render_approval_card: a user subclass of a stdlib class walks its inherited slots (PY-16c, e-b80c9f) ---
+# Parent slots first, then the subclass's own. Expected rows are the be70e1e render of the same objects.
+
+
+class UserParameter(inspect.Parameter):
+    pass
+
+
+class UserParameterEmptySlots(inspect.Parameter):
+    __slots__ = ()
+
+
+class UserParameterExtraSlot(inspect.Parameter):
+    __slots__ = ("extra",)
+
+
+def _user_parameter(cls: type[inspect.Parameter], **own: str) -> inspect.Parameter:
+    parameter = cls("p", inspect.Parameter.POSITIONAL_ONLY)
+    for name, text in own.items():
+        setattr(parameter, name, text)
+    return parameter
+
+
+PARAMETER_SLOT_ROWS = [("_name", "p"), ("_kind", "0")]
+
+
+@pytest.mark.parametrize(
+    ("make", "rows"),
+    [
+        pytest.param(lambda: _user_parameter(UserParameter), PARAMETER_SLOT_ROWS, id="subclass-without-slots"),
+        pytest.param(
+            lambda: _user_parameter(UserParameterEmptySlots), PARAMETER_SLOT_ROWS, id="subclass-with-empty-slots"
+        ),
+        pytest.param(
+            lambda: _user_parameter(UserParameterExtraSlot, extra="e"),
+            [*PARAMETER_SLOT_ROWS, ("extra", "e")],
+            id="stdlib-base-slots-then-own-slot",
+        ),
+    ],
+)
+@pytest.mark.parametrize(("place", "path"), PLACEMENTS)
+def test_a_user_subclass_of_a_stdlib_class_walks_its_inherited_slots_owner_ruling_one_render_rule(
+    make: Any, rows: list[tuple[str, str]], place: Any, path: str
+) -> None:
+    assert values(render(place(make()))) == leaf_table(path, *rows)
+
+
+def test_a_user_subclass_of_a_stdlib_class_as_the_whole_args_is_walked_owner_ruling_one_render_rule() -> None:
+    assert values(render(_user_parameter(UserParameterEmptySlots))) == [("args._name", "p"), ("args._kind", "0")]
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        pytest.param(lambda: inspect.Parameter("p", inspect.Parameter.POSITIONAL_ONLY), id="plain-stdlib-class"),
+        pytest.param(object, id="bare-object"),
+    ],
+)
+@pytest.mark.parametrize(("place", "path"), PLACEMENTS)
+def test_a_stdlib_instance_beside_the_user_subclass_walk_stays_one_str_leaf_control(
+    make: Any, place: Any, path: str
+) -> None:
+    instance = make()
+    fields = render(place(instance)).fields
+    assert [(f.path, no_addresses(f.value)) for f in fields] == [
+        ("args.note", "hi"),
+        (path, no_addresses(str(instance))),
+    ]
+    assert type(fields[-1].value) is str
