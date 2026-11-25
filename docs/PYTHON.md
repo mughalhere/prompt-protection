@@ -3,7 +3,7 @@
 The Python package in `python/` ports the JS library. Node is the oracle for its decisions.
 Exact parity is claimed for the published golden corpus only.
 
-This page lists every place where Python and JS give a different result, and why. It also records the Unicode drift between the two runtimes.
+This page covers Unicode drift, custom rules, non-finite scores, `canonical_json`, tool-result text and logging. It gives the Python and JS differences in those areas, and why.
 
 ## Unicode drift
 
@@ -72,9 +72,9 @@ A finite weight such as `-11000` can also overflow `exp`. The scorer treats an o
 `canonical_json` raises `CanonicalJsonError` with code `unsupported` for a value that has no JSON form and no `to_dict()`.
 This covers a set, `bytes`, a mapping key that is not a `str`, a function, a class and a class instance.
 
-JS treats a function differently. It writes `null` for a function in an array, and it drops the key in an object.
+JS treats a function or a class differently. It writes `null` for one in an array, and it drops the key in an object.
 JS raises for a class instance with no `toJSON`, as Python does for one with no `to_dict()`.
-The Python guard stays fail-closed. A callable inside tool-call arguments makes `check_tool_call` return a block with `internal-error`, or an allow with `internal-error` under `fail_mode="open"`. JS drops the function and allows the call.
+The Python guard stays fail-closed. A callable inside tool-call arguments makes `check_tool_call` return a block with `internal-error`, or an allow with `internal-error` under `fail_mode="open"`. JS drops the function or class and allows the call.
 
 Two parts of the JS contract have no Python equivalent:
 
