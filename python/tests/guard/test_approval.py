@@ -8,6 +8,7 @@ Not pinned: a call id matching a record of another tool name, confirm twice, cle
 and a card's check counting against the budget.
 """
 
+import argparse
 import dataclasses
 import datetime
 import decimal
@@ -1137,3 +1138,33 @@ def test_a_stdlib_class_is_one_str_leaf_owner_ruling_stdlib_keeps_str(make: Any,
 @pytest.mark.parametrize(("place", "path"), PLACEMENTS)
 def test_a_user_defined_class_still_walks_beside_the_stdlib_str_ruling(make: Any, place: Any, path: str) -> None:
     assert values(render(place(make()))) == leaf_table(path, ("s", "a"), ("n", "7"))
+
+
+class CodedError(Exception):
+    def __init__(self) -> None:
+        super().__init__("x")
+        self.code = 3
+
+
+def _value_error_with_extra() -> ValueError:
+    error = ValueError("x")
+    error.extra = "e"  # type: ignore[attr-defined]
+    return error
+
+
+# Owner ruling 2026-11-25 "Exempt both, match JS" (Node 22, dist/guard/index.cjs renderApprovalCard).
+@pytest.mark.parametrize(
+    ("make", "rows"),
+    [
+        pytest.param(lambda: SimpleNamespace(a=1, b="x"), [("a", "1"), ("b", "x")], id="SimpleNamespace"),
+        pytest.param(lambda: argparse.Namespace(a=1, b="x"), [("a", "1"), ("b", "x")], id="argparse.Namespace"),
+        pytest.param(lambda: Exception("x"), [], id="bare-Exception-gives-no-field"),
+        pytest.param(_value_error_with_extra, [("extra", "e")], id="builtin-exception-own-attribute"),
+        pytest.param(CodedError, [("code", "3")], id="user-exception-subclass-walks"),
+    ],
+)
+@pytest.mark.parametrize(("place", "path"), PLACEMENTS)
+def test_a_namespace_walks_and_an_exception_gives_its_own_attributes_owner_ruling_exempt_both(
+    make: Any, rows: list[tuple[str, str]], place: Any, path: str
+) -> None:
+    assert values(render(place(make()))) == leaf_table(path, *rows)
