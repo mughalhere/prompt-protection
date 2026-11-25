@@ -255,9 +255,12 @@ def _scalar_text(value: object) -> str:
 
 
 def _scalar_leaves(args: Any, path: str, out: list[tuple[str, str]], depth: int = 0) -> None:
-    if depth > _MAX_LEAF_DEPTH:
+    if depth > _MAX_LEAF_DEPTH or callable(args) or isinstance(args, (set, frozenset)):
         return
-    if isinstance(args, (list, tuple)):
+    if isinstance(args, (bytes, bytearray)):
+        for i, byte in enumerate(args):
+            _scalar_leaves(byte, f"{path}.{i}", out, depth + 1)
+    elif isinstance(args, (list, tuple)):
         for i, item in enumerate(args):
             _scalar_leaves(item, f"{path}[{i}]", out, depth + 1)
     elif isinstance(args, Mapping):
