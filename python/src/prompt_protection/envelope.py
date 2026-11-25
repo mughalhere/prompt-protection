@@ -15,7 +15,9 @@ import hmac
 import math
 import re
 import secrets
+import threading
 import time
+import weakref
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any, Literal, Protocol, TypedDict, TypeGuard, cast
 
@@ -39,7 +41,7 @@ __all__ = [
 ]
 
 EnvelopeAlg = Literal["HS256", "EdDSA"]
-EnvelopeErrorCode = Literal["bad-signature", "expired", "replayed", "unknown-kid", "malformed"]
+EnvelopeErrorCode = Literal["bad-signature", "expired", "replayed", "unknown-kid", "crypto-unavailable", "malformed"]
 
 _DEFAULT_MAX_SKEW_MS = 60_000
 _BASE64URL = re.compile(r"[A-Za-z0-9_-]*")
@@ -67,14 +69,17 @@ class _EnvelopeKeyRequired(TypedDict):
 
 
 class EnvelopeKey(_EnvelopeKeyRequired, total=False):
-    """``secret`` is a ``str`` (UTF-8) or ``bytes``. An EdDSA key is accepted by no function here."""
+    """``secret`` is a non-empty ``str`` (UTF-8) or ``bytes``. An EdDSA key is accepted by no function here.
+
+    An empty, missing or other-typed HS256 secret raises ``EnvelopeError('crypto-unavailable')``.
+    """
 
     secret: str | bytes
     kid: str
 
 
 class EnvelopeError(Exception):
-    """Raised by ``open``. ``code`` names the reason."""
+    """Raised by ``seal`` and ``open``. ``code`` names the reason."""
 
     def __init__(self, code: EnvelopeErrorCode, message: str) -> None:
         super().__init__(message)
@@ -96,18 +101,36 @@ class _NonceRing:
     def __init__(self, max_size: int) -> None:
         self._max = max_size
         self._seen: dict[str, None] = {}
+        self._lock = threading.Lock()
 
     def has(self, nonce: str) -> bool:
-        return nonce in self._seen
+        with self._lock:
+            return nonce in self._seen
 
     def add(self, nonce: str) -> None:
-        self._seen.setdefault(nonce)
-        if len(self._seen) > self._max:
-            del self._seen[next(iter(self._seen))]
+        with self._lock:
+            self._seen.setdefault(nonce)
+            if len(self._seen) > self._max:
+                del self._seen[next(iter(self._seen))]
 
     @property
     def size(self) -> int:
-        return len(self._seen)
+        with self._lock:
+            return len(self._seen)
+
+
+_store_locks: "weakref.WeakKeyDictionary[Any, threading.Lock]" = weakref.WeakKeyDictionary()
+_registry_lock = threading.Lock()
+_fallback_lock = threading.Lock()
+
+
+def _lock_for(store: NonceStore) -> threading.Lock:
+    """Return the lock that serializes has-then-add on ``store``. One lock per store object."""
+    try:
+        with _registry_lock:
+            return _store_locks.setdefault(store, threading.Lock())
+    except TypeError:
+        return _fallback_lock
 
 
 def create_nonce_store(max_size: int = 1024) -> NonceStore:
@@ -153,9 +176,9 @@ def _secret_bytes(key: Mapping[str, Any]) -> bytes:
     elif isinstance(secret, (bytes, bytearray, memoryview)):
         raw = bytes(secret)
     else:
-        raise TypeError("an HS256 key needs a str or bytes secret")
+        raise EnvelopeError("crypto-unavailable", "HMAC import failed: an HS256 key needs a str or bytes secret")
     if not raw:
-        raise ValueError("an HS256 secret must not be empty")
+        raise EnvelopeError("crypto-unavailable", "HMAC import failed: zero-length secret is not supported")
     return raw
 
 
@@ -255,7 +278,10 @@ def open(
     nonces: NonceStore | None = None,
     require_exp: bool = False,
 ) -> Envelope:
-    """Verify ``env`` and return it, or raise ``EnvelopeError``. Without ``nonces`` replay is not checked."""
+    """Verify ``env`` and return it, or raise ``EnvelopeError``. Without ``nonces`` replay is not checked.
+
+    The nonce check and add run under one lock per store, so a nonce passes a shared store once across threads.
+    """
     if not is_envelope(env):
         raise EnvelopeError("malformed", "not a v1 envelope")
     key = _select_key(env, keys)
@@ -269,9 +295,10 @@ def open(
     if require_exp and "exp" not in env:
         raise EnvelopeError("expired", "envelope carries no exp")
     if nonces is not None:
-        if nonces.has(env["nonce"]):
-            raise EnvelopeError("replayed", "nonce already seen")
-        nonces.add(env["nonce"])
+        with _lock_for(nonces):
+            if nonces.has(env["nonce"]):
+                raise EnvelopeError("replayed", "nonce already seen")
+            nonces.add(env["nonce"])
     return env
 
 
