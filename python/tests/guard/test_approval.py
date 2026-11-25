@@ -1018,3 +1018,29 @@ def test_an_enum_family_member_is_one_leaf_with_the_same_text_on_every_python_ow
     value: object, text: str, place: Any, path: str
 ) -> None:
     assert values(render(place(value))) == [("args.note", "hi"), (path, text)]
+
+
+class Shouty(str):
+    __slots__ = ()
+
+    def __str__(self) -> str:
+        return "STR-OVERRIDE"
+
+    def __format__(self, spec: str) -> str:
+        return "FORMAT-OVERRIDE"
+
+
+@pytest.mark.parametrize(
+    ("value", "text"),
+    [pytest.param(Tag.A, "a", id="str-mixed-enum"), pytest.param(Shouty("b"), "b", id="str-subclass")],
+)
+@pytest.mark.parametrize(("place", "path"), PLACEMENTS)
+def test_a_str_subclass_leaf_is_stored_as_a_plain_str_with_the_same_characters_node_parity(
+    value: object, text: str, place: Any, path: str
+) -> None:
+    field = render(place(value)).fields[-1]
+    assert field.path == path
+    assert type(field.value) is str
+    assert field.value == text
+    assert f"{field.value}" == text
+    assert format(field.value) == text
