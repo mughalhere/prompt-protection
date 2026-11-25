@@ -1,7 +1,7 @@
 """The pure tool-call decision function (twin of src/guard/check.ts, plan D1, D2, D40).
 
 State is passed in through ``CheckContext``, so ``create_guard`` stays thin. Each call emits one event
-through ``emit_tool_call_log``. Approvals and observe mode belong to later tasks.
+through ``emit_tool_call_log``. Observe mode belongs to a later task.
 """
 
 import re
@@ -28,6 +28,7 @@ from prompt_protection.guard._types import (
     TaintedSource,
     ToolCall,
 )
+from prompt_protection.guard.approval import ApprovalLookup
 from prompt_protection.guard.budgets import Budget, BudgetState
 from prompt_protection.guard.pin import UNLOCKED, LockView
 from prompt_protection.guard.policy import evaluate_policies
@@ -72,6 +73,7 @@ class CheckContext:
     label_of: Callable[[str], str]
     depth: int
     logging: LoggingOptions
+    approvals: ApprovalLookup | None = None
     lock_of: Callable[[str], LockView] | None = None
     require_lock: bool = False
     budget: Budget | None = None
@@ -162,9 +164,8 @@ def _run_check(call: ToolCall, ctx: CheckContext) -> GuardDecision:
     args_text = "\n".join(leaf.value for leaf in report.untrusted_leaves)
     raw_args = analyze_prompt(args_text, **ctx.analyze_options) if args_text else _empty_analysis()
 
+    approval = None if ctx.approvals is None else ctx.approvals.lookup(call, canonical_json(call.args))
     lock = UNLOCKED if ctx.lock_of is None else ctx.lock_of(call.tool_name)
-    if ctx.budget is not None:
-        canonical_json(call.args)  # runs before the budget counts, as in JS; PY-16 keeps this order
     budget = None if ctx.budget is None else ctx.budget.record(call, ctx.depth)
     sources = cast(Sequence[TaintedSource], ctx.index.sources)
     outcome = evaluate_policies(
@@ -181,25 +182,37 @@ def _run_check(call: ToolCall, ctx: CheckContext) -> GuardDecision:
             source_by_id=cast(Callable[[str], TaintedSource | None], ctx.index.get),
             label_of=ctx.label_of,
             depth=ctx.depth,
-            approval=None,
+            approval=approval,
             lock=lock,
             budget=budget,
             require_lock=ctx.require_lock,
         ),
         ctx.fail_mode,
     )
-    enforced = _to_action(outcome.action)
+    policy_action = outcome.action
+    reasons = list(outcome.reasons)
+    if (
+        ctx.approvals is not None
+        and approval is not None
+        and approval.status == "approved"
+        and policy_action == "confirm"
+    ):
+        policy_action = "allow"
+        reasons = ["approved", *reasons]
+        ctx.approvals.consume(approval.id)
+    enforced = _to_action(policy_action)
     decision = GuardDecision(
         action=enforced,
-        requires_confirmation=outcome.action == "confirm",
+        requires_confirmation=policy_action == "confirm",
         tool_name=call.tool_name,
         tool_call_id=call.tool_call_id,
         sink=sink,
         flows=report.flows,
-        reasons=list(outcome.reasons),
-        policy=outcome.policy if outcome.action != "allow" else None,
+        reasons=reasons,
+        policy=outcome.policy if policy_action != "allow" else None,
         args_analysis=_with_flow_matches(raw_args, report.flows, enforced, _threshold(ctx)),
         depth=ctx.depth,
+        approval=approval,
         lock=lock if lock.locked else None,
         budget=None if budget is None else _snapshot(budget),
     )

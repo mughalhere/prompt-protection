@@ -6,7 +6,7 @@ Flow, TaintedSource and LockView stay free to define those classes.
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from prompt_protection.analyze import AnalysisResult
 from prompt_protection.guard.budgets import BudgetState
@@ -14,6 +14,9 @@ from prompt_protection.guard.pin import LockView
 from prompt_protection.guard.provenance import Flow
 from prompt_protection.shingle import OrderedHashSet, ShingleSet
 from prompt_protection.verdict import Action
+
+if TYPE_CHECKING:
+    from prompt_protection.guard.approval import ApprovalState
 
 __all__ = [
     "ApprovalLike",
@@ -198,7 +201,10 @@ class TaintedSource:
 
 @dataclass(frozen=True, kw_only=True)
 class GuardDecision:
-    """The verdict for one tool call. ``policy`` is ``None`` when the call is allowed, ``lock`` when unlocked."""
+    """The verdict for one tool call. ``policy`` is ``None`` when the call is allowed, ``lock`` when unlocked.
+
+    ``approval`` is what the approval store said about the call, ``None`` when no confirmed record applied.
+    """
 
     action: Action
     requires_confirmation: bool
@@ -210,5 +216,6 @@ class GuardDecision:
     policy: str | None = None
     args_analysis: AnalysisResult
     depth: int
+    approval: "ApprovalState | None" = None
     lock: LockView | None = None
     budget: BudgetState | None = None

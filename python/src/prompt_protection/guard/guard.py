@@ -5,6 +5,7 @@ model-proposed call goes through ``check_tool_call``. Memory lineage is here too
 """
 
 import math
+import secrets
 import time
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from datetime import datetime, timezone
@@ -14,6 +15,7 @@ from typing import Any, Literal, cast
 from prompt_protection._js import utf16_len, utf16_slice
 from prompt_protection._rules import RULES_VERSION
 from prompt_protection.analyze import AnalysisResult, failed_analysis
+from prompt_protection.canonical import canonical_json, digest
 from prompt_protection.errors import DeferredFeatureError
 from prompt_protection.guard._types import (
     FailMode,
@@ -24,6 +26,14 @@ from prompt_protection.guard._types import (
     SourceInjection,
     TaintedSource,
     ToolCall,
+)
+from prompt_protection.guard.approval import (
+    ApprovalCard,
+    ApprovalOptions,
+    ApprovalRecord,
+    ApprovalStore,
+    create_approval_store,
+    render_approval_card,
 )
 from prompt_protection.guard.budgets import Budget, BudgetOptions, BudgetState
 from prompt_protection.guard.check import CheckContext, check_tool_call
@@ -170,6 +180,7 @@ class Guard:
         require_lock: bool,
         annotations_default: Literal["destructive", "heuristic"],
         budget: Budget | None,
+        approval_options: ApprovalOptions | None,
         fork_options: Mapping[str, Any],
         inherit: TaintHandoff | None,
     ) -> None:
@@ -188,6 +199,8 @@ class Guard:
         self._require_lock = require_lock
         self._annotations_default = annotations_default
         self._budget = budget
+        self._approval_options = approval_options
+        self._approvals = self._new_approvals()
         self._index = SourceIndex(max_sources, max_source_chars)
         self._trust = TrustState(set(trusted_identifiers), "")
         self._trusted_order: dict[str, None] = dict.fromkeys(trusted_identifiers)
@@ -401,6 +414,7 @@ class Guard:
                 label_of=self._label_of,
                 depth=self._depth,
                 logging=self._logging,
+                approvals=self._approvals,
                 lock_of=self._lock_of,
                 require_lock=self._require_lock,
                 budget=self._budget,
@@ -412,6 +426,33 @@ class Guard:
             if len(self._recent) > RECENT_MAX:
                 del self._recent[next(iter(self._recent))]
         return decision
+
+    def approval_card(self, call: ToolCall) -> ApprovalCard:
+        """Check the call and issue a card whose ``digest`` a UI must echo back to ``confirm``.
+
+        The check counts as one budget attempt. Raises ``CanonicalJsonError`` for arguments with no canonical
+        form, after the ``internal-error`` decision for them is kept.
+        """
+        decision = self.check_tool_call(call)
+        canonical_args = canonical_json(call.args)
+        card = ApprovalCard(
+            id=secrets.token_hex(8),
+            digest=digest(canonical_args),
+            canonical_args=canonical_args,
+            tool_name=call.tool_name,
+            tool_call_id=call.tool_call_id,
+            sink=decision.sink,
+            decision=decision,
+            rendered=render_approval_card(call, decision),
+            created_at=_iso_ms(_now_ms()),
+            expires_at="",
+        )
+        card.expires_at = _iso_ms(self._approvals.issue(card).expires_at)
+        return card
+
+    def confirm(self, id: str, digest: str, by: str | None = None) -> ApprovalRecord:
+        """Approve a card. Raises ``ApprovalMismatchError`` for an unknown id, a foreign digest or an expired card."""
+        return self._approvals.confirm(id, digest, by)
 
     def handoff(self) -> TaintHandoff:
         """Return the taint state a sub-agent's guard can ``absorb``, as a plain dict with the JS keys."""
@@ -488,7 +529,7 @@ class Guard:
         return self._budget.record_cost(usd=usd, tokens=tokens)
 
     def clear(self) -> None:
-        """Forget sources, trusted text, the plan, the turn, remembered decisions and the session history."""
+        """Forget sources, trusted text, the plan, the turn, decisions, session history and approval cards."""
         self._index = SourceIndex(self._max_sources, self._max_source_chars)
         self._trust = TrustState(set(self._trusted_identifiers), "")
         self._trusted_order = dict.fromkeys(self._trusted_identifiers)
@@ -500,10 +541,17 @@ class Guard:
         self._lock = None
         self._identities = {}
         self._drift = {}
+        self._approvals = self._new_approvals()
         if self._budget is not None:
             self._budget.reset()
         if self._inherit is not None:
             self.absorb(self._inherit)
+
+    def _new_approvals(self) -> ApprovalStore:
+        options = self._approval_options or {}
+        return create_approval_store(
+            ttl_ms=options.get("ttl_ms"), max_pending=options.get("max_pending"), now=options.get("now")
+        )
 
     def wrap_tools(self, tools: Mapping[str, Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
         """Return the tools with each ``execute`` checked first and its result tainted after (sync only).
@@ -619,6 +667,7 @@ def create_guard(
     require_lock: bool = False,
     annotations_default: Literal["destructive", "heuristic"] = "destructive",
     budgets: BudgetOptions | None = None,
+    approvals: ApprovalOptions | None = None,
     inherit: TaintHandoff | None = None,
 ) -> Guard:
     """Create a tool-call guard.
@@ -632,7 +681,8 @@ def create_guard(
     ``require_lock`` blocks every call until ``pin`` or ``lock`` installs a lock. Under a lock,
     ``annotations_default="destructive"`` makes an unannotated tool the name heuristics call ``none`` an
     ``unknown`` sink, and ``"heuristic"`` keeps ``none``. ``budgets`` turns on call and cost limits, and ``{}``
-    takes the defaults. ``inherit`` absorbs a handoff now and after ``clear``.
+    takes the defaults. ``approvals`` sets ``ttl_ms``, ``max_pending`` and the ``now`` clock of the card store.
+    ``inherit`` absorbs a handoff now and after ``clear``.
     """
     forwarded = {k: v for k, v in locals().items() if k not in ("session", "inherit")}
     options = dict(analyze_options or {})
@@ -669,6 +719,7 @@ def create_guard(
         require_lock=require_lock,
         annotations_default=annotations_default,
         budget=None if budgets is None else Budget(budgets),
+        approval_options=approvals,
         fork_options=forwarded,
         inherit=inherit,
     )
