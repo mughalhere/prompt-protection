@@ -125,3 +125,22 @@ def test_the_exceeded_list_orders_integer_like_tool_names_the_js_way(
     names: list[str], per_each: int, options: dict[str, Any], expected: list[str]
 ) -> None:
     assert list(tools_guard(names, per_each, **options).budget().exceeded) == expected
+
+
+# owner ruling Q3: an on_exceed outside block and confirm fails closed; only an absent or None value means block.
+def _exceeded_decision(**on_exceed: Any) -> Any:
+    guard = create_guard(budgets={"max_calls_per_turn": 0, **on_exceed})
+    return guard.check_tool_call(ToolCall(tool_name="t", args={}))
+
+
+@pytest.mark.parametrize("value", ["", "warn"], ids=["empty-string", "warn"])
+def test_an_on_exceed_outside_block_and_confirm_gives_internal_error_owner_ruled_divergence_from_js(value: str) -> None:
+    decision = _exceeded_decision(on_exceed=value)
+    assert (decision.action, decision.policy, decision.reasons) == ("block", "internal-error", ["internal-error"])
+
+
+@pytest.mark.parametrize("options", [{}, {"on_exceed": None}], ids=["absent", "none"])
+def test_an_absent_or_none_on_exceed_means_block(options: dict[str, Any]) -> None:
+    decision = _exceeded_decision(**options)
+    assert (decision.action, decision.policy, decision.reasons) == ("block", "budget-exceeded", ["budget-exceeded"])
+    assert decision.budget.on_exceed == "block"
