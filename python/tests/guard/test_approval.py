@@ -10,10 +10,11 @@ and a card's check counting against the budget.
 
 import datetime
 import decimal
+import enum
 import re
 import time
 import typing
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from types import SimpleNamespace
 from typing import Any
 
@@ -889,6 +890,99 @@ def test_a_plain_object_as_the_whole_args_is_walked_like_a_js_class_instance() -
 )
 @pytest.mark.parametrize(("place", "path"), PLACEMENTS)
 def test_a_decimal_or_a_complex_is_one_leaf_rendered_through_str_owner_ruling_str(
+    value: object, text: str, place: Any, path: str
+) -> None:
+    assert values(render(place(value))) == [("args.note", "hi"), (path, text)]
+
+
+# --- render_approval_card: slots-only objects and enum members (owner rulings 2026-11-25, PY-16b) ---
+# Node 22, dist/guard/index.cjs: declared fields render in declaration order, then fields assigned later.
+# A subclass renders its base fields first. An undefined or never-assigned field gives no leaf.
+
+
+class SlotsPair:
+    __slots__ = ("s", "n")
+
+    def __init__(self) -> None:
+        self.s = "a"
+        self.n = 7
+
+
+class SlotsPartial:
+    __slots__ = ("s", "n")
+
+    def __init__(self) -> None:
+        self.s = "a"
+
+
+class SlotsWithDict:
+    __slots__ = ("s", "__dict__")
+
+    def __init__(self) -> None:
+        self.s = "a"
+        self.extra = "e"
+
+
+class SlotsBase:
+    __slots__ = ("s", "n")
+
+    def __init__(self) -> None:
+        self.s = "a"
+        self.n = 7
+
+
+class SlotsChild(SlotsBase):
+    __slots__ = ("t", "u")
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.t = "x"
+        self.u = 9
+
+
+@dataclass(slots=True)
+class SlotsRecord:
+    a: str = "x"
+    b: int = 2
+
+
+class Color(enum.Enum):
+    RED = 1
+
+
+class Level(enum.IntEnum):
+    LOW = 1
+
+
+@pytest.mark.parametrize(
+    ("value", "rows"),
+    [
+        pytest.param(SlotsPair(), [("s", "a"), ("n", "7")], id="slots-both-set"),
+        pytest.param(SlotsRecord(), [("a", "x"), ("b", "2")], id="dataclass-slots"),
+        pytest.param(SlotsPartial(), [("s", "a")], id="unset-slot-is-skipped"),
+        pytest.param(SlotsWithDict(), [("s", "a"), ("extra", "e")], id="slots-then-dict-attributes"),
+        pytest.param(
+            SlotsChild(), [("s", "a"), ("n", "7"), ("t", "x"), ("u", "9")], id="base-slots-then-subclass-slots"
+        ),
+    ],
+)
+@pytest.mark.parametrize(("place", "path"), PLACEMENTS)
+def test_a_slots_only_object_is_walked_by_its_set_slots_like_a_js_class_instance_owner_ruling_slots(
+    value: object, rows: list[tuple[str, str]], place: Any, path: str
+) -> None:
+    assert values(render(place(value))) == leaf_table(path, *rows)
+
+
+def test_a_slots_only_object_as_the_whole_args_is_walked_owner_ruling_slots() -> None:
+    assert values(render(SlotsPair())) == [("args.s", "a"), ("args.n", "7")]
+
+
+@pytest.mark.parametrize(
+    ("value", "text"),
+    [pytest.param(Color.RED, "Color.RED", id="enum-str"), pytest.param(Level.LOW, "1", id="int-enum-number-text")],
+)
+@pytest.mark.parametrize(("place", "path"), PLACEMENTS)
+def test_an_enum_member_is_one_leaf_rendered_through_str_owner_ruling_enum_keeps_str(
     value: object, text: str, place: Any, path: str
 ) -> None:
     assert values(render(place(value))) == [("args.note", "hi"), (path, text)]
