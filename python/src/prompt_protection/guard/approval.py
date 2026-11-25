@@ -283,7 +283,29 @@ _SCALAR_TYPES = (
 _DICT_SLOTS = (GetSetDescriptorType, MemberDescriptorType)
 
 
-def _own_attributes(value: object) -> dict[Any, Any] | None:
+def _slot_values(value: object) -> dict[str, Any] | None:
+    """Set slot values, base class first, read through each member descriptor. ``None`` if no slot is declared."""
+    found: dict[str, Any] = {}
+    declared = False
+    for base in reversed(type(value).__mro__):
+        raw = base.__dict__.get("__slots__")
+        if raw is None:
+            continue
+        for name in (raw,) if isinstance(raw, str) else tuple(raw):
+            if name in ("__dict__", "__weakref__"):
+                continue
+            declared = True
+            key = f"_{base.__name__.lstrip('_')}{name}" if name.startswith("__") and not name.endswith("__") else name
+            slot = base.__dict__.get(key)
+            if isinstance(slot, MemberDescriptorType):
+                try:
+                    found[key] = slot.__get__(value)
+                except AttributeError:
+                    pass
+    return found if declared else None
+
+
+def _dict_attributes(value: object) -> dict[Any, Any] | None:
     """Return the instance ``__dict__`` through the base descriptor, so no class code runs. ``None`` if it has none."""
     for base in type(value).__mro__:
         slot = base.__dict__.get("__dict__")
@@ -294,6 +316,15 @@ def _own_attributes(value: object) -> dict[Any, Any] | None:
                 return None
             return found if type(found) is dict else None
     return None
+
+
+def _own_attributes(value: object) -> dict[Any, Any] | None:
+    """Own attributes in JS order: set slots (base class first), then ``__dict__``. ``None`` if neither exists."""
+    slots = _slot_values(value)
+    attributes = _dict_attributes(value)
+    if slots is None:
+        return attributes
+    return slots if attributes is None else {**slots, **attributes}
 
 
 def _members(value: object) -> Mapping[Any, Any] | None:
