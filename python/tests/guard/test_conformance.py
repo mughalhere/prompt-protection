@@ -123,6 +123,18 @@ def test_conformance_3_a_lineage_edge_weaker_than_half_does_not_propagate_the_pa
     assert written.entry["label"] == "tool"
 
 
+def test_conformance_4_a_handoff_keeps_source_labels_and_increments_depth_in_the_receiving_guard() -> None:
+    from prompt_protection.guard import ToolCall, create_guard
+
+    parent = create_guard()
+    parent.taint("read_email", POISON, id="mail")
+    child = parent.fork()
+    assert child.depth == 1
+    assert child.sources[0].label == "blocked"
+    decision = child.check_tool_call(ToolCall(tool_name="http_post", args={"url": ATTACKER}))
+    assert (decision.action, decision.depth) == ("block", 1)
+
+
 def _lock_tools() -> dict[str, dict[str, object]]:
     return {
         "get_weather": {"description": "Weather", "inputSchema": {"type": "object"}},
