@@ -8,6 +8,7 @@ Not pinned: a call id matching a record of another tool name, confirm twice, cle
 and a card's check counting against the budget.
 """
 
+import datetime
 import re
 import time
 import typing
@@ -793,3 +794,80 @@ def test_bytes_give_one_field_per_index_like_js_uint8array(value: object, place:
     rendered = render(place(value))
     assert values(rendered) == [("args.note", "hi"), (f"{path}.0", "7"), (f"{path}.1", "8")]
     assert kinds(rendered) == [("args.note", "other"), (f"{path}.0", "other"), (f"{path}.1", "other")]
+
+
+# --- render_approval_card: dates and plain objects (owner ruling, PY-16b) ---
+# Node 22, dist/guard/index.cjs: a Date gives no field. A class instance is walked by its own
+# properties, underscore names included. Prototype getters and methods are not walked.
+
+
+class Tagged:
+    def __init__(self) -> None:
+        self.s = "a"
+        self.n = 7
+
+
+class Outer(Tagged):
+    def __init__(self) -> None:
+        super().__init__()
+        self.o = Tagged()
+
+
+class Underscored:
+    def __init__(self) -> None:
+        self._priv = "p"
+        self.pub = 1
+
+
+class WithClassMembers:
+    def __init__(self) -> None:
+        self.s = "a"
+
+    @property
+    def g(self) -> str:
+        return "getter"
+
+    def m(self) -> int:
+        return 1
+
+
+class NoAttributes:
+    pass
+
+
+def leaf_table(path: str, *rows: tuple[str, str]) -> list[tuple[str, str]]:
+    return [("args.note", "hi"), *((f"{path}.{key}", text) for key, text in rows)]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        pytest.param(datetime.datetime(2024, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc), id="aware-datetime"),
+        pytest.param(datetime.datetime(2024, 1, 2, 3, 4, 5), id="naive-datetime"),
+        pytest.param(datetime.date(2024, 1, 2), id="date"),
+    ],
+)
+@pytest.mark.parametrize(("place", "_path"), PLACEMENTS)
+def test_a_datetime_or_a_date_gives_no_field_like_js_date(value: object, place: Any, _path: str) -> None:
+    assert values(render(place(value))) == [("args.note", "hi")]
+
+
+@pytest.mark.parametrize(
+    ("value", "rows"),
+    [
+        pytest.param(Tagged(), [("s", "a"), ("n", "7")], id="one-level"),
+        pytest.param(Outer(), [("s", "a"), ("n", "7"), ("o.s", "a"), ("o.n", "7")], id="nested-one-level"),
+        pytest.param(Underscored(), [("_priv", "p"), ("pub", "1")], id="underscore-names-are-own-attributes"),
+        pytest.param(WithClassMembers(), [("s", "a")], id="property-and-method-are-not-own"),
+        pytest.param(NoAttributes(), [], id="no-attributes-gives-no-field"),
+    ],
+)
+@pytest.mark.parametrize(("place", "path"), PLACEMENTS)
+def test_a_plain_object_is_walked_by_its_own_attributes_like_a_js_class_instance(
+    value: object, rows: list[tuple[str, str]], place: Any, path: str
+) -> None:
+    assert values(render(place(value))) == leaf_table(path, *rows)
+
+
+def test_a_plain_object_as_the_whole_args_is_walked_like_a_js_class_instance() -> None:
+    assert values(render(Tagged())) == [("args.s", "a"), ("args.n", "7")]
