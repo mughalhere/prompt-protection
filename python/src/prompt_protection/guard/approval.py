@@ -4,7 +4,9 @@ A card carries the canonical text of the call it asks about. ``confirm`` marks i
 check approves a call only when the canonical text is equal. Records are single-use and expire by ``ttl_ms``.
 """
 
+import sys
 import time
+from argparse import Namespace
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta, timezone
@@ -14,7 +16,7 @@ from enum import Enum
 from fractions import Fraction
 from ipaddress import IPv4Address, IPv4Interface, IPv4Network, IPv6Address, IPv6Interface, IPv6Network
 from pathlib import PurePath
-from types import GetSetDescriptorType, MemberDescriptorType, ModuleType
+from types import GetSetDescriptorType, MemberDescriptorType, ModuleType, SimpleNamespace
 from typing import Any, Literal, Protocol, TypedDict
 from uuid import UUID
 
@@ -339,11 +341,28 @@ def _own_attributes(value: object) -> dict[Any, Any] | None:
     return slots if attributes is None else {**slots, **attributes}
 
 
+_CLASS_MODULE = type.__dict__["__module__"]
+_WALKED_STDLIB_TYPES = (SimpleNamespace, Namespace, BaseException)
+
+
+def _from_stdlib(value: object) -> bool:
+    """True when the class of ``value`` is defined in a stdlib module. Read off the class, so no class code runs."""
+    module = _CLASS_MODULE.__get__(type(value))
+    return isinstance(module, str) and module.partition(".")[0] in sys.stdlib_module_names
+
+
+def _walks_like_a_js_object(value: object) -> bool:
+    """Namespaces and any exception keep the attribute walk although their class is stdlib (PY-16b)."""
+    return isinstance(value, _WALKED_STDLIB_TYPES)
+
+
 def _members(value: object) -> Mapping[Any, Any] | None:
     """The key and value pairs JS ``Object.entries`` gives: a mapping's items, or a plain instance's attributes."""
     if isinstance(value, Mapping):
         return value
-    return None if isinstance(value, _SCALAR_TYPES) else _own_attributes(value)
+    if isinstance(value, _SCALAR_TYPES) or (_from_stdlib(value) and not _walks_like_a_js_object(value)):
+        return None
+    return _own_attributes(value)
 
 
 def _scalar_leaves(args: Any, path: str, out: list[tuple[str, str]], depth: int = 0) -> None:
