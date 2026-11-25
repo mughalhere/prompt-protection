@@ -26,8 +26,8 @@ from prompt_protection.guard.provenance import (
     FlowThresholds,
     SourceIndex,
     TrustState,
+    _stringify_flagged,
     identifier_values,
-    stringify_value,
 )
 from prompt_protection.guard.sinks import create_sink_resolver
 from prompt_protection.logging_ import LoggingOptions, LogLevel, ProtectionLogger
@@ -145,7 +145,8 @@ class Guard:
         existing = self._index.get(id)
         if existing is not None:
             return cast(TaintedSource, existing)
-        text = utf16_slice(stringify_value(value), 0, self._max_source_chars)
+        rendered, unrenderable = _stringify_flagged(value)
+        text = utf16_slice(rendered, 0, self._max_source_chars)
         normalized = normalize(text).normalized
         try:
             result = self._session.analyze(text, **{**self._analyze_options, "analyze_roles": "all"})
@@ -163,6 +164,7 @@ class Guard:
             injection=injection,
             turn=self._turn,
             timestamp=_now_ms(),
+            unrenderable=unrenderable,
         )
         return cast(TaintedSource, self._index.add(entry))
 

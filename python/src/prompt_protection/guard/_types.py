@@ -173,7 +173,10 @@ class SourceInjection:
 
 @dataclass(kw_only=True)
 class TaintedSource:
-    """A registered tool result. ``SourceIndex.add`` stores a copy and sets ``word_hashes`` and ``char_hashes``."""
+    """A registered tool result. ``SourceIndex.add`` stores a copy and sets ``word_hashes`` and ``char_hashes``.
+
+    ``unrenderable`` is true when some value in the result printed as a type marker, so its text is partial.
+    """
 
     id: str
     tool: str
@@ -186,6 +189,7 @@ class TaintedSource:
     timestamp: int
     label: str | None = None
     lineage: Sequence[LineageEdgeLike] | None = None
+    unrenderable: bool = False
     word_hashes: OrderedHashSet = field(init=False, repr=False, compare=False)
     char_hashes: OrderedHashSet = field(init=False, repr=False, compare=False)
 

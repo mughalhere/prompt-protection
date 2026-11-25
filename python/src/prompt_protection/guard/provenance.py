@@ -8,8 +8,7 @@ import copy
 import math
 import re
 import sys
-from collections.abc import Callable, Collection, Hashable, Iterable, Iterator, Mapping, Sequence
-from collections.abc import Set as AbstractSet
+from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
@@ -102,7 +101,7 @@ class _NoJsonForm(Exception):
 
 def _number_text(value: float, nested: bool) -> str:
     try:
-        number = int.__float__(value) if isinstance(value, int) else float.__float__(value)
+        number = int.__float__(cast(int, value)) if issubclass(type(value), int) else float.__float__(value)
     except OverflowError:
         raise _NoJsonForm from None
     return "null" if nested and not math.isfinite(number) else js_number_str(number)
@@ -114,7 +113,15 @@ def _js_key_order(keys: list[str]) -> list[str]:
     return sorted(indexes, key=int) + [k for k in keys if k not in indexes]
 
 
-def _json_text(value: object, seen: set[int], depth: int = 0) -> str:
+@dataclass(slots=True)
+class _Render:
+    """The digit limit of one rendering, and whether any value in it printed as a type marker."""
+
+    limit: int
+    unrenderable: bool = False
+
+
+def _json_text(value: object, seen: set[int], ctx: _Render, depth: int = 0) -> str:
     """Return compact JSON text. A container deeper than ``_MAX_DEPTH`` has no JSON form (the root is depth 0)."""
     value = _unwrap_enum(value)
     kind = type(value)
@@ -126,18 +133,18 @@ def _json_text(value: object, seen: set[int], depth: int = 0) -> str:
         return "true" if value else "false"
     if issubclass(kind, (int, float)):
         return _number_text(cast(float, value), True)
-    if not issubclass(kind, (list, tuple, Mapping)) or id(value) in seen or depth > _MAX_DEPTH:
+    if not (kind is dict or kind is list or kind is tuple) or id(value) in seen or depth > _MAX_DEPTH:
         raise _NoJsonForm
     seen.add(id(value))
     parts: list[str] = []
     try:
-        if issubclass(kind, Mapping):
-            pairs = {_key_text(k): item for k, item in cast(Mapping[Any, Any], value).items()}
+        if kind is dict:
+            pairs = {_key_text(k, ctx): item for k, item in cast(dict[Any, Any], value).items()}
             for key in _js_key_order(list(pairs)):
-                parts.append(f"{_json_string(key)}:{_json_text(pairs[key], seen, depth + 1)}")
+                parts.append(f"{_json_string(key)}:{_json_text(pairs[key], seen, ctx, depth + 1)}")
             return "{" + ",".join(parts) + "}"
         for item in cast(Iterable[Any], value):
-            parts.append(_json_text(item, seen, depth + 1))
+            parts.append(_json_text(item, seen, ctx, depth + 1))
         return "[" + ",".join(parts) + "]"
     finally:
         seen.discard(id(value))
@@ -155,20 +162,13 @@ def _unwrap_enum(value: object) -> object:
     return value
 
 
-def _key_text(key: object) -> str:
+def _key_text(key: object, ctx: _Render) -> str:
     key = _unwrap_enum(key)
-    return str.__str__(key) if isinstance(key, str) else _python_str(key)
+    return str.__str__(key) if issubclass(type(key), str) else _render(key, ctx, set())
 
 
 _DEFAULT_INT_DIGIT_LIMIT = 4300
-_UNSET_SLOTS = ("__dict__", "__weakref__")
 _DEPTH_MARKER = "<too deep>"
-# Open, close and the plain type whose text carries no name, per shape of collection (owner decision A, 2026-11-24).
-_SHAPES: tuple[tuple[type, str, str, type], ...] = (
-    (Mapping, "{", "}", dict),
-    (tuple, "(", ")", tuple),
-    (AbstractSet, "{", "}", set),
-)
 
 
 @lru_cache(maxsize=8)
@@ -307,9 +307,8 @@ def _stdlib_text(value: object, kind: type, limit: int) -> str | None:
     return _moment_text(value, kind) or _name_text(value, kind)
 
 
-def _leaf_text(value: object, limit: int) -> str | None:
+def _leaf_text(value: object, kind: type, limit: int) -> str | None:
     """Return the text of an allowlisted leaf, read through its base type so no override changes it."""
-    kind = type(value)
     if value is None:
         return "None"
     if kind is bool:
@@ -320,7 +319,7 @@ def _leaf_text(value: object, limit: int) -> str | None:
         return _int_text(cast(int, value), limit)
     if issubclass(kind, float):
         return float.__repr__(cast(float, value))
-    if issubclass(kind, bytes):
+    if kind is bytes:
         return bytes.__repr__(cast(bytes, value))
     if kind is range:
         span = cast(range, value)
@@ -331,135 +330,97 @@ def _leaf_text(value: object, limit: int) -> str | None:
     return _stdlib_text(value, kind, limit)
 
 
-def _fields_of(value: object) -> list[tuple[object, object]]:
-    """Return an object's fields: set ``__slots__`` (base classes first), then its ``vars()`` items."""
-    kind = type(value)
-    out: list[tuple[object, object]] = []
-    for klass in reversed(kind.__mro__):
-        slots = klass.__dict__.get("__slots__", ())
-        for name in (slots,) if isinstance(slots, str) else slots:
-            if name in _UNSET_SLOTS:
-                continue
-            stored = (
-                f"_{klass.__name__.lstrip('_')}{name}" if name.startswith("__") and not name.endswith("__") else name
-            )
-            try:
-                out.append((name, klass.__dict__[stored].__get__(value, kind)))
-            except (KeyError, AttributeError):
-                continue
-    try:
-        instance_dict = vars(value)
-    except TypeError:
-        return out
-    if isinstance(instance_dict, dict):
-        out.extend(instance_dict.items())
-    return out
+def _marker(value: object, ctx: _Render) -> str:
+    """Print the name of a value's type and flag the rendering. Nothing of the value is read."""
+    ctx.unrenderable = True
+    return f"<{str.__str__(_TYPE_QUALNAME.__get__(type(value)))} not rendered>"
 
 
-def _named(name: str, pairs: Iterable[tuple[object, object]], limit: int, path: set[int]) -> str:
+def _container_text(value: Any, kind: type, ctx: _Render, path: set[int]) -> str:
+    """Render an exact dict by items and an exact list, tuple, set or frozenset by elements (two frames a level)."""
     parts: list[str] = []
-    for key, item in pairs:
-        shown = key if isinstance(key, str) else _render(key, limit, path)
-        parts.append(f"{shown}={_render(item, limit, path)}")
-    return f"{name}({', '.join(parts)})"
-
-
-def _shape(kind: type) -> tuple[str, str, type]:
-    for base, opening, closing, plain in _SHAPES:
-        if issubclass(kind, base):
-            return opening, closing, plain
-    return "[", "]", list
-
-
-def _collection_text(value: Any, limit: int, path: set[int]) -> str:
-    """Render a mapping by items or a sized collection by elements, over plain loops (two Python frames a level)."""
-    kind = type(value)
-    opening, closing, plain = _shape(kind)
-    parts: list[str] = []
-    if issubclass(kind, Mapping):
+    if kind is dict:
         for key, item in value.items():
-            parts.append(f"{_render(key, limit, path)}: {_render(item, limit, path)}")
-    else:
-        for item in value:
-            parts.append(_render(item, limit, path))
+            parts.append(f"{_render(key, ctx, path)}: {_render(item, ctx, path)}")
+        return "{" + ", ".join(parts) + "}"
+    for item in value:
+        parts.append(_render(item, ctx, path))
     body = ", ".join(parts)
-    if issubclass(kind, tuple) and len(parts) == 1:
-        body += ","
-    if kind is plain and (parts or kind is not set):
-        return opening + body + closing
-    return f"{kind.__name__}({opening}{body}{closing})" if parts else f"{kind.__name__}()"
+    if kind is list:
+        return f"[{body}]"
+    if kind is tuple:
+        return f"({body},)" if len(parts) == 1 else f"({body})"
+    if not parts:
+        return "set()" if kind is set else "frozenset()"
+    return "{" + body + "}" if kind is set else "frozenset({" + body + "})"
 
 
-def _revisit_text(value: object) -> str:
-    kind = type(value)
-    if not issubclass(kind, Collection):
-        return f"{kind.__name__}(...)"
-    opening, closing, _ = _shape(kind)
-    return f"{opening}...{closing}"
+def _render(value: object, ctx: _Render, path: set[int]) -> str:
+    """Return the text of ``value``: a leaf, an exact container, or ``<Type not rendered>`` for anything else.
 
-
-def _render(value: object, limit: int, path: set[int]) -> str:
-    """Return the text of ``value`` from a closed allowlist: leaves, mappings by items, sized collections by elements.
-
-    A one-shot or unsized iterable is never read and prints ``<Type not read>``. Any other object prints as its fields.
-    A value met again on the way down prints as ``Name(...)`` or ``[...]``. Past depth 300 (root 0), ``<too deep>``.
+    A container met again on the way down prints as ``[...]``, ``(...)`` or ``{...}``. Past depth 300 (root 0),
+    a container prints ``<too deep>``.
     """
     value = _unwrap_enum(value)
-    leaf = _leaf_text(value, limit)
+    kind = type(value)
+    leaf = _leaf_text(value, kind, ctx.limit)
     if leaf is not None:
         return leaf
+    if not (kind is dict or kind is list or kind is tuple or kind is set or kind is frozenset):
+        return _marker(value, ctx)
     if len(path) > _MAX_DEPTH:
         return _DEPTH_MARKER
     if id(value) in path:
-        return _revisit_text(value)
-    kind = type(value)
+        return "[...]" if kind is list else "(...)" if kind is tuple else "{...}"
     path.add(id(value))
     try:
-        if issubclass(kind, Iterator) or (issubclass(kind, Iterable) and not issubclass(kind, Collection)):
-            return f"<{kind.__name__} not read>"
-        if issubclass(kind, Collection):
-            return _collection_text(value, limit, path)
-        return _named(kind.__name__, _fields_of(value), limit, path)
+        return _container_text(value, kind, ctx, path)
     finally:
         path.discard(id(value))
 
 
-def _python_str(value: object) -> str:
-    return _render(value, _digit_limit(), set())
+def _stringify_flagged(value: object) -> tuple[str, bool]:
+    """Return ``stringify_value(value)`` and whether any value in it printed as a type marker."""
+    ctx = _Render(_digit_limit())
+    value = _unwrap_enum(value)
+    kind = type(value)
+    if issubclass(kind, str):
+        return str.__str__(cast(str, value)), False
+    if value is None:
+        return "", False
+    if issubclass(kind, int) and kind is not bool and _over_limit(int.__int__(cast(int, value)), ctx.limit):
+        return hex(int.__int__(cast(int, value))), False
+    try:
+        if kind is bool:
+            return ("true" if value else "false"), False
+        if issubclass(kind, (int, float)):
+            return _number_text(cast(float, value), False), False
+        text = _json_text(value, set(), ctx)
+        return text, ctx.unrenderable
+    except (_NoJsonForm, RecursionError):
+        pass
+    ctx = _Render(ctx.limit)
+    try:
+        text = _render(value, ctx, set())
+        return text, ctx.unrenderable
+    except Exception:
+        return _marker(value, ctx), True
 
 
 def stringify_value(value: object) -> str:
     """Return the text a tool result is scanned as: a string as is, ``None`` as ``""``, else compact JSON.
 
     An int or float is a JS number. Python has no bigint, so an int too large for a float is one.
-    A value with no JSON form (a cycle, a set, bytes, an object) falls back to a Python text built from a
-    closed allowlist. Only ``str``, ``int``, ``float``, ``bool``, ``None``, ``bytes`` and ``range`` print as Python
-    does, and a subclass prints as its base type. These stdlib types are leaves too, each printed through its base
-    type: ``complex``, ``Decimal``, ``Fraction``, ``date``, ``time``, ``datetime``, ``timedelta``, ``timezone``,
-    ``UUID`` and ``PurePath``. An Enum member prints its value, a ``re.Pattern`` its pattern, and a function, method
-    or class its ``__qualname__``. A mapping prints by items, a sized collection by elements, any other object by its
-    fields, and an iterator or unsized iterable as ``<Type not read>``. An int of more than N digits prints as
-    ``hex()``, with N the smaller of 4300 and ``sys.get_int_max_str_digits()`` (4300 when 0 or absent).
+    A value with no JSON form (a cycle, a set, bytes, a stdlib leaf) falls back to a Python text. An exact
+    ``dict``, ``list``, ``tuple``, ``set`` and ``frozenset`` print as Python does, and so do ``None``, ``bytes``,
+    ``range``, and ``str``, ``int``, ``float`` and ``bool`` (a subclass prints its base value). These stdlib types
+    are leaves, each printed through its base type: ``complex``, ``Decimal``, ``Fraction``, ``date``, ``time``,
+    ``datetime``, ``timedelta``, ``timezone``, ``UUID`` and ``PurePath``. An Enum member prints its value, a
+    ``re.Pattern`` its pattern, and a function, method or class its ``__qualname__``. Any other value prints
+    ``<Type not rendered>`` and none of its code runs. An int of more than N digits prints as ``hex()``, with N
+    the smaller of 4300 and ``sys.get_int_max_str_digits()`` (4300 when 0 or absent).
     """
-    value = _unwrap_enum(value)
-    if isinstance(value, str):
-        return str.__str__(value)
-    if value is None:
-        return ""
-    if isinstance(value, int) and type(value) is not bool and _over_limit(int.__int__(value), _digit_limit()):
-        return hex(int.__int__(value))
-    try:
-        if type(value) is bool:
-            return "true" if value else "false"
-        if isinstance(value, (int, float)):
-            return _number_text(value, False)
-        return _json_text(value, set())
-    except (_NoJsonForm, RecursionError):
-        pass
-    try:
-        return _python_str(value)
-    except Exception:
-        return object.__repr__(value)
+    return _stringify_flagged(value)[0]
 
 
 def defang(text: str) -> str:
