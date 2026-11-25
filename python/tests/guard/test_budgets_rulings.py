@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from prompt_protection.guard import ToolCall, create_guard
+from prompt_protection.guard import ToolCall, create_budget, create_guard
 
 LIVE_PARAMS = ("usd", "tokens")
 
@@ -144,3 +144,81 @@ def test_an_absent_or_none_on_exceed_means_block(options: dict[str, Any]) -> Non
     decision = _exceeded_decision(**options)
     assert (decision.action, decision.policy, decision.reasons) == ("block", "budget-exceeded", ["budget-exceeded"])
     assert decision.budget.on_exceed == "block"
+
+
+# owner ruling Q6: the tool_calls mapping iterates in JS object key order. Expected orders measured on Node 22.
+Q6_NAMES = MIXED_NAME_ORDER
+Q6_JS_KEYS = ["1", "2", "10", "4294967294", "a", "b", "-1", "01", "1.5", "4294967295"]
+
+
+def _call(name: str) -> ToolCall:
+    return ToolCall(tool_name=name, args={})
+
+
+def _guard_budget(names: list[str]) -> Any:
+    guard = create_guard(budgets={})
+    for name in names:
+        guard.check_tool_call(_call(name))
+    return guard.budget()
+
+
+def _decision_budget(names: list[str]) -> Any:
+    guard = create_guard(budgets={})
+    decision = None
+    for name in names:
+        decision = guard.check_tool_call(_call(name))
+    return decision.budget
+
+
+def _budget_record_return(names: list[str]) -> Any:
+    budget = create_budget()
+    state = None
+    for name in names:
+        state = budget.record(_call(name), 0)
+    return state
+
+
+def _budget_state(names: list[str]) -> Any:
+    budget = create_budget()
+    for name in names:
+        budget.record(_call(name), 0)
+    return budget.state
+
+
+Q6_SURFACES = [
+    pytest.param(_guard_budget, id="guard-budget"),
+    pytest.param(_decision_budget, id="decision-budget-snapshot"),
+    pytest.param(_budget_record_return, id="create-budget-record-return"),
+    pytest.param(_budget_state, id="create-budget-state"),
+]
+
+
+@pytest.mark.parametrize("surface", Q6_SURFACES)
+def test_tool_calls_keys_iterate_in_js_object_key_order_owner_ruling_q6(surface: Any) -> None:
+    assert list(surface(Q6_NAMES).tool_calls) == Q6_JS_KEYS
+
+
+@pytest.mark.parametrize("surface", Q6_SURFACES)
+def test_tool_calls_items_keep_their_counts_in_js_order_owner_ruling_q6(surface: Any) -> None:
+    state = surface(["10", "a", "10", "2", "a", "a"])
+    assert list(state.tool_calls.items()) == [("2", 1), ("10", 2), ("a", 3)]
+
+
+def test_an_earlier_decision_snapshot_keeps_its_own_js_order_while_the_live_state_grows_owner_ruling_q6() -> None:
+    guard = create_guard(budgets={})
+    for name in ["10", "2", "a"]:
+        guard.check_tool_call(_call(name))
+    middle = guard.check_tool_call(_call("1"))
+    guard.check_tool_call(_call("0"))
+    assert list(middle.budget.tool_calls) == ["1", "2", "10", "a"]
+    assert list(guard.budget().tool_calls) == ["0", "1", "2", "10", "a"]
+
+
+def test_tool_calls_follow_js_order_again_after_a_budget_reset_owner_ruling_q6() -> None:
+    budget = create_budget()
+    for name in ["10", "2", "a", "1"]:
+        budget.record(_call(name), 0)
+    budget.reset()
+    for name in ["b", "1", "a", "0"]:
+        budget.record(_call(name), 0)
+    assert list(budget.state.tool_calls) == ["0", "1", "b", "a"]
