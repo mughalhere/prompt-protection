@@ -7,7 +7,15 @@ check approves a call only when the canonical text is equal. Records are single-
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import date, timedelta, timezone
+from datetime import time as day_time
+from decimal import Decimal
+from enum import Enum
+from fractions import Fraction
+from pathlib import PurePath
+from types import GetSetDescriptorType, MemberDescriptorType, ModuleType
 from typing import Any, Literal, Protocol, TypedDict
+from uuid import UUID
 
 from prompt_protection._js import js_number_str, utf16_len, utf16_slice
 from prompt_protection.guard._types import GuardDecision, ToolCall
@@ -254,8 +262,49 @@ def _scalar_text(value: object) -> str:
     return str(value)
 
 
+# These types are scalars in JS or have no JS twin. Each keeps its str() text, never an attribute walk.
+_SCALAR_TYPES = (
+    str,
+    int,
+    float,
+    complex,
+    Decimal,
+    Fraction,
+    UUID,
+    PurePath,
+    timedelta,
+    timezone,
+    day_time,
+    Enum,
+    ModuleType,
+)
+
+
+_DICT_SLOTS = (GetSetDescriptorType, MemberDescriptorType)
+
+
+def _own_attributes(value: object) -> dict[Any, Any] | None:
+    """Return the instance ``__dict__`` through the base descriptor, so no class code runs. ``None`` if it has none."""
+    for base in type(value).__mro__:
+        slot = base.__dict__.get("__dict__")
+        if isinstance(slot, _DICT_SLOTS):
+            try:
+                found = slot.__get__(value)
+            except (AttributeError, TypeError):
+                return None
+            return found if type(found) is dict else None
+    return None
+
+
+def _members(value: object) -> Mapping[Any, Any] | None:
+    """The key and value pairs JS ``Object.entries`` gives: a mapping's items, or a plain instance's attributes."""
+    if isinstance(value, Mapping):
+        return value
+    return None if isinstance(value, _SCALAR_TYPES) else _own_attributes(value)
+
+
 def _scalar_leaves(args: Any, path: str, out: list[tuple[str, str]], depth: int = 0) -> None:
-    if depth > _MAX_LEAF_DEPTH or callable(args) or isinstance(args, (set, frozenset)):
+    if depth > _MAX_LEAF_DEPTH or callable(args) or isinstance(args, (set, frozenset, date)):
         return
     if isinstance(args, (bytes, bytearray)):
         for i, byte in enumerate(args):
@@ -263,9 +312,9 @@ def _scalar_leaves(args: Any, path: str, out: list[tuple[str, str]], depth: int 
     elif isinstance(args, (list, tuple)):
         for i, item in enumerate(args):
             _scalar_leaves(item, f"{path}[{i}]", out, depth + 1)
-    elif isinstance(args, Mapping):
+    elif (members := _members(args)) is not None:
         by_text: dict[str, list[Any]] = {}
-        for raw_key, item in args.items():
+        for raw_key, item in members.items():
             by_text.setdefault(raw_key if isinstance(raw_key, str) else str(raw_key), []).append(item)
         for key in _js_key_order(list(by_text)):
             for item in by_text[key]:
