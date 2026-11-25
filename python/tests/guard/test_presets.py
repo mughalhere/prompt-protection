@@ -602,7 +602,7 @@ BECAUSE = {
     ),
     "handoff-untrusted": "the parent handoff could not be verified, so its sources are treated as blocked",
     "envelope-invalid": "a sealed envelope failed verification, so its payload is treated as blocked",
-    "internal-error": "the guard itself threw; the verdict comes from failMode",
+    "internal-error": "the guard itself threw; the verdict comes from fail_mode",
 }
 
 
@@ -839,3 +839,82 @@ def test_the_explain_dataclasses_are_not_serialisable_js_results() -> None:
     for cls in (ExplainStep, Explanation):
         assert not issubclass(cls, JsResult)
         assert not hasattr(cls, "to_dict")
+
+
+# --- explain names options the Python way: owner rulings 2026-11-25, "Python name require_lock (Recommended)" ---
+# --- and "Python names everywhere (Recommended)". Stated text divergence from JS. ---
+
+
+def _circular_args() -> dict[str, Any]:
+    args: dict[str, Any] = {}
+    args["self"] = args
+    return args
+
+
+PYTHON_OPTION_LINES = [
+    pytest.param(
+        lambda: create_guard(require_lock=True).check_tool_call(call("http_post", {"url": "https://x.io"})),
+        "tool-unpinned",
+        "require_lock is set and no lock is installed",
+        id="require_lock",
+    ),
+    pytest.param(
+        lambda: create_guard(budgets={}).check_tool_call(call("t", _circular_args())),
+        "internal-error",
+        "the guard itself threw; the verdict comes from fail_mode",
+        id="fail_mode",
+    ),
+]
+
+
+@pytest.mark.parametrize(("make_decision", "code", "because"), PYTHON_OPTION_LINES)
+def test_explain_names_a_guard_option_the_python_way_in_a_real_decision(
+    make_decision: Any, code: str, because: str
+) -> None:
+    from prompt_protection.guard.explain import explain
+
+    decision = make_decision()
+    assert decision.reasons == [code]
+    assert [step.because for step in explain(decision).chain] == [because]
+
+
+def test_explain_prints_no_camel_case_option_name_for_any_known_reason_code(base: Any) -> None:
+    import re
+
+    from prompt_protection.guard import DECISION_REASONS
+
+    for lock in (None, locked_view(listed=False, drift=drift("changed"))):
+        steps = becauses(dataclasses.replace(base, reasons=list(DECISION_REASONS), lock=lock))
+        assert not [text for text in steps if re.search(r"[a-z][A-Z]", text)]
+
+
+# Owner ruling 2026-11-25, "Keep raise + JS bead (Recommended)": JS resolves these via Object.prototype (6s4).
+@pytest.mark.parametrize("name", ["constructor", "toString"])
+def test_a_preset_named_like_an_object_prototype_member_raises_type_error_naming_it(name: str) -> None:
+    from prompt_protection.guard.presets import resolve_preset
+
+    with pytest.raises(TypeError, match=f"unknown guard preset.*{name}"):
+        resolve_preset({"preset": name})
+    with pytest.raises(TypeError, match=f"unknown guard preset.*{name}"):
+        create_guard(preset=name)  # type: ignore[arg-type]
+
+
+# Owner ruling 2026-11-25, "Keep, match JS (Recommended)": Node 22 gives block/allow and no observed fields.
+@pytest.mark.parametrize(("fail_mode", "action"), [(None, "block"), ("open", "allow")])
+def test_observe_leaves_an_internal_error_decision_unobserved(fail_mode: str | None, action: str) -> None:
+    options = {} if fail_mode is None else {"fail_mode": fail_mode}
+    decision = create_guard(mode="observe", budgets={}, **options).check_tool_call(call("t", _circular_args()))
+    assert (decision.action, decision.requires_confirmation, decision.reasons) == (action, False, ["internal-error"])
+    assert (decision.observed_action, decision.observed_requires_confirmation) == (None, None)
+
+
+# Owner ruling 2026-11-25, "Keep, match JS (Recommended)": the turn policy has no specific line; Node 22 prints this.
+def test_explain_gives_the_turn_policy_the_generic_line() -> None:
+    from prompt_protection.guard.explain import explain
+
+    guard = create_guard(preset="strict")
+    guard.analyze_user_turn("Summarise the doc.")
+    guard.taint("read_doc", DOC, id="doc")
+    decision = guard.check_tool_call(call("send_email", {"to": "someone@else.io", "body": "notes"}))
+    assert decision.reasons == [TURN]
+    assert [step.because for step in explain(decision).chain] == [f'policy or check "{TURN}" fired']
