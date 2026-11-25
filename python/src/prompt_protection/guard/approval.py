@@ -300,15 +300,16 @@ _DICT_SLOTS = (GetSetDescriptorType, MemberDescriptorType)
 def _slot_values(value: object) -> dict[str, Any] | None:
     """Set slot values, base class first, read through each member descriptor.
 
-    ``None`` unless a non-stdlib class declares ``__slots__``, even an empty one (e-b80c9f).
+    Reads every class in the MRO, stdlib ones included. ``None`` unless a slot is set or a
+    non-stdlib class declares ``__slots__``, even an empty one (e-b80c9f).
     """
     found: dict[str, Any] = {}
     declared = False
     for base in reversed(type(value).__mro__):
         raw = base.__dict__.get("__slots__")
-        if raw is None or _class_in_stdlib(base):
+        if raw is None:
             continue
-        declared = True
+        declared = declared or not _class_in_stdlib(base)
         for name in (raw,) if isinstance(raw, str) else tuple(raw):
             if name in ("__dict__", "__weakref__"):
                 continue
@@ -319,7 +320,7 @@ def _slot_values(value: object) -> dict[str, Any] | None:
                     found[key] = slot.__get__(value)
                 except AttributeError:
                     pass
-    return found if declared else None
+    return found if declared or found else None
 
 
 def _dict_attributes(value: object) -> dict[Any, Any] | None:
