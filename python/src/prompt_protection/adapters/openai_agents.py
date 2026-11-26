@@ -61,6 +61,8 @@ def _part_text(part: object) -> str:
 
 
 def _item_text(item: object) -> str:
+    if item is None:
+        raise TypeError("Cannot read properties of null (reading 'content')")
     content = item.get("content") if isinstance(item, Mapping) else None
     if isinstance(content, str):
         return content
@@ -133,7 +135,7 @@ class OpenAIAgentsProtected:
     async def _tool_output(self, data: ToolOutputGuardrailData) -> ToolGuardrailFunctionOutput:
         def run() -> ToolGuardrailFunctionOutput:
             source = self._guard.taint(data.context.tool_name, data.output, id=data.context.tool_call_id)
-            return ToolGuardrailFunctionOutput.allow({"source_id": source.id, "injection": source.injection.action})
+            return ToolGuardrailFunctionOutput.allow({"sourceId": source.id, "injection": source.injection.action})
 
         return guarded(
             run,
