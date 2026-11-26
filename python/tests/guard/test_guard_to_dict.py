@@ -525,3 +525,10 @@ def test_an_explanation_of_a_blocked_decision_has_one_step_per_reason_in_js_keys
     assert result["chain"][0]["policy"] == decision.reasons[0]
     assert set(result) == {"summary", "chain"}
     assert set(result["chain"][0]) == {"code", "policy", "because", "flows"}
+
+
+@pytest.mark.parametrize("value", ["plain text", {"a": object()}], ids=["renderable", "unrenderable"])
+def test_a_tainted_source_dict_never_carries_the_python_only_fields(value: Any) -> None:
+    source = create_guard().taint("t", value)
+    assert source.unrenderable is isinstance(value, dict)
+    assert not {"wordHashes", "charHashes", "word_hashes", "char_hashes", "unrenderable"} & set(source.to_dict())

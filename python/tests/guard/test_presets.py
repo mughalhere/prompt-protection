@@ -832,13 +832,13 @@ def test_explain_does_not_change_its_decision(base: Any) -> None:
     assert decision.reasons == ["approved", "plan-violation"]
 
 
-def test_the_explain_dataclasses_are_not_serialisable_js_results() -> None:
+def test_the_explain_dataclasses_are_serialisable_js_results() -> None:
     from prompt_protection._result import JsResult
     from prompt_protection.guard.explain import ExplainStep, Explanation
 
     for cls in (ExplainStep, Explanation):
-        assert not issubclass(cls, JsResult)
-        assert not hasattr(cls, "to_dict")
+        assert issubclass(cls, JsResult)
+        assert hasattr(cls, "to_dict")
 
 
 # --- explain names options the Python way: owner rulings 2026-11-25, "Python name require_lock (Recommended)" ---
