@@ -132,3 +132,64 @@ def test_python_readme_says_the_listed_items_are_deferred(python_readme_text: st
 
 def test_python_readme_states_eddsa_fails_closed_with_unknown_kid(python_readme_text: str) -> None:
     assert re.search(r"EdDSA[^.]*fail(s|ed)? closed[^.]*`unknown-kid`", python_readme_text)
+
+
+DEFERRED_ITEMS = [
+    pytest.param(r"ML classifier", id="ml-classifier"),
+    pytest.param(r"(?i)spotlight", id="spotlight"),
+    pytest.param(r"(?i)canar", id="canary"),
+    pytest.param(r"\bATR\b", id="atr"),
+    pytest.param(r"\bOTel\b", id="otel"),
+    pytest.param(r"(?i)\baudit\b", id="audit"),
+    pytest.param(r"EdDSA envelopes", id="eddsa-envelopes"),
+    pytest.param(r"\banalyze_output\b", id="analyze-output"),
+    pytest.param(r"\bemit_output_log\b", id="emit-output-log"),
+]
+
+
+def deferred_section(markdown: str) -> str:
+    match = re.search(r"^## Deferred[ \t]*\n(.*?)(?=^## |\Z)", markdown, re.DOTALL | re.MULTILINE)
+    assert match is not None, "no '## Deferred' heading"
+    return match.group(1)
+
+
+def has_dated_tested_range(markdown: str) -> bool:
+    sentences = re.split(r"(?<=[.!?])\s+", markdown)
+    return any("CPython 3.10-3.13" in s and "2026-11-23" in s for s in sentences)
+
+
+def mutant_spotlight_supported(markdown: str) -> str:
+    mutated = markdown.replace("- spotlight\n", "").replace("## Quickstart\n", "## Quickstart\n\nSpotlight is supported.\n")
+    assert mutated != markdown
+    return mutated
+
+
+def mutant_range_dated_2025(markdown: str) -> str:
+    mutated = markdown.replace("set 2026-11-23.", "set 2025-01-01. Released 2026-11-23.")
+    assert mutated != markdown
+    return mutated
+
+
+@pytest.mark.parametrize("pattern", DEFERRED_ITEMS)
+def test_python_readme_deferred_section_lists_item(python_readme_text: str, pattern: str) -> None:
+    assert re.search(pattern, deferred_section(python_readme_text)), pattern
+
+
+def test_python_readme_dates_the_tested_range_in_one_sentence(python_readme_text: str) -> None:
+    assert has_dated_tested_range(python_readme_text)
+
+
+@pytest.mark.parametrize(
+    ("mutate", "check"),
+    [
+        pytest.param(
+            mutant_spotlight_supported,
+            lambda text: re.search(r"(?i)spotlight", deferred_section(text)) is not None,
+            id="spotlight-moved-out-of-deferred",
+        ),
+        pytest.param(mutant_range_dated_2025, has_dated_tested_range, id="range-dated-2025-date-elsewhere"),
+    ],
+)
+def test_section_and_sentence_checks_reject_the_auditor_mutants(python_readme_text: str, mutate, check) -> None:
+    assert check(python_readme_text)
+    assert not check(mutate(python_readme_text))
