@@ -1,6 +1,6 @@
 # Changelog
 
-## [4.5.0]
+## [4.5.0] - Unreleased
 
 A native Python package of the `/guard` entry. The npm package is unchanged. Additive, and the Python
 package is preview tier.
@@ -8,7 +8,7 @@ package is preview tier.
 ### Added
 - **Python package `prompt-protection`** (preview) on PyPI, in `python/`. It is a native port with zero
   runtime dependencies. It needs Python 3.10 or later. Use it as `import prompt_protection`. It ports
-  `analyze_prompt`, `verify_prompt`, `strip_prompt`, `create_protection_session`, `create_console_logger`,
+  `analyze_prompt`, `verify_prompt`, `strip_prompt`, `create_protection_session`,
   `PromptInjectionError`, the `/guard` entry and the `/envelope` module.
 - **Python parity**: decisions match the JS package on the published golden corpus. Exact parity is claimed
   for that corpus only. `docs/PYTHON.md` lists the stated divergences.
@@ -27,12 +27,15 @@ package is preview tier.
   and sdist with no publish rights, and an upload-only job publishes them. A pre-release tag publishes npm
   to `next` and skips PyPI.
 
-### Deferred in the Python package
+### Deferred
+These JS features are not in the Python package yet.
+
 - EdDSA envelopes and keys. `generate_key('EdDSA')` and an EdDSA memory key raise `DeferredFeatureError`.
   An EdDSA envelope fails closed with `unknown-kid`.
-- `ml` other than `off` raises `DeferredFeatureError` in `analyze_prompt`, `verify_prompt`, `strip_prompt`,
-  sessions and the guard.
-- The guard `spotlight` option raises `DeferredFeatureError`.
+- The ML classifier (`/ml`) is not ported. `ml` other than `off` raises `DeferredFeatureError` in
+  `analyze_prompt`, `verify_prompt`, `strip_prompt`, sessions and the guard.
+- Spotlighting is not ported. The `/spotlight` entry is absent, and the guard `spotlight` option raises
+  `DeferredFeatureError`.
 - Canaries are not ported. The Python package has no canary code.
 - ATR is not ported. The Python package has no ATR code.
 - The OTel and audit entries are not ported. The Python package has no OTel or audit code.
