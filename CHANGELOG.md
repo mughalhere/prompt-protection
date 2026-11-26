@@ -33,6 +33,9 @@ package is preview tier.
 - `ml` other than `off` raises `DeferredFeatureError` in `analyze_prompt`, `verify_prompt`, `strip_prompt`,
   sessions and the guard.
 - The guard `spotlight` option raises `DeferredFeatureError`.
+- Canaries are not ported. The Python package has no canary code.
+- ATR is not ported. The Python package has no ATR code.
+- The OTel and audit entries are not ported. The Python package has no OTel or audit code.
 - `analyze_output` is not ported, so `emit_output_log` is also deferred. It returns with `analyze_output`.
 
 ## [4.4.0] - 2026-11-05

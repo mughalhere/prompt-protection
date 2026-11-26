@@ -295,7 +295,7 @@ allow
 
 The Python API is synchronous, and results are dataclasses with snake_case fields. Each result has a `to_dict()` that emits the JS camelCase keys.
 
-Not yet ported, and planned for a later minor: the ML classifier, spotlighting, canaries, ATR, and the OTel and audit entries. See [python/README.md](python/README.md) for the full guide and [docs/PYTHON.md](docs/PYTHON.md) for where Python differs from JS.
+Not yet ported, and planned for a later minor: the ML classifier, spotlighting, canaries, ATR, and the OTel and audit entries. EdDSA envelopes, `analyze_output` and `emit_output_log` are also deferred. A Python `open()` of an EdDSA envelope fails closed with `unknown-kid`. See [python/README.md](python/README.md) for the full guide and [docs/PYTHON.md](docs/PYTHON.md) for where Python differs from JS.
 
 ---
 
