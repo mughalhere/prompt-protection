@@ -197,6 +197,10 @@ jobs:
         working-directory: python
         run: python -m ruff check .
 
+      - name: Check formatting
+        working-directory: python
+        run: python -m ruff format --check .
+
       - name: Type check
         working-directory: python
         run: python -m mypy
