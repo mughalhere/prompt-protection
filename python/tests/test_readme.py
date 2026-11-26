@@ -159,7 +159,9 @@ def has_dated_tested_range(markdown: str) -> bool:
 
 
 def mutant_spotlight_supported(markdown: str) -> str:
-    mutated = markdown.replace("- spotlight\n", "").replace("## Quickstart\n", "## Quickstart\n\nSpotlight is supported.\n")
+    mutated = markdown.replace("- spotlight\n", "").replace(
+        "## Quickstart\n", "## Quickstart\n\nSpotlight is supported.\n"
+    )
     assert mutated != markdown
     return mutated
 
