@@ -15,6 +15,7 @@ from itertools import islice
 from typing import Any, Literal, cast
 
 from prompt_protection._js import utf16_len, utf16_slice
+from prompt_protection._result import JsResult
 from prompt_protection._rules import RULES_VERSION
 from prompt_protection.analyze import AnalysisResult, failed_analysis
 from prompt_protection.canonical import canonical_json, digest
@@ -137,7 +138,7 @@ def _has_eddsa_key(memory: Mapping[str, Any] | None) -> bool:
 
 
 @dataclass(frozen=True, kw_only=True)
-class TaintEnvelopeResult:
+class TaintEnvelopeResult(JsResult):
     """``opened`` is false when a check failed. ``error`` then holds the code and ``source`` is blocked."""
 
     source: TaintedSource
@@ -146,7 +147,7 @@ class TaintEnvelopeResult:
 
 
 @dataclass(frozen=True, kw_only=True)
-class AbsorbSealedResult:
+class AbsorbSealedResult(JsResult):
     """``source`` is the blocked source registered for a failed open, and ``None`` otherwise."""
 
     opened: bool

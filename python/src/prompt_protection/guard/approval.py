@@ -21,6 +21,7 @@ from typing import Any, Literal, Protocol, TypedDict
 from uuid import UUID
 
 from prompt_protection._js import js_number_str, utf16_len, utf16_slice
+from prompt_protection._result import JsResult
 from prompt_protection.guard._types import GuardDecision, ToolCall
 from prompt_protection.guard.provenance import _MAX_LEAF_DEPTH, DESTINATION_KEYS, _js_key_order, key_of
 
@@ -65,7 +66,7 @@ class ApprovalMismatchError(Exception):
 
 
 @dataclass
-class ApprovalRecord:
+class ApprovalRecord(JsResult):
     """What the store keeps per card. ``canonical_args`` is compared as a string, never hashed."""
 
     id: str
@@ -81,7 +82,7 @@ class ApprovalRecord:
 
 
 @dataclass(frozen=True)
-class ApprovalState:
+class ApprovalState(JsResult):
     """What the check pipeline learned about a call from the store."""
 
     id: str
@@ -89,7 +90,7 @@ class ApprovalState:
 
 
 @dataclass(frozen=True)
-class ApprovalField:
+class ApprovalField(JsResult):
     """One scalar argument. ``tainted`` is true when a flow landed on ``path``."""
 
     path: str
@@ -100,7 +101,7 @@ class ApprovalField:
 
 
 @dataclass(frozen=True)
-class ApprovalRendered:
+class ApprovalRendered(JsResult):
     title: str
     risk: Literal["low", "medium", "high"]
     reasons: list[str]
@@ -109,7 +110,7 @@ class ApprovalRendered:
 
 
 @dataclass(kw_only=True)
-class ApprovalCard:
+class ApprovalCard(JsResult):
     """What a UI shows. It echoes ``digest`` back to ``confirm``. ``created_at`` is wall-clock ISO text."""
 
     id: str

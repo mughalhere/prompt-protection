@@ -21,6 +21,7 @@ from typing import Any, Protocol, TypeVar, cast
 from uuid import UUID
 
 from prompt_protection._js import JS_WHITESPACE, js_number_str, js_trim, utf16_len, utf16_slice
+from prompt_protection._result import JsResult
 from prompt_protection.canonical import _json_string
 from prompt_protection.encoding import decode_obfuscation
 from prompt_protection.identifiers import extract_identifiers
@@ -680,7 +681,7 @@ class TrustState:
 
 
 @dataclass(frozen=True, slots=True)
-class Flow:
+class Flow(JsResult):
     """``identifier_kind`` is ``None`` for ``exact`` and ``content`` flows and ``handle`` for a verbatim destination."""
 
     kind: str

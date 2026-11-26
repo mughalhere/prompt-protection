@@ -26,14 +26,18 @@ class JsResult:
 
     A ``None`` field named in ``_js_nullable`` is kept as ``None``, like a JS ``T | null`` field.
     Dict keys are left as they are, and a tuple comes out as a list.
+    A field named in ``_js_omit`` is never read or emitted: it is Python-only state with no JS counterpart.
     """
 
     __slots__ = ()
     _js_nullable: ClassVar[frozenset[str]] = frozenset()
+    _js_omit: ClassVar[frozenset[str]] = frozenset()
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {}
         for field in fields(self):  # type: ignore[arg-type]
+            if field.name in self._js_omit:
+                continue
             value = getattr(self, field.name)
             if value is None and field.name not in self._js_nullable:
                 continue

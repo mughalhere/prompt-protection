@@ -3,6 +3,7 @@
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
+from prompt_protection._result import JsResult
 from prompt_protection.guard._types import FailMode, GuardPolicy, PolicyAction, PolicyContext
 from prompt_protection.guard.sinks import EXEC_SINKS, EXFIL_SINKS
 
@@ -205,7 +206,7 @@ DEFAULT_POLICIES: tuple[GuardPolicy, ...] = (
 
 
 @dataclass(frozen=True)
-class PolicyOutcome:
+class PolicyOutcome(JsResult):
     """The verdict; ``reasons`` holds the ids of the policies that fired, most severe first."""
 
     action: PolicyAction

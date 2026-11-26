@@ -8,8 +8,9 @@ import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Literal, TypedDict, TypeGuard
+from typing import Any, ClassVar, Literal, TypedDict, TypeGuard
 
+from prompt_protection._result import JsResult
 from prompt_protection._rules import RULES_VERSION
 from prompt_protection.canonical import canonical_json, digest
 
@@ -63,7 +64,7 @@ class ToolLock(TypedDict):
 
 
 @dataclass(frozen=True, kw_only=True)
-class ToolDrift:
+class ToolDrift(JsResult):
     """``changed``: definition differs. ``unlisted``: not in the lock. ``missing``: pinned, absent now."""
 
     name: str
@@ -73,7 +74,7 @@ class ToolDrift:
 
 
 @dataclass(frozen=True, kw_only=True)
-class LockView:
+class LockView(JsResult):
     """Lock state as the check pipeline sees it for one tool name. ``listed`` is always true when unlocked."""
 
     locked: bool
@@ -81,13 +82,15 @@ class LockView:
     drift: ToolDrift | None
     annotations: ToolAnnotations | None
     drift_action: DriftAction | None = None
+    _js_nullable: ClassVar[frozenset[str]] = frozenset({"drift", "annotations"})
 
 
 @dataclass(frozen=True, kw_only=True)
-class LockState:
+class LockState(JsResult):
     lock: ToolLock | None
     drift: list[ToolDrift]
     drift_action: DriftAction
+    _js_nullable: ClassVar[frozenset[str]] = frozenset({"lock"})
 
 
 UNLOCKED = LockView(locked=False, listed=True, drift=None, annotations=None)

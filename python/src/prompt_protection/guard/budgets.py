@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
+from prompt_protection._result import JsResult
 from prompt_protection.canonical import digest_sync_weak
 from prompt_protection.guard.provenance import _js_key_order
 
@@ -52,13 +53,13 @@ class BudgetOptions(TypedDict, total=False):
 
 
 @dataclass
-class BudgetCost:
+class BudgetCost(JsResult):
     usd: float = 0
     tokens: float = 0
 
 
 @dataclass
-class BudgetState:
+class BudgetState(JsResult):
     """Counts so far. ``repeats`` maps the weak digest of the tool name and arguments to its count.
 
     ``exceeded`` names each limit passed, such as ``calls-per-tool:http_post`` or ``cost:usd``.

@@ -6,8 +6,9 @@ Flow, TaintedSource and LockView stay free to define those classes.
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal, Protocol
+from typing import TYPE_CHECKING, ClassVar, Literal, Protocol
 
+from prompt_protection._result import JsResult
 from prompt_protection.analyze import AnalysisResult
 from prompt_protection.guard.budgets import BudgetState
 from prompt_protection.guard.pin import LockView
@@ -167,7 +168,7 @@ class GuardPolicy(Protocol):
 
 
 @dataclass(frozen=True)
-class SourceInjection:
+class SourceInjection(JsResult):
     """How a tool result scored as an injection when it was tainted."""
 
     score: float
@@ -177,7 +178,7 @@ class SourceInjection:
 
 
 @dataclass(kw_only=True)
-class TaintedSource:
+class TaintedSource(JsResult):
     """A registered tool result. ``SourceIndex.add`` stores a copy and sets ``word_hashes`` and ``char_hashes``.
 
     ``unrenderable`` is true when some value in the result printed as a type marker, so its text is partial.
@@ -195,12 +196,13 @@ class TaintedSource:
     label: str | None = None
     lineage: Sequence[LineageEdgeLike] | None = None
     unrenderable: bool = False
+    _js_omit: ClassVar[frozenset[str]] = frozenset({"word_hashes", "char_hashes", "unrenderable"})
     word_hashes: OrderedHashSet = field(init=False, repr=False, compare=False)
     char_hashes: OrderedHashSet = field(init=False, repr=False, compare=False)
 
 
 @dataclass(frozen=True, kw_only=True)
-class GuardDecision:
+class GuardDecision(JsResult):
     """The verdict for one tool call. ``policy`` is ``None`` when the call is allowed, ``lock`` when unlocked.
 
     ``approval`` is what the approval store said about the call, ``None`` when no confirmed record applied.

@@ -6,6 +6,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from prompt_protection._result import JsResult
 from prompt_protection.guard._types import GuardDecision
 from prompt_protection.logging_ import FlowSummary, _summarize_flows
 
@@ -13,7 +14,7 @@ __all__ = ["ExplainStep", "Explanation", "explain"]
 
 
 @dataclass(frozen=True)
-class ExplainStep:
+class ExplainStep(JsResult):
     """One reason code. ``policy`` is the policy id the code names, ``None`` for ``approved``."""
 
     code: str
@@ -23,7 +24,7 @@ class ExplainStep:
 
 
 @dataclass(frozen=True)
-class Explanation:
+class Explanation(JsResult):
     summary: str
     chain: list[ExplainStep]
 

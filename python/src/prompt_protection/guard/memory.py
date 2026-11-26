@@ -8,6 +8,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, TypedDict, TypeGuard
 
+from prompt_protection._result import JsResult
 from prompt_protection.guard._types import SourceInjection, TaintedSource
 
 __all__ = [
@@ -52,7 +53,7 @@ def max_label(first: str, *rest: str) -> str:
 
 
 @dataclass(frozen=True, kw_only=True)
-class LineageEdge:
+class LineageEdge(JsResult):
     """A value came from ``from_``, a source or entry id. An edge at or above ``STRONG_EDGE`` propagates its label."""
 
     from_: str
@@ -84,7 +85,7 @@ class MemoryEntry(_MemoryEntryRequired, total=False):
 
 
 @dataclass(frozen=True, kw_only=True)
-class MemoryWriteResult:
+class MemoryWriteResult(JsResult):
     """``store`` is false when the policy rejects the entry. ``entry`` is the wire record to persist."""
 
     source: TaintedSource
@@ -94,7 +95,7 @@ class MemoryWriteResult:
 
 
 @dataclass(frozen=True, kw_only=True)
-class MemoryReadResult:
+class MemoryReadResult(JsResult):
     """``label`` is the highest label read. ``injection`` is the highest score, re-scored under the current rules."""
 
     sources: list[TaintedSource]
