@@ -1,5 +1,40 @@
 # Changelog
 
+## [4.5.0]
+
+A native Python package of the `/guard` entry. The npm package is unchanged. Additive, and the Python
+package is preview tier.
+
+### Added
+- **Python package `prompt-protection`** (preview) on PyPI, in `python/`. It is a native port with zero
+  runtime dependencies. It needs Python 3.10 or later. Use it as `import prompt_protection`. It ports
+  `analyze_prompt`, `verify_prompt`, `strip_prompt`, `create_protection_session`, `create_console_logger`,
+  `PromptInjectionError`, the `/guard` entry and the `/envelope` module.
+- **Python parity**: decisions match the JS package on the published golden corpus. Exact parity is claimed
+  for that corpus only. `docs/PYTHON.md` lists the stated divergences.
+- **OpenAI Agents SDK adapter for Python** (`prompt_protection.adapters.openai_agents`): `protect(guard)`
+  returns an agent input guardrail, tool input and output guardrails, `wrap_tool`, `needs_approval` and
+  `last_decision`. It is the twin of `/adapters/openai-agents`. Install it with the `openai-agents` extra.
+- **Guard envelope methods in Python**: `taint_envelope`, `seal_handoff`, `absorb_sealed`,
+  `seal_memory_entry` and `memory_read_sealed`, with the same rules as `taintEnvelope`, `sealHandoff`,
+  `absorbSealed`, `sealMemoryEntry` and `memoryReadSealed`.
+- **`to_dict()` on Python guard results**: it gives the JS camelCase keys, so a result compares with its JS
+  counterpart. Python-only state such as `TaintedSource.unrenderable` has no key.
+- **`TaintedSource.unrenderable`**: true when some part of a tool result printed as a type marker, so the
+  scanned text is partial. Guard decisions never read it.
+- **`create_console_logger`**: prints each protection event to stdout, with the JS key names.
+- **PyPI release path**: a stable `v*` tag publishes npm, then PyPI. A build and test job builds the wheel
+  and sdist with no publish rights, and an upload-only job publishes them. A pre-release tag publishes npm
+  to `next` and skips PyPI.
+
+### Deferred in the Python package
+- EdDSA envelopes and keys. `generate_key('EdDSA')` and an EdDSA memory key raise `DeferredFeatureError`.
+  An EdDSA envelope fails closed with `unknown-kid`.
+- `ml` other than `off` raises `DeferredFeatureError` in `analyze_prompt`, `verify_prompt`, `strip_prompt`,
+  sessions and the guard.
+- The guard `spotlight` option raises `DeferredFeatureError`.
+- `analyze_output` is not ported, so `emit_output_log` is also deferred. It returns with `analyze_output`.
+
 ## [4.4.0] - 2026-11-05
 
 Trust across boundaries: signed taint envelopes, sealed handoffs and sealed memory. Additive; the
