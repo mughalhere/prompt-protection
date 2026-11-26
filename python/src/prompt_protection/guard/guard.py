@@ -4,10 +4,12 @@ Tool results enter through ``taint``, user turns through ``trust`` and ``analyze
 model-proposed call goes through ``check_tool_call``. Memory lineage is here too. Later tasks add the rest.
 """
 
+import json
 import math
 import secrets
 import time
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from itertools import islice
 from typing import Any, Literal, cast
@@ -16,6 +18,8 @@ from prompt_protection._js import utf16_len, utf16_slice
 from prompt_protection._rules import RULES_VERSION
 from prompt_protection.analyze import AnalysisResult, failed_analysis
 from prompt_protection.canonical import canonical_json, digest
+from prompt_protection.envelope import EnvelopeError, EnvelopeErrorCode, EnvelopeKey, NonceStore, seal
+from prompt_protection.envelope import open as open_envelope
 from prompt_protection.errors import DeferredFeatureError
 from prompt_protection.guard._types import (
     FailMode,
@@ -86,7 +90,7 @@ from prompt_protection.normalizer import normalize
 from prompt_protection.session import ProtectionSession, create_protection_session
 from prompt_protection.shingle import build_shingles
 
-__all__ = ["Guard", "create_guard"]
+__all__ = ["AbsorbSealedResult", "Guard", "TaintEnvelopeResult", "create_guard"]
 
 DEFAULT_MAX_SOURCES = 64
 DEFAULT_MAX_SOURCE_CHARS = 200_000
@@ -130,6 +134,63 @@ def _has_eddsa_key(memory: Mapping[str, Any] | None) -> bool:
     key = None if memory is None else memory.get("key")
     keys = key if isinstance(key, (list, tuple)) else [key]
     return any(isinstance(k, Mapping) and k.get("alg") == "EdDSA" for k in keys)
+
+
+@dataclass(frozen=True, kw_only=True)
+class TaintEnvelopeResult:
+    """``opened`` is false when a check failed. ``error`` then holds the code and ``source`` is blocked."""
+
+    source: TaintedSource
+    opened: bool
+    error: EnvelopeErrorCode | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class AbsorbSealedResult:
+    """``source`` is the blocked source registered for a failed open, and ``None`` otherwise."""
+
+    opened: bool
+    error: EnvelopeErrorCode | None = None
+    source: TaintedSource | None = None
+
+
+_Keys = Mapping[str, Any] | Sequence[Mapping[str, Any]]
+
+
+def _code_of(err: Exception) -> EnvelopeErrorCode:
+    return err.code if isinstance(err, EnvelopeError) else "malformed"
+
+
+def _payload_text(env: object) -> object:
+    return env["payload"] if isinstance(env, Mapping) and "payload" in env else env
+
+
+def _bad_edge(prefix: str, code: str) -> list[LineageEdgeLike]:
+    return [LineageEdge(from_=f"{prefix}:{code}", kind="copy", strength=1)]
+
+
+def _open_options(
+    now: Callable[[], int] | None, max_skew_ms: int | None, nonces: NonceStore | None, require_exp: bool
+) -> dict[str, Any]:
+    given = {"now": now, "max_skew_ms": max_skew_ms, "nonces": nonces}
+    return {**{k: v for k, v in given.items() if v is not None}, "require_exp": require_exp}
+
+
+def _without_sig(entry: Mapping[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in entry.items() if k != "sig"}
+
+
+def _signature_holds(entry: MemoryEntry, keys: _Keys) -> bool:
+    sig = entry.get("sig")
+    if sig is None:
+        return False
+    try:
+        env = open_envelope(json.loads(sig), keys)
+        return canonical_json(env["payload"]) == canonical_json(_without_sig(entry))
+    except DeferredFeatureError:
+        raise
+    except Exception:
+        return False
 
 
 def _explicit_sink(sinks: Mapping[str, str | None] | SinkResolver | None) -> Callable[[str], str | None]:
@@ -185,6 +246,7 @@ class Guard:
         approval_options: ApprovalOptions | None,
         fork_options: Mapping[str, Any],
         inherit: TaintHandoff | None,
+        memory_key: _Keys | None = None,
     ) -> None:
         self._session = session
         self._analyze_options = analyze_options
@@ -209,6 +271,7 @@ class Guard:
         self._trusted_order: dict[str, None] = dict.fromkeys(trusted_identifiers)
         self._fork_options = fork_options
         self._inherit = inherit
+        self._memory_key = memory_key
         self._plan: frozenset[str] | None = None
         self._turn = 0
         self._depth = 0
@@ -254,6 +317,7 @@ class Guard:
         id: str | None,
         label: str | None = None,
         lineage: Sequence[LineageEdgeLike] | None = None,
+        attested: bool = False,
     ) -> TaintedSource:
         if id is None:
             self._seq += 1
@@ -271,6 +335,7 @@ class Guard:
             result = failed_analysis(err, self._fail_mode, _DEFAULT_THRESHOLD if threshold is None else threshold)
         injection = SourceInjection(score=result.score, action=result.action, categories=list(result.categories))
         own = _own_label(injection)
+        resolved = label if label is None or (attested and own != "blocked") else max_label(own, label)
         entry = TaintedSource(
             id=id,
             tool=source,
@@ -281,7 +346,7 @@ class Guard:
             injection=injection,
             turn=self._turn,
             timestamp=_now_ms(),
-            label=None if label is None else max_label(own, label),
+            label=resolved,
             lineage=lineage,
             unrenderable=unrenderable,
         )
@@ -502,6 +567,122 @@ class Guard:
                 label=wire["label"],
                 lineage=_lineage_from_wire(wire["lineage"]),
             )
+
+    def taint_envelope(
+        self,
+        env: object,
+        keys: _Keys,
+        *,
+        tool: str = "envelope",
+        id: str | None = None,
+        now: Callable[[], int] | None = None,
+        max_skew_ms: int | None = None,
+        nonces: NonceStore | None = None,
+        require_exp: bool = False,
+    ) -> TaintEnvelopeResult:
+        """Open a signed envelope and register its payload with the label it carries.
+
+        A verified label is taken as given unless the text itself scores as an injection. A failed open
+        registers the payload as one blocked source whose lineage is ``envelope:<code>``. An envelope with
+        ``alg`` ``EdDSA`` fails closed with ``unknown-kid``. An EdDSA key in ``keys`` raises
+        ``DeferredFeatureError``. The open options are those of ``prompt_protection.envelope.open``.
+        """
+        try:
+            opened = open_envelope(env, keys, **_open_options(now, max_skew_ms, nonces, require_exp))
+            origin = opened.get("from")
+            if origin is None:
+                origin = f"envelope:{opened.get('kid', 'key')}"
+            source = self._taint(
+                tool,
+                opened["payload"],
+                id=id,
+                label=opened["label"],
+                lineage=[LineageEdge(from_=origin, kind="copy", strength=1)],
+                attested=True,
+            )
+            return TaintEnvelopeResult(source=source, opened=True)
+        except DeferredFeatureError:
+            raise
+        except Exception as err:
+            code = _code_of(err)
+            source = self._taint(tool, _payload_text(env), id=id, label="blocked", lineage=_bad_edge("envelope", code))
+            return TaintEnvelopeResult(source=source, opened=False, error=code)
+
+    def seal_handoff(
+        self, key: Mapping[str, Any], *, ttl_ms: int | None = None, from_: str | None = None
+    ) -> dict[str, Any]:
+        """Return ``handoff()`` sealed with ``key`` for another process. The envelope is labelled ``tool``."""
+        sealed = seal(self.handoff(), cast(EnvelopeKey, key), label="tool", ttl_ms=ttl_ms, from_=from_)
+        return cast(dict[str, Any], sealed)
+
+    def absorb_sealed(
+        self,
+        env: object,
+        keys: _Keys,
+        *,
+        now: Callable[[], int] | None = None,
+        max_skew_ms: int | None = None,
+        nonces: NonceStore | None = None,
+        require_exp: bool = False,
+    ) -> AbsorbSealedResult:
+        """``absorb`` for a sealed handoff.
+
+        A failed open or a payload that is no v1 handoff registers one blocked source carrying the payload text,
+        with lineage ``handoff:<code>``, so a flow from it is ``handoff-untrusted``. Depth still rises, to the
+        payload's claimed depth plus one. An EdDSA key in ``keys`` raises ``DeferredFeatureError``.
+        """
+        try:
+            opened = open_envelope(env, keys, **_open_options(now, max_skew_ms, nonces, require_exp))
+            self.absorb(opened["payload"])
+            return AbsorbSealedResult(opened=True)
+        except DeferredFeatureError:
+            raise
+        except Exception as err:
+            code = _code_of(err)
+            payload = _payload_text(env)
+            claimed = payload.get("depth") if isinstance(payload, Mapping) else None
+            if not isinstance(claimed, (int, float)) or isinstance(claimed, bool):
+                claimed = self._depth
+            self._depth = cast(int, _js_max(self._depth, claimed + 1))
+            source = self._taint("handoff", payload, id=None, label="blocked", lineage=_bad_edge("handoff", code))
+            return AbsorbSealedResult(opened=False, error=code, source=source)
+
+    def _memory_keys(self, explicit: _Keys | None) -> _Keys | None:
+        return explicit if explicit is not None else self._memory_key
+
+    def seal_memory_entry(self, entry: MemoryEntry, key: Mapping[str, Any] | None = None) -> MemoryEntry:
+        """Return ``entry`` with ``sig``, an envelope over the entry without ``sig``, labelled with its label.
+
+        The key is ``key``, else the first of ``memory["key"]``. Raises ``TypeError`` when neither is set.
+        """
+        configured = self._memory_keys(key)
+        signing = configured if isinstance(configured, Mapping) or configured is None else next(iter(configured), None)
+        if signing is None:
+            raise TypeError("seal_memory_entry: no memory key configured")
+        body = _without_sig(entry)
+        sealed = seal(body, cast(EnvelopeKey, signing), label=entry["label"], from_=f"memory:{entry['id']}")
+        return cast(MemoryEntry, {**body, "sig": json.dumps(sealed, separators=(",", ":"))})
+
+    def memory_read_sealed(self, entries: Iterable[MemoryEntry], keys: _Keys | None = None) -> MemoryReadResult:
+        """``memory_read`` for sealed entries.
+
+        A missing or bad ``sig`` makes the entry ``blocked`` with an ``envelope:bad-signature`` edge, because its
+        stored label cannot be trusted. ``keys`` defaults to ``memory["key"]``. Raises ``TypeError`` when no key is
+        set or an entry is not a v1 ``MemoryEntry``. An EdDSA key raises ``DeferredFeatureError``.
+        """
+        verifying = self._memory_keys(keys)
+        if verifying is None:
+            raise TypeError("memory_read_sealed: no memory key configured")
+        checked: list[MemoryEntry] = []
+        for entry in entries:
+            if not is_memory_entry(entry):
+                raise TypeError("memory_read_sealed: not a v1 MemoryEntry")
+            if _signature_holds(entry, verifying):
+                checked.append(entry)
+            else:
+                lineage = [*entry["lineage"], {"from": "envelope:bad-signature", "kind": "copy", "strength": 1}]
+                checked.append(cast(MemoryEntry, {**entry, "label": "blocked", "lineage": lineage}))
+        return self.memory_read(checked)
 
     def fork(self, **options: Any) -> "Guard":
         """Return a guard with this one's options and taint state. An option passed here wins.
@@ -736,6 +917,7 @@ def create_guard(
         approval_options=approvals,
         fork_options=forwarded,
         inherit=inherit,
+        memory_key=None if memory is None else memory.get("key"),
     )
     if inherit is not None:
         guard.absorb(inherit)

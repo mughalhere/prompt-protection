@@ -37,7 +37,7 @@ from prompt_protection.guard.budgets import (
 from prompt_protection.guard.check import CheckContext, check_tool_call
 from prompt_protection.guard.errors import ToolCallBlockedError
 from prompt_protection.guard.explain import ExplainStep, Explanation, explain
-from prompt_protection.guard.guard import Guard, create_guard
+from prompt_protection.guard.guard import AbsorbSealedResult, Guard, TaintEnvelopeResult, create_guard
 from prompt_protection.guard.handoff import (
     HandoffError,
     HandoffSource,
@@ -143,6 +143,7 @@ from prompt_protection.guard.sinks import (
 from prompt_protection.guard.wrap import WrapHooks, wrap_tools
 
 __all__ = [
+    "AbsorbSealedResult",
     "ApprovalCard",
     "ApprovalField",
     "ApprovalFieldKind",
@@ -207,6 +208,7 @@ __all__ = [
     "SinkResolver",
     "SourceIndex",
     "SourceInjection",
+    "TaintEnvelopeResult",
     "TaintHandoff",
     "TaintedSource",
     "TRUST_LABEL_RANK",
