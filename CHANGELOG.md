@@ -1,6 +1,6 @@
 # Changelog
 
-## [4.5.0] - Unreleased
+## [4.5.0] - 2026-11-27
 
 A native Python package of the `/guard` entry. The npm package is unchanged. Additive, and the Python
 package is preview tier.
