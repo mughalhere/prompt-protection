@@ -1,8 +1,8 @@
-"""RED tests for the core guard (PY-12; twin of src/guard/guard.ts and check.ts, plan D1, D2, D40).
+"""RED tests for the core guard (twin of src/guard/guard.ts and check.ts).
 
 Ported from the 4.0 sections of tests/guard/guard.test.ts and fail-closed.test.ts, plus the createGuard cases of
 tests/guard/provenance.test.ts. Expected values come from Node 22 running dist/guard/index.js. No guard dataclass
-is serialised here (D40). The wrap, spotlight and logger-event cases belong to PY-13 and PY-12a.
+is serialised here. The wrap, spotlight and logger-event cases have their own test files.
 """
 
 import time
@@ -288,7 +288,7 @@ def test_taint_is_idempotent_per_id_and_stringifies_non_string_values() -> None:
     assert first.normalized == '{"url":"https://collect.evil-metrics.net/ingest?k=i","n":i}'
 
 
-# --- tests/guard/fail-closed.test.ts, without the logger events (PY-12a) ---
+# --- tests/guard/fail-closed.test.ts, without the logger events ---
 
 
 def test_a_throwing_policy_blocks_by_default_and_names_itself() -> None:
@@ -713,7 +713,7 @@ def test_a_decision_is_a_guard_decision() -> None:
     assert isinstance(check(create_guard(), "search", {"q": "x"}), GuardDecision)
 
 
-# --- stringify_value (src/guard/provenance.ts#stringifyValue; a Python int is a JS number, D37) ---
+# --- stringify_value (src/guard/provenance.ts#stringifyValue; a Python int is a JS number) ---
 
 NAN = float("nan")
 INF = float("inf")
@@ -797,7 +797,7 @@ def test_taint_stringifies_with_stringify_value() -> None:
     assert create_guard().taint("t", value).text == stringify_value(value) == '{"1":3,"2":2,"b":1}'
 
 
-# --- the package surface (src/guard/index.ts, PY-10 and PY-11 names) ---
+# --- the package surface (src/guard/index.ts) ---
 
 REEXPORT_MODULES = {
     "check": (check_module, ["CheckContext", "check_tool_call"]),

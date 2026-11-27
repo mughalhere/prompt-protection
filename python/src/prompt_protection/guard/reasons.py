@@ -1,4 +1,4 @@
-"""Stable decision reason codes (twin of src/guard/reasons.ts, plan D1)."""
+"""Stable decision reason codes (twin of src/guard/reasons.ts)."""
 
 __all__ = ["DECISION_REASONS", "DecisionReason", "is_decision_reason"]
 

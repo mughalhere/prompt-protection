@@ -1,4 +1,4 @@
-"""Tool-name sink heuristics (twin of src/guard/sinks.ts, plan D1, D2)."""
+"""Tool-name sink heuristics (twin of src/guard/sinks.ts)."""
 
 import re
 from collections.abc import Callable, Mapping

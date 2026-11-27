@@ -1,7 +1,7 @@
-"""RED tests for prompt_protection.analyze.verify_prompt (PY-7a; plan D2, D4).
+"""RED tests for prompt_protection.analyze.verify_prompt.
 
 Twin of verifyPromptWith in src/core/analyze.ts, ported from the verifyPrompt cases of tests/api.test.ts.
-Expected values come from Node 22 running dist/index.cjs. A JS options object is keyword-only here (D2).
+Expected values come from Node 22 running dist/index.cjs. A JS options object is keyword-only here.
 """
 
 import re

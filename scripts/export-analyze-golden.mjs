@@ -20,7 +20,7 @@ const UNICODE = join(FIXTURES, 'unicode-node.json');
 
 const CORPUS_KEYS = new Set(['text', 'user', 'args']);
 
-// Every string at any depth under a text, user or args key, depth-first in key order (e-6406d1).
+// Every string at any depth under a text, user or args key, depth-first in key order.
 function collectTexts(value, inScope, out) {
   if (typeof value === 'string') {
     if (inScope) out.push(value);

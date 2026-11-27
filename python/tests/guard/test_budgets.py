@@ -1,8 +1,8 @@
-"""RED tests for budgets (PY-18; twin of src/guard/budgets.ts, plan D2, D3, D40).
+"""RED tests for budgets (twin of src/guard/budgets.ts).
 
 Ported from tests/guard/budgets.test.ts. Expected values come from Node 22 running dist/guard/index.cjs.
-Budget options are keywords typed by the BudgetOptions TypedDict (D2, e-bbb3d0). JS async methods are sync.
-The state and its cost are read by attribute only, and no guard dataclass is serialised (D40).
+Budget options are keywords typed by the BudgetOptions TypedDict. JS async methods are sync.
+The state and its cost are read by attribute only, and no guard dataclass is serialised.
 Budget names are read off the package, so a gap is an AttributeError.
 Not pinned: object identity of the live state, and the depth of a budget that has not counted a call.
 """

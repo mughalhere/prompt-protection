@@ -1,4 +1,4 @@
-"""RED tests for prompt_protection.guard.reasons (twin of src/guard/reasons.ts, plan D1, D32: Node is the oracle)."""
+"""RED tests for prompt_protection.guard.reasons (twin of src/guard/reasons.ts: Node is the oracle)."""
 
 import pytest
 

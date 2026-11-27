@@ -1,4 +1,4 @@
-"""Version lockstep guards (plan owner decision 4, D25): Python, npm and package metadata share one version."""
+"""Version lockstep guards: Python, npm and package metadata share one version."""
 
 import json
 from importlib.metadata import version

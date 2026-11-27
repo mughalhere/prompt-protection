@@ -1,4 +1,4 @@
-"""stringify_value narrowed contract (bead j8o, owner decision 2026-11-25, "Narrow + flag").
+"""stringify_value narrowed contract.
 
 An exact dict, list, tuple, str, int, float, bool, None, set or frozenset renders faithfully.
 So do the stdlib leaf list and the hex and depth rules. Any other value prints a fixed marker,
@@ -169,7 +169,7 @@ def with_note(item: Any, tag: str) -> Any:
     return item
 
 
-# Row 6 of audit r2: values whose own code, or whose missing leaf status, used to hide their content.
+# Values whose own code, or whose missing leaf status, used to hide their content.
 HIDING = {
     "dict-property": DictProp,
     "getattribute-override": GetAttribute,

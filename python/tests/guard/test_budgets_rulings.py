@@ -1,6 +1,6 @@
-"""RED tests for three owner rulings on budgets (PY-18, rulings Q1, Q2 and Q4).
+"""RED tests for budget cost copies, canonical_json order, key order and on_exceed.
 
-Q2 and Q4 expected values come from Node 22 running dist/guard/index.cjs. Q1 pins a divergence from JS.
+Expected key orders come from Node 22 running dist/guard/index.cjs. The cost copy and on_exceed pin divergences from JS.
 """
 
 from typing import Any
@@ -33,7 +33,7 @@ def tools_guard(names: list[str], per_each: int, **options: Any) -> Any:
     return guard
 
 
-# owner ruling Q1, bead 6it: a decision's budget cost is its own copy; JS shares it with the live state.
+# A decision's budget cost is its own copy; JS shares it with the live state.
 @pytest.mark.parametrize("field", LIVE_PARAMS)
 def test_a_decisions_budget_cost_does_not_change_when_cost_is_recorded_later_owner_ruled_divergence_from_js(
     field: str,
@@ -46,7 +46,7 @@ def test_a_decisions_budget_cost_does_not_change_when_cost_is_recorded_later_own
     assert decision.budget.cost is not guard.budget().cost
 
 
-# owner ruling Q2: canonical_json runs before the budget counts, as in JS.
+# canonical_json runs before the budget counts, as in JS.
 @pytest.mark.parametrize(
     "args",
     [
@@ -68,7 +68,7 @@ def test_args_that_canonical_json_rejects_give_internal_error_and_leave_the_budg
     assert guard.check_tool_call(ToolCall(tool_name="t", args={})).budget.turn_calls == 1
 
 
-# owner ruling Q4: integer-like names list ascending first, then the rest in insertion order (Node 22).
+# Integer-like names list ascending first, then the rest in insertion order (Node 22).
 INTEGER_NAME_ORDER = ["10", "2", "a", "1"]
 MIXED_NAME_ORDER = ["10", "2", "a", "1", "b", "-1", "01", "1.5", "4294967294", "4294967295"]
 KINDS_NAME_ORDER = ["b", "10", "a", "2", "1"]
@@ -127,7 +127,7 @@ def test_the_exceeded_list_orders_integer_like_tool_names_the_js_way(
     assert list(tools_guard(names, per_each, **options).budget().exceeded) == expected
 
 
-# owner ruling Q3: an on_exceed outside block and confirm fails closed; only an absent or None value means block.
+# An on_exceed outside block and confirm fails closed; only an absent or None value means block.
 def _exceeded_decision(**on_exceed: Any) -> Any:
     guard = create_guard(budgets={"max_calls_per_turn": 0, **on_exceed})
     return guard.check_tool_call(ToolCall(tool_name="t", args={}))
@@ -146,7 +146,7 @@ def test_an_absent_or_none_on_exceed_means_block(options: dict[str, Any]) -> Non
     assert decision.budget.on_exceed == "block"
 
 
-# owner ruling Q6: the tool_calls mapping iterates in JS object key order. Expected orders measured on Node 22.
+# The tool_calls mapping iterates in JS object key order. Expected orders measured on Node 22.
 Q6_NAMES = MIXED_NAME_ORDER
 Q6_JS_KEYS = ["1", "2", "10", "4294967294", "a", "b", "-1", "01", "1.5", "4294967295"]
 

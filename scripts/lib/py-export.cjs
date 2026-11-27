@@ -1,6 +1,6 @@
 'use strict';
 // Translates JS regex sources to Python-ready sources for python/.../_data/rules.json.
-// Plan design item 2 and owner decision 1 (py-port-4-5); errors per e-54dd32.
+// Unsupported regex constructs raise an error rather than translating silently.
 
 const WS = '\\t\\n\\v\\f\\r\\u0020\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff';
 const DOT = '[^\\n\\r\\u2028\\u2029]';
@@ -122,7 +122,7 @@ function ruleSpans(source, text) {
   return spans;
 }
 
-// First appearance wins; texts are neither trimmed nor filtered (e-9c7890).
+// First appearance wins; texts are neither trimmed nor filtered.
 function corpusTexts(jsonlTexts, fixtureLines) {
   return [...new Set([...jsonlTexts, ...fixtureLines])];
 }

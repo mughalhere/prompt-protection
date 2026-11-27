@@ -1,4 +1,4 @@
-"""Parity tests for two owner rulings (D6, D7) against src/messages.ts#rolesToScan and src/types.ts#PatternRule."""
+"""Parity tests against src/messages.ts#rolesToScan and src/types.ts#PatternRule."""
 
 import re
 from typing import Any

@@ -1,9 +1,9 @@
-"""RED tests for tool pinning and the guard lock (PY-17; twin of src/guard/pin.ts, plan D2, D3, D7, D39, D40).
+"""RED tests for tool pinning and the guard lock (twin of src/guard/pin.ts).
 
 Ported from tests/guard/pin.test.ts. Digests and identity texts come from Node 22 running dist/guard/index.js.
-JS async pin and verify are sync here (D2). The lock, drift and decision objects are read by attribute only, and
-no guard dataclass is serialised (D40). Pin names are read off the package, so a gap is an AttributeError.
-A JS fnv1a64 lock is not tested: hashlib is always present (D7).
+JS async pin and verify are sync here. The lock, drift and decision objects are read by attribute only, and
+no guard dataclass is serialised. Pin names are read off the package, so a gap is an AttributeError.
+A JS fnv1a64 lock is not tested: hashlib is always present.
 """
 
 import json
@@ -426,7 +426,7 @@ def test_lock_rejects_what_is_not_a_v1_tool_lock(bad: Any) -> None:
     assert guard.lock_state.lock is None
 
 
-# --- persisted-lock annotations of any shape (PY-17 audit r1; twin of resolveSinkLocked in guard.ts) ---
+# --- persisted-lock annotations of any shape (twin of resolveSinkLocked in guard.ts) ---
 
 ABSENT = object()
 BLOCK = ("block", "untrusted-to-exfil-sink")

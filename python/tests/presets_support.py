@@ -1,6 +1,6 @@
-"""Shared data and helpers for the PY-19 preset, observe-mode and explain tests (twin of tests/guard/presets.test.ts).
+"""Shared data and helpers for the preset, observe-mode and explain tests (twin of tests/guard/presets.test.ts).
 
-Expected verdicts come from Node 22 running datasets/steps.cjs#runRow over dist/guard/index.cjs (plan D2, D32).
+Expected verdicts come from Node 22 running datasets/steps.cjs#runRow over dist/guard/index.cjs.
 ``PRESET_ROW_DIFFS`` lists only the legacy rows whose verdict a preset changes, as (action, requires_confirmation,
 policy, comma-joined reasons). Every other row keeps the balanced verdict from agent-flows.golden.json.
 """

@@ -1,4 +1,4 @@
-"""The pure tool-call decision function (twin of src/guard/check.ts, plan D1, D2, D40).
+"""The pure tool-call decision function (twin of src/guard/check.ts).
 
 State is passed in through ``CheckContext``, so ``create_guard`` stays thin. Each call emits one event
 through ``emit_tool_call_log``. In observe mode the verdict is computed and logged but never applied.
@@ -139,7 +139,7 @@ class _ObservedEvent:
 
 
 def _snapshot(state: BudgetState) -> BudgetState:
-    """Copy the state a decision keeps, ``cost`` included. JS shares ``cost``; owner ruling Q1."""
+    """Copy the state a decision keeps, ``cost`` included. JS shares ``cost``."""
     return replace(
         state,
         tool_calls=dict(state.tool_calls),

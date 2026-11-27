@@ -1,4 +1,4 @@
-"""RED tests for JS key order in collect_leaves (PY-12b, twin of collectLeaves in src/guard/provenance.ts).
+"""RED tests for JS key order in collect_leaves (twin of collectLeaves in src/guard/provenance.ts).
 
 Expected rows come from Node 22 running collectLeaves and checkToolCall from dist/guard/index.cjs on objects
 built with JSON.parse. Key coercion follows AgDR:python-collect-leaves-mapping-walk-and-key-coercion.

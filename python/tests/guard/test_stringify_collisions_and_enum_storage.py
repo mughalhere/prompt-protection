@@ -1,4 +1,4 @@
-"""stringify_value: key-text collisions and Enum value storage (bead j8o, owner decision 2026-11-25, option A).
+"""stringify_value: key-text collisions and Enum value storage.
 
 Two keys of one exact dict can print as the same key text. The JSON form would keep one pair, so the
 value of the other pair would vanish. A dict like that has no JSON form: the Python text prints every pair.

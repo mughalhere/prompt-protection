@@ -1,4 +1,4 @@
-"""RED tests for prompt_protection.unicode, .encoding and .normalizer (PY-5; plan design items 2, 3 and 6, D32).
+"""RED tests for prompt_protection.unicode, .encoding and .normalizer.
 
 Expected values come from Node 22 running the bundled src/utils/unicode.ts, src/utils/encoding.ts and
 src/normalizer.ts (dist/internal.js). Spec-pinned facts are the JS pipeline order, the JS whitespace set,

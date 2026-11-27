@@ -1,4 +1,4 @@
-"""Per-guard call and cost budgets (twin of src/guard/budgets.ts, plan D2, D3, D40)."""
+"""Per-guard call and cost budgets (twin of src/guard/budgets.ts)."""
 
 from __future__ import annotations
 
@@ -121,7 +121,7 @@ class Budget:
         state.exceeded = exceeded
 
     def _count_tool(self, name: str) -> None:
-        """Count one call, keeping ``tool_calls`` in JS key order (owner ruling Q6). Reorders in place."""
+        """Count one call, keeping ``tool_calls`` in JS key order. Reorders in place."""
         counts = self._state.tool_calls
         is_new = name not in counts
         counts[name] = counts.get(name, 0) + 1

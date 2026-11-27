@@ -1,7 +1,7 @@
-"""Tool pinning (twin of src/guard/pin.ts, plan D2, D3, D7, D39, D40).
+"""Tool pinning (twin of src/guard/pin.ts).
 
-A ``ToolLock`` is a wire dict with the JS keys (D3). Pin and verify are sync and hash with sha256 (D2, D7).
-``ToolDrift``, ``LockView`` and ``LockState`` are frozen dataclasses read by attribute (D40).
+A ``ToolLock`` is a wire dict with the JS keys. Pin and verify are sync and hash with sha256.
+``ToolDrift``, ``LockView`` and ``LockState`` are frozen dataclasses read by attribute.
 """
 
 import time

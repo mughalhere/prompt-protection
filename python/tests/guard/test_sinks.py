@@ -1,4 +1,4 @@
-"""RED tests for prompt_protection.guard.sinks (twin of src/guard/sinks.ts, plan D1, D2, D32: Node is the oracle)."""
+"""RED tests for prompt_protection.guard.sinks (twin of src/guard/sinks.ts: Node is the oracle)."""
 
 import pytest
 

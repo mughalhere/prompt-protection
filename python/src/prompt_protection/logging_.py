@@ -1,7 +1,7 @@
-"""Protection events and their emitters, ported from src/logging.ts (PY-12a, owner decision 2).
+"""Protection events and their emitters, ported from src/logging.ts.
 
 The module is named ``logging_`` so it never shadows the standard library. ``emit_output_log`` is
-deferred (entry e-988d3e). Loggers are sync-only: an awaitable result is reported, never awaited.
+deferred. Loggers are sync-only: an awaitable result is reported, never awaited.
 """
 
 import contextlib
@@ -53,7 +53,7 @@ class ProtectionEvent(JsResult):
     ``to_dict`` gives the JS event JSON: camelCase keys, with a ``None`` field left out and an empty
     list or string kept.
 
-    ``content_preview`` is for the output direction, whose emitter is deferred (entry e-988d3e).
+    ``content_preview`` is for the output direction, whose emitter is deferred.
     """
 
     type: str

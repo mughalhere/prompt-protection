@@ -1,4 +1,4 @@
-"""Envelope fixes from the PY-20 decision audit (plan D7, e-41ef84; JS twin src/envelope/index.ts).
+"""Envelope fixes from a decision audit (JS twin src/envelope/index.ts).
 
 A bad HS256 secret is crypto-unavailable, as in JS hmacKey. One nonce passes one shared store once, however
 many threads open it.

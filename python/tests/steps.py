@@ -1,4 +1,4 @@
-"""Python port of datasets/steps.cjs: runs one agent-flows row against a guard (plan design item 5, D13, D19).
+"""Python port of datasets/steps.cjs: runs one agent-flows row against a guard.
 
 ``run_row`` mirrors ``runRow`` op for op, with the same fake clock start. ``Recorder`` plays the part of
 ``recordingFactory`` in scripts/lib/py-export.cjs: it wraps every guard the row creates, ``fork()`` results

@@ -1,4 +1,4 @@
-"""RED tests for prompt_protection._rules (plan design items 1 and 2; D32: expected spans come from Node 22)."""
+"""RED tests for prompt_protection._rules (expected spans come from Node 22)."""
 
 import re
 from typing import Any

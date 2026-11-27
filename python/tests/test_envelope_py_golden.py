@@ -1,9 +1,9 @@
-"""RED tests for the Python envelope golden (PY-22, owner decision 3).
+"""RED tests for the Python envelope golden.
 
 python/tests/__fixtures__/envelope.py.golden.json is what Python sealed from the JS golden's inputs, in the JS
 schema, so the JS interop suite can open it. make_envelope_golden.build() reseals; write() and main() persist it.
 Handoff, memory and lock vectors sit at their own recorded wall-clock time, never header.now
-(AgDR:envelope-golden-wall-clock-iat-for-guard-seals). EdDSA vectors are absent because Python defers EdDSA (D5).
+(AgDR:envelope-golden-wall-clock-iat-for-guard-seals). EdDSA vectors are absent because Python defers EdDSA.
 """
 
 import importlib

@@ -1,4 +1,4 @@
-"""README quickstarts run as written (PY-26, F-012, owner decisions 4 and 6 of py-port-4-5)."""
+"""README quickstarts run as written."""
 
 import re
 import subprocess

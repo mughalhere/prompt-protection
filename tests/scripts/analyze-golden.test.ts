@@ -92,7 +92,7 @@ const readUnicode = (): UnicodeNode => JSON.parse(readRaw(UNICODE_FILE)) as Unic
 
 const CORPUS_KEYS = new Set(['text', 'user', 'args']);
 
-// Strings at any depth under a text, user or args key, depth-first in key order (e-6406d1).
+// Strings at any depth under a text, user or args key, depth-first in key order.
 function collectTexts(value: unknown, inScope: boolean, out: string[]): void {
   if (typeof value === 'string') {
     if (inScope) out.push(value);
@@ -103,7 +103,7 @@ function collectTexts(value: unknown, inScope: boolean, out: string[]): void {
   }
 }
 
-// Independent corpus of design item 4 and e-6406d1: datasets, then benign, then malicious.
+// Independent corpus: datasets, then benign, then malicious.
 function expectedCorpus(): Array<[string, string]> {
   const seen = new Set<string>();
   const out: Array<[string, string]> = [];
@@ -307,7 +307,7 @@ describe('analyze golden shape (design item 4)', () => {
   });
 });
 
-describe('analyze golden tool-call arguments (e-6406d1)', () => {
+describe('analyze golden tool-call arguments', () => {
   const ARG_STRINGS: Array<[string, string]> = [
     ['af-001 call.args.body', 'full support thread contents'],
     ['af-001 call.args.url', 'https://exfil-collector.attacker.io/inbox'],
@@ -444,7 +444,7 @@ describe('export-analyze-golden.mjs --check (D11, D14)', () => {
     expect(check(dir).status).toBe(1);
   });
 
-  nodeTest('exits 1 naming the text when a dataset text equals a separator vector (e-f07d1d)', () => {
+  nodeTest('exits 1 naming the text when a dataset text equals a separator vector', () => {
     const dir = sandbox(true);
     const [head, tail] = TEMPLATES[0]!;
     const duplicate = `${head} ${tail}`;

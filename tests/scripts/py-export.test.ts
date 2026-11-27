@@ -42,7 +42,6 @@ const lib = (): PyExport => createRequire(__filename)('../../scripts/lib/py-expo
 const ROOT = join(__dirname, '../..');
 const RULES_JSON_PATH = join(ROOT, 'python/src/prompt_protection/_data/rules.json');
 
-// Plan design item 2 and owner decision 1 (py-port-4-5).
 const WS = '\\t\\n\\v\\f\\r\\u0020\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff';
 const DOT = '[^\\n\\r\\u2028\\u2029]';
 
@@ -347,7 +346,7 @@ describe('committed rules.json', () => {
   });
 });
 
-// ---- Guard golden (LIB-3): projectDecision, recordingFactory, the exporter and its fixture ----
+// ---- Guard golden: projectDecision, recordingFactory, the exporter and its fixture ----
 
 interface ProjectedDecision {
   action: string;

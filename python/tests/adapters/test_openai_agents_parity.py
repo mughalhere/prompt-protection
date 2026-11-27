@@ -1,4 +1,4 @@
-"""RED tests that pin the OpenAI Agents adapter to the JS twin's wire shapes (PY-24, audit findings e-f6c86a).
+"""RED tests that pin the OpenAI Agents adapter to the JS twin's wire shapes (audit findings).
 
 JS source: src/adapters/openai-agents.ts. ``output_info`` keys are the JS keys, and an input item that makes
 JS ``textOf`` throw fails through ``fail_mode``.

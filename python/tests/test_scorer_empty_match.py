@@ -1,4 +1,4 @@
-"""Empty-match termination of score() (PY-6 follow-up, bead wtw).
+"""Empty-match termination of score() (follow-up).
 
 Expected values come from Node 22 running the score() of dist/internal.js, or a manual lastIndex++ loop
 over the same body where the bundle would hang (a custom x* rule). Python advances one UTF-16 unit.

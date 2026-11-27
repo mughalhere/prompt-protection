@@ -1,4 +1,4 @@
-"""RED end-to-end tests for the OpenAI Agents adapter (PY-24; plan Verification, D33).
+"""RED end-to-end tests for the OpenAI Agents adapter.
 
 A real ``agents`` Runner drives a scripted ``Model`` with tracing disabled and no network. The scenarios are rows
 of datasets/agent-flows.jsonl, and the expected verdicts come from the JS golden for the same rows.

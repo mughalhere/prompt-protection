@@ -1,4 +1,4 @@
-"""Wrap tools so each ``execute`` is checked, run and tainted (twin of src/guard/wrap.ts, D2, D6, D39)."""
+"""Wrap tools so each ``execute`` is checked, run and tainted (twin of src/guard/wrap.ts)."""
 
 import inspect
 import secrets

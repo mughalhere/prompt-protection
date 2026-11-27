@@ -1,8 +1,8 @@
-"""Signed taint envelopes (twin of src/envelope/index.ts, plan D5, D18).
+"""Signed taint envelopes (twin of src/envelope/index.ts).
 
 An envelope carries a payload and its trust label across a process boundary. ``open`` trusts the label only
 when the signature, the expiry and the nonce pass. Only HS256 is supported: an EdDSA key raises
-``DeferredFeatureError`` (D5) and an EdDSA envelope fails closed with ``unknown-kid``.
+``DeferredFeatureError`` and an EdDSA envelope fails closed with ``unknown-kid``.
 
 ``open`` checks in this order: malformed, key, signature, expiry and skew, nonce. A forged envelope never
 reaches the nonce store. Keys are mappings with the JS names ``alg``, ``secret`` and ``kid``.
@@ -61,7 +61,7 @@ _EnvelopeOptional = TypedDict("_EnvelopeOptional", {"kid": str, "exp": int, "fro
 
 
 class Envelope(_EnvelopeRequired, _EnvelopeOptional):
-    """The wire form (D3). ``kid``, ``exp`` and ``from`` are absent when not given."""
+    """The wire form. ``kid``, ``exp`` and ``from`` are absent when not given."""
 
 
 class _EnvelopeKeyRequired(TypedDict):

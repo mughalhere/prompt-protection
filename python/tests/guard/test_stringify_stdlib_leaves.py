@@ -1,4 +1,4 @@
-"""stringify_value stdlib leaves (bead j8o, owner decision 2026-11-25, option A).
+"""stringify_value stdlib leaves.
 
 complex, Decimal, Fraction, date, time, datetime, timedelta, timezone, UUID and PurePath, and their subclasses,
 print through their base type's str. An Enum member prints its value, a re.Pattern its pattern, and a function,

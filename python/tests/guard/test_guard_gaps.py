@@ -1,8 +1,8 @@
-"""Gap tests for PY-12: a session's default ml at create_guard, and the stringify_value branches.
+"""Gap tests for the core guard: a session's default ml at create_guard, and the stringify_value branches.
 
 The JS outputs named below were measured with Node on src/guard/provenance.ts#stringifyValue.
 A Python int past float range is treated as a JS bigint at top level.
-A test named owner_divergence pins Python's own text where the owner chose it over JS parity.
+A test named owner_divergence pins Python's own text where Python deliberately differs from JS.
 """
 
 from typing import Any
@@ -88,7 +88,7 @@ def divergence(value: Any, case_id: str, expected: str | None = None) -> Any:
     return pytest.param(value, str(value) if expected is None else expected, id="owner-divergence-" + case_id)
 
 
-# Owner decision 2026-11-24: Python keeps str() for these. JS prints [object Object], {} or the object's fields.
+# A documented divergence from JS: Python keeps str() for these. JS prints [object Object], {} or the object's fields.
 NESTED_BIGINT_CASES = [
     divergence({"a": BIG}, "dict", "{'a': " + BIG_DIGITS + "}"),
     divergence({"a": 1, "b": BIG}, "dict-after-a-key", "{'a': 1, 'b': " + BIG_DIGITS + "}"),
@@ -103,14 +103,14 @@ SET_CASES = [
     divergence({"a": {1}}, "set-in-a-dict", "{'a': {1}}"),
     divergence([{1}], "set-in-a-list", "[{1}]"),
 ]
-# Owner decision 2026-11-25 "Narrow + flag": a plain instance prints a <Name not rendered> marker, not its fields.
+# A documented divergence from JS: a plain instance prints a <Name not rendered> marker, not its fields.
 INSTANCE_CASES = [
     divergence(Fields(), "instance", "<Fields not rendered>"),
     divergence(NoFields(), "instance-without-fields", "<NoFields not rendered>"),
     divergence({"a": Fields()}, "instance-in-a-dict", "{'a': <Fields not rendered>}"),
     divergence([Fields(), 1], "instance-in-a-list", "[<Fields not rendered>, 1]"),
 ]
-# Owner decision 2026-11-25 "Re-pin as divergence": JSON would keep one pair, so the Python text shows both.
+# A documented divergence from JS: JSON would keep one pair, so the Python text shows both.
 COLLISION_CASES = [divergence({1: "a", "1": "b"}, "int-key-and-str-key-collide", "{1: 'a', '1': 'b'}")]
 KEY_CASES = [
     divergence({1.0: 1}, "integral-float-key", '{"1.0":1}'),

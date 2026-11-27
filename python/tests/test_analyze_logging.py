@@ -1,7 +1,7 @@
-"""RED tests for the logging keywords of analyze_prompt, verify_prompt, strip_prompt and the session (PY-12a).
+"""RED tests for the logging keywords of analyze_prompt, verify_prompt, strip_prompt and the session.
 
 Twin of the logger cases of tests/verdict-logging.test.ts, tests/fail-closed.test.ts, tests/api.test.ts and
-tests/session.test.ts. Expected values come from Node 22 running dist/index.js. Owner decision 2, entry e-0d3ca6.
+tests/session.test.ts. Expected values come from Node 22 running dist/index.js.
 """
 
 import inspect
@@ -264,7 +264,7 @@ def test_strip_prompt_keeps_its_result_when_the_logger_raises() -> None:
 
 
 def test_verify_strip_and_session_options_repeat_the_analyze_prompt_keywords() -> None:
-    """Entry e-fc5e61 lists the keywords again in verify_prompt and strip_prompt, and AnalyzeOptions lists them."""
+    """The keywords appear again in verify_prompt and strip_prompt, and AnalyzeOptions lists them."""
 
     def keywords(function: Any) -> set[str]:
         return {name for name, p in inspect.signature(function).parameters.items() if p.kind is p.KEYWORD_ONLY}

@@ -1,4 +1,4 @@
-"""Surrogate halves held apart join before escaping and sorting (PY-4 follow-up, e-43e54d).
+"""Surrogate halves held apart join before escaping and sorting (follow-up).
 
 Oracle: Node 22, dist/guard/index.js canonicalJson, digest and digestSyncWeak over strings and
 keys built one UTF-16 unit at a time with String.fromCharCode(0xd83d) and (0xde00).

@@ -1,7 +1,7 @@
-"""RED tests for presets, observe mode and explain (PY-19; twin of tests/guard/presets.test.ts, plan D2, D3, D40).
+"""RED tests for presets, observe mode and explain (twin of tests/guard/presets.test.ts).
 
 Expected values come from the JS tests or from Node 22 running dist/guard/index.cjs. Option names are snake_case.
-No guard dataclass is serialised here and no test calls to_dict (D40). Async JS ports as sync (D2).
+No guard dataclass is serialised here and no test calls to_dict. Async JS ports as sync.
 """
 
 import dataclasses
@@ -841,7 +841,7 @@ def test_the_explain_dataclasses_are_serialisable_js_results() -> None:
         assert hasattr(cls, "to_dict")
 
 
-# --- explain names options the Python way: owner rulings 2026-11-25, "Python name require_lock (Recommended)" ---
+# --- explain names options the Python way (require_lock) ---
 # --- and "Python names everywhere (Recommended)". Stated text divergence from JS. ---
 
 
@@ -888,7 +888,7 @@ def test_explain_prints_no_camel_case_option_name_for_any_known_reason_code(base
         assert not [text for text in steps if re.search(r"[a-z][A-Z]", text)]
 
 
-# Owner ruling 2026-11-25, "Keep raise + JS bead (Recommended)": JS resolves these via Object.prototype (6s4).
+# A documented divergence from JS: Python raises here, and JS resolves these via Object.prototype.
 @pytest.mark.parametrize("name", ["constructor", "toString"])
 def test_a_preset_named_like_an_object_prototype_member_raises_type_error_naming_it(name: str) -> None:
     from prompt_protection.guard.presets import resolve_preset
@@ -899,7 +899,7 @@ def test_a_preset_named_like_an_object_prototype_member_raises_type_error_naming
         create_guard(preset=name)  # type: ignore[arg-type]
 
 
-# Owner ruling 2026-11-25, "Keep, match JS (Recommended)": Node 22 gives block/allow and no observed fields.
+# Matches JS: Node 22 gives block/allow and no observed fields.
 @pytest.mark.parametrize(("fail_mode", "action"), [(None, "block"), ("open", "allow")])
 def test_observe_leaves_an_internal_error_decision_unobserved(fail_mode: str | None, action: str) -> None:
     options = {} if fail_mode is None else {"fail_mode": fail_mode}
@@ -908,7 +908,7 @@ def test_observe_leaves_an_internal_error_decision_unobserved(fail_mode: str | N
     assert (decision.observed_action, decision.observed_requires_confirmation) == (None, None)
 
 
-# Owner ruling 2026-11-25, "Keep, match JS (Recommended)": the turn policy has no specific line; Node 22 prints this.
+# Matches JS: the turn policy has no specific line, and Node 22 prints this.
 def test_explain_gives_the_turn_policy_the_generic_line() -> None:
     from prompt_protection.guard.explain import explain
 

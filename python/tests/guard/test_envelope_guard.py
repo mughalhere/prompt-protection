@@ -1,11 +1,11 @@
-"""RED tests for the guard envelope methods (PY-21; plan 4.4, D2, D3, D5, D29, owner decisions 2 and 3).
+"""RED tests for the guard envelope methods.
 
 Ported from tests/guard/envelope.test.ts. Expected values come from Node 22 running dist/guard/index.cjs.
-Methods are sync (D2): taint_envelope, seal_handoff, absorb_sealed, seal_memory_entry, memory_read_sealed.
+Methods are sync: taint_envelope, seal_handoff, absorb_sealed, seal_memory_entry, memory_read_sealed.
 Results are read by attribute (opened, error, source). No guard dataclass is serialised and no test calls
-to_dict (D40). Golden envelopes open at their own recorded iat, never at header.now
+to_dict. Golden envelopes open at their own recorded iat, never at header.now
 (AgDR:envelope-golden-wall-clock-iat-for-guard-seals).
-The lock tests need no PY-21 code and already pass. They pin the D29 interop.
+The lock tests need no new code and already pass. They pin the lock interop.
 """
 
 import base64

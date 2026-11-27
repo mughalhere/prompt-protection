@@ -1,4 +1,4 @@
-"""Rule differential (plan design items 1 and 2, owner decision 1): Python rule spans equal the JS golden spans."""
+"""Rule differential: Python rule spans equal the JS golden spans."""
 
 from typing import Any
 

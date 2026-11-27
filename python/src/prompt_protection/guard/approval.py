@@ -1,4 +1,4 @@
-"""Approval cards and the approval store (twin of src/guard/approval.ts, plan D1, D2, D7, D40).
+"""Approval cards and the approval store (twin of src/guard/approval.ts).
 
 A card carries the canonical text of the call it asks about. ``confirm`` marks it approved, and a later
 check approves a call only when the canonical text is equal. Records are single-use and expire by ``ttl_ms``.
@@ -251,7 +251,7 @@ def create_approval_store(
 
 
 def _plain_str(value: str) -> str:
-    """An exact ``str`` with the same characters, never running a subclass ``__str__`` or ``__format__`` (D32)."""
+    """An exact ``str`` with the same characters, never running a subclass ``__str__`` or ``__format__``."""
     return value if type(value) is str else str.__str__(value)
 
 
@@ -302,7 +302,7 @@ def _slot_values(value: object) -> dict[str, Any] | None:
     """Set slot values, base class first, read through each member descriptor.
 
     Reads every class in the MRO, stdlib ones included. ``None`` unless a slot is set or a
-    non-stdlib class declares ``__slots__``, even an empty one (e-b80c9f).
+    non-stdlib class declares ``__slots__``, even an empty one.
     """
     found: dict[str, Any] = {}
     declared = False
@@ -362,7 +362,7 @@ def _from_stdlib(value: object) -> bool:
 
 
 def _walks_like_a_js_object(value: object) -> bool:
-    """Namespaces and any exception keep the attribute walk although their class is stdlib (PY-16b)."""
+    """Namespaces and any exception keep the attribute walk although their class is stdlib."""
     return isinstance(value, _WALKED_STDLIB_TYPES)
 
 

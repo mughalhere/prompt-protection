@@ -1,4 +1,4 @@
-"""Package-root export and creation-time size check for the session API (PY-8; JS src/index.ts line 10)."""
+"""Package-root export and creation-time size check for the session API (JS src/index.ts line 10)."""
 
 import pytest
 

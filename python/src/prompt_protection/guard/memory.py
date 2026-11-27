@@ -1,7 +1,7 @@
-"""Memory lineage and trust labels (twin of src/guard/memory.ts, plan D2, D3, D40).
+"""Memory lineage and trust labels (twin of src/guard/memory.ts).
 
-A ``MemoryEntry`` is a wire dict with the JS keys (D3). A lineage edge on a guard object is a
-``LineageEdge`` and exposes ``from_`` (D2). The guard converts between the two at the memory boundary.
+A ``MemoryEntry`` is a wire dict with the JS keys. A lineage edge on a guard object is a
+``LineageEdge`` and exposes ``from_``. The guard converts between the two at the memory boundary.
 """
 
 from collections.abc import Callable, Mapping, Sequence

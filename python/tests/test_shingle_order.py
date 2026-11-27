@@ -1,4 +1,4 @@
-"""RED tests for insertion-ordered ShingleSet iteration (PY-11b, twin of src/utils/shingle.ts).
+"""RED tests for insertion-ordered ShingleSet iteration (twin of src/utils/shingle.ts).
 
 JS fills ``new Set`` in token and window order and iterates it in that order. The expected lists come from
 Node 22 running buildShingles from src bundled with esbuild. A repeated window keeps its first position.

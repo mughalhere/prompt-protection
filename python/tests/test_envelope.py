@@ -1,8 +1,8 @@
-"""RED tests for prompt_protection.envelope (PY-20, plan 4.4, D5, D18, F-010). Port of tests/envelope/envelope.test.ts.
+"""RED tests for prompt_protection.envelope. Port of tests/envelope/envelope.test.ts.
 
 Oracle: Node 22 against dist/envelope/index.js, plus tests/guard/__fixtures__/envelope.golden.json. The handoff,
 memory and eddsa-handoff vectors sit at their own recorded iat, never header.now.
-Keys are mappings with the JS names alg, secret and kid. EdDSA is deferred (D5). Lock vectors belong to later tasks.
+Keys are mappings with the JS names alg, secret and kid. EdDSA is deferred. Lock vectors belong to later tasks.
 """
 
 import base64
@@ -136,7 +136,7 @@ WELL_FORMED = [
 ]
 
 
-# --- golden interop (owner decision 3, D18) ---------------------------------------------------------------
+# --- golden interop ---------------------------------------------------------------
 
 
 def test_golden_holds_every_vector_kind() -> None:
@@ -194,7 +194,7 @@ def test_expired_vector_opens_at_exp_and_not_one_ms_later() -> None:
     assert out["now"] == env["exp"] + 1
 
 
-# --- _unsigned, _sign (D18) --------------------------------------------------------------------------------
+# --- _unsigned, _sign --------------------------------------------------------------------------------
 
 
 def test_unsigned_is_canonical_json_without_sig_and_leaves_input_alone(base: dict[str, Any]) -> None:

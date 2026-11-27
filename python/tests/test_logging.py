@@ -1,7 +1,7 @@
-"""RED tests for prompt_protection.logging_ (PY-12a; twin of src/logging.ts, owner decision 2, entry e-0d3ca6).
+"""RED tests for prompt_protection.logging_ (twin of src/logging.ts).
 
 Expected values come from Node 22 running dist/index.js and dist/guard/index.js, and from the rules of
-src/logging.ts. The guard decision is read by attribute (D40), and no guard dataclass is serialised here.
+src/logging.ts. The guard decision is read by attribute, and no guard dataclass is serialised here.
 """
 
 import re

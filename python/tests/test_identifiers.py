@@ -1,4 +1,4 @@
-"""RED tests for prompt_protection.identifiers.extract_identifiers (plan design item 3, D32: Node 22 is the oracle).
+"""RED tests for prompt_protection.identifiers.extract_identifiers (Node 22 is the oracle).
 
 Each vector is the output of src/utils/identifiers.ts under Node 22. Offsets are UTF-16 code units, so a
 leading emoji shifts every later index by two, not one.

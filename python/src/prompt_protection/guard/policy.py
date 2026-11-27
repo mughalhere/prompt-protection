@@ -1,4 +1,4 @@
-"""The default guard policies and their evaluation (twin of src/guard/policy.ts, plan D1, D2, D40)."""
+"""The default guard policies and their evaluation (twin of src/guard/policy.ts)."""
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass

@@ -1,8 +1,8 @@
-"""RED tests for prompt_protection.guard.provenance (twin of src/guard/provenance.ts, plan D1, D2, D32, D40).
+"""RED tests for prompt_protection.guard.provenance (twin of src/guard/provenance.ts).
 
 Expected values come from Node: src/guard/provenance.ts, normalizer.ts and utils/shingle.ts bundled by esbuild and
 run on Node 22. Lengths, slices and eviction budgets count UTF-16 code units. No guard dataclass is serialised
-here (D40).
+here.
 """
 
 import math

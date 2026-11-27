@@ -1,4 +1,4 @@
-"""RED tests for create_console_logger and the sync-only logger contract (PY-12c, owner decision 2026-11-24 "Split").
+"""RED tests for create_console_logger and the sync-only logger contract.
 
 Twin of createConsoleLogger in src/logging.ts. Expected values come from Node 22 running dist/index.js and
 dist/guard/index.js. The Python print form is a choice the spec leaves open: the JS line with the object
@@ -343,7 +343,7 @@ def test_a_raising_on_logger_error_for_an_awaitable_result_neither_raises_nor_ch
 
 
 def test_a_raising_on_logger_error_for_a_raising_logger_still_raises_out_of_the_call() -> None:
-    """PY-12a parity row: analyzePrompt benign allowed open cb=always is THROW cb-boom-2, log=2 cb=2."""
+    """Parity row: analyzePrompt benign allowed open cb=always is THROW cb-boom-2, log=2 cb=2."""
     logger = RaisingLogger(RuntimeError("log-boom"))
     callback = RaisingSink()
     with pytest.raises(RuntimeError, match="cb-boom-2"):

@@ -1,4 +1,4 @@
-"""RED tests for prompt_protection.shingle (plan design item 3, D32: Node 22 is the oracle).
+"""RED tests for prompt_protection.shingle (Node 22 is the oracle).
 
 Expected hashes are the output of src/utils/shingle.ts under Node 22. Length, slicing and the 24-unit char
 window count UTF-16 code units, so an emoji is two units and a window can cut a pair in half.

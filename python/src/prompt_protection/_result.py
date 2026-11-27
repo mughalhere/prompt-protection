@@ -1,4 +1,4 @@
-"""The ``to_dict`` mixin that turns a result dataclass into the JSON shape the JS library returns (plan D4)."""
+"""The ``to_dict`` mixin that turns a result dataclass into the JSON shape the JS library returns."""
 
 from dataclasses import fields
 from typing import Any, ClassVar

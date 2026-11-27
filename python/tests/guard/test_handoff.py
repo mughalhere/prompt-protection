@@ -1,8 +1,8 @@
-"""RED tests for taint handoff, absorb and fork (PY-15; twin of src/guard/handoff.ts, plan D2, D3, D40).
+"""RED tests for taint handoff, absorb and fork (twin of src/guard/handoff.ts).
 
 Ported from tests/guard/handoff.test.ts. Wire values come from Node 22 running dist/guard/index.cjs. A TaintHandoff
-is a plain dict with JS keys (D3). No guard dataclass is serialised and no test calls to_dict (D40). Handoff names
-are read off the package, so a gap is an AttributeError. Skipped: sealHandoff and absorbSealed (PY-21).
+is a plain dict with JS keys. No guard dataclass is serialised and no test calls to_dict. Handoff names
+are read off the package, so a gap is an AttributeError. Skipped: sealHandoff and absorbSealed.
 """
 
 import importlib

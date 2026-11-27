@@ -1,4 +1,4 @@
-"""The error raised when the guard blocks a tool call (twin of src/guard/errors.ts, plan D1)."""
+"""The error raised when the guard blocks a tool call (twin of src/guard/errors.ts)."""
 
 from prompt_protection.guard._types import BlockedDecision
 

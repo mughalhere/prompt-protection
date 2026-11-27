@@ -1,4 +1,4 @@
-"""OpenAI Agents SDK adapter (twin of src/adapters/openai-agents.ts, plan Scope In adapter, D24, D39).
+"""OpenAI Agents SDK adapter (twin of src/adapters/openai-agents.ts).
 
 ``protect(guard)`` returns one agent input guardrail, tool input and output guardrails and a
 ``needs_approval`` policy, all driven by one guard. Each hook is an async wrapper around a sync guard call.

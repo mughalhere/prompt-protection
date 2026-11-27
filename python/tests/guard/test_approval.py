@@ -1,9 +1,9 @@
-"""RED tests for approval cards and the approval store (PY-16; twin of src/guard/approval.ts).
+"""RED tests for approval cards and the approval store (twin of src/guard/approval.ts).
 
 Ported from tests/guard/approval.test.ts. Expected values come from Node 22 running dist/guard/index.cjs.
-JS async methods are sync and JS options are keywords (D2, e-157e42). Records, cards, states and rendered
-bodies are read by attribute, and no guard dataclass is serialised (D40, e-b17f05). A card id and created_at
-are pinned by shape (D12, e-855a8b). Names are read off the package, so a gap is an AttributeError.
+JS async methods are sync and JS options are keywords. Records, cards, states and rendered
+bodies are read by attribute, and no guard dataclass is serialised. A card id and created_at
+are pinned by shape. Names are read off the package, so a gap is an AttributeError.
 Not pinned: a call id matching a record of another tool name, confirm twice, clear() keeping the store,
 and a card's check counting against the budget.
 """
@@ -670,7 +670,7 @@ def test_a_fork_has_its_own_store_that_keeps_the_approvals_options() -> None:
     assert child.approval_card(with_args(PAY, a=1)).expires_at == "1970-01-01T00:00:06.000Z"
 
 
-# --- args that canonical_json rejects: the approvals lookup runs it on every check (PY-18 audit follow-up) ---
+# --- args that canonical_json rejects: the approvals lookup runs it on every check ---
 
 
 @pytest.mark.parametrize(("fail_mode", "action"), [("closed", "block"), ("open", "allow")])
@@ -749,7 +749,7 @@ def test_a_throwing_store_blocks_before_the_budget_counts() -> None:
 
 
 def test_an_approval_for_tool_a_is_not_applied_to_a_call_of_tool_b_with_the_same_call_id_diverges_from_js() -> None:
-    # owner ruling, bead ssn
+    # A documented divergence from JS.
     guard, card = approved()
     other = replace(PAY, tool_name="stripe_charge")
     decision = guard.check_tool_call(other)
@@ -767,7 +767,7 @@ def test_lookup_by_call_id_ignores_a_record_of_another_tool_name_and_keeps_it_un
 
 
 def test_clear_drops_the_approval_store_so_an_approved_call_asks_again_diverges_from_js() -> None:
-    # owner ruling, bead 6il
+    # A documented divergence from JS.
     guard, _card = approved()
     guard.clear()
     decision = guard.check_tool_call(PAY)
@@ -814,7 +814,7 @@ def test_bytes_give_one_field_per_index_like_js_uint8array(value: object, place:
     assert kinds(rendered) == [("args.note", "other"), (f"{path}.0", "other"), (f"{path}.1", "other")]
 
 
-# --- render_approval_card: dates and plain objects (owner ruling, PY-16b) ---
+# --- render_approval_card: dates and plain objects ---
 # Node 22, dist/guard/index.cjs: a Date gives no field. A class instance is walked by its own
 # properties, underscore names included. Prototype getters and methods are not walked.
 
@@ -891,8 +891,8 @@ def test_a_plain_object_as_the_whole_args_is_walked_like_a_js_class_instance() -
     assert values(render(Tagged())) == [("args.s", "a"), ("args.n", "7")]
 
 
-# --- render_approval_card: Decimal and complex (owner ruling 2026-11-25, PY-16b) ---
-# Owner ruling "Both as str()": one leaf each, rendered through str(). JS has no twin for either.
+# --- render_approval_card: Decimal and complex ---
+# One leaf each, rendered through str(). JS has no twin for either.
 
 
 @pytest.mark.parametrize(
@@ -911,7 +911,7 @@ def test_a_decimal_or_a_complex_is_one_leaf_rendered_through_str_owner_ruling_st
     assert values(render(place(value))) == [("args.note", "hi"), (path, text)]
 
 
-# --- render_approval_card: slots-only objects and enum members (owner rulings 2026-11-25, PY-16b) ---
+# --- render_approval_card: slots-only objects and enum members ---
 # Node 22, dist/guard/index.cjs: declared fields render in declaration order, then fields assigned later.
 # A subclass renders its base fields first. An undefined or never-assigned field gives no leaf.
 
@@ -1062,7 +1062,7 @@ def test_a_str_subclass_leaf_is_stored_as_a_plain_str_with_the_same_characters_n
     assert format(field.value) == text
 
 
-# Owner ruling "Keep str() for ipaddress" (PY-16b): an ipaddress value is one str() leaf, not a slot walk.
+# An ipaddress value is one str() leaf, not a slot walk.
 @pytest.mark.parametrize(
     ("value", "text"),
     [
@@ -1095,7 +1095,7 @@ def test_a_str_subclass_mapping_key_enters_the_field_path_as_a_plain_str(place: 
     assert field.value == "x"
 
 
-# Owner ruling 2026-11-25 "stdlib keeps str()": a stdlib-module class is one str() leaf, slots or __dict__.
+# A stdlib-module class is one str() leaf, slots or __dict__.
 def _sample_signature() -> inspect.Signature:
     return inspect.signature(lambda a, b=1: None)
 
@@ -1159,7 +1159,7 @@ def _value_error_with_extra() -> ValueError:
     return error
 
 
-# Owner ruling 2026-11-25 "Exempt both, match JS" (Node 22, dist/guard/index.cjs renderApprovalCard).
+# Matches JS (Node 22, dist/guard/index.cjs renderApprovalCard).
 @pytest.mark.parametrize(
     ("make", "rows"),
     [
@@ -1177,7 +1177,7 @@ def test_a_namespace_walks_and_an_exception_gives_its_own_attributes_owner_rulin
     assert values(render(place(make()))) == leaf_table(path, *rows)
 
 
-# Owner ruling 2026-11-25 "Walk all stdlib exceptions": any BaseException walks its own attributes, as a JS Error does.
+# Any BaseException walks its own attributes, as a JS Error does.
 # Node 22 (dist/guard/index.cjs renderApprovalCard): an Error subclass setting own properties lists them in
 # assignment order, and one with none gives no field. Python vars() keeps assignment order (dicts, 3.7+).
 @pytest.mark.parametrize(
@@ -1203,7 +1203,7 @@ def test_a_stdlib_exception_gives_its_own_attributes_owner_ruling_walk_all_stdli
     assert values(render(place(make()))) == leaf_table(path, *rows)
 
 
-# --- render_approval_card: empty-slots objects (owner ruling 2026-11-25, PY-16c "Adopt one rule, close it") ---
+# --- render_approval_card: empty-slots objects ---
 # A user object walks its own attributes, so no attribute means no field, as a JS `class E {}` does.
 
 
@@ -1241,7 +1241,7 @@ def test_an_object_with_no_own_attribute_as_the_whole_args_gives_no_field_owner_
     assert values(render(make())) == []
 
 
-# --- render_approval_card: a user subclass of a stdlib class walks its inherited slots (PY-16c, e-b80c9f) ---
+# --- render_approval_card: a user subclass of a stdlib class walks its inherited slots ---
 # Parent slots first, then the subclass's own. Expected rows are the be70e1e render of the same objects.
 
 

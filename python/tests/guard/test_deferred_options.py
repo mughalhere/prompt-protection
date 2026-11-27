@@ -1,7 +1,7 @@
-"""RED tests for the deferred create_guard options (PY-12; plan owner decision 2, D5).
+"""RED tests for the deferred create_guard options.
 
 An option for a feature the Python package defers raises DeferredFeatureError at create_guard, whatever fail_mode
-says, and the message names the feature. The generic logger option is accepted and never raised on (PY-12a wires it).
+says, and the message names the feature. The generic logger option is accepted and never raised on.
 """
 
 from types import SimpleNamespace

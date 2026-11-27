@@ -1,4 +1,4 @@
-"""Rule keywords stay ASCII-only under IGNORECASE, as JS ``/i`` without the ``u`` flag (PY-3 follow-up)."""
+"""Rule keywords stay ASCII-only under IGNORECASE, as JS ``/i`` without the ``u`` flag."""
 
 import pytest
 

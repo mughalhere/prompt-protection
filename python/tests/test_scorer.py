@@ -1,4 +1,4 @@
-"""RED tests for prompt_protection.scorer (PY-6; plan design item 1; e-5a46e7; D32).
+"""RED tests for prompt_protection.scorer.
 
 Expected values come from Node 22 running the bundled score() of src/scorer.ts (dist/internal.js).
 A custom rule reaches score() as a prompt_protection._rules.Rule in the rules argument. Options are keyword-only.
@@ -261,7 +261,7 @@ def test_normalizer_index_map_feeds_the_scorer_like_node(text: str, expected: An
     assert summary(run(rules, result.normalized, text, index_map=result.index_map)) == expected
 
 
-# e-5a46e7: Node scored these through Math.round(100 * (1 - Math.exp(-raw / 15))).
+# Node scored these through Math.round(100 * (1 - Math.exp(-raw / 15))).
 NON_FINITE_SCORES = [
     pytest.param([-11000], "a", id="minus-11000-exp-overflows"),
     pytest.param([-1e308], "a", id="minus-1e308-exp-overflows-from-a-finite-raw"),
@@ -320,7 +320,7 @@ def test_score_matches_node_golden(golden_case: dict[str, Any], deadline: None) 
         assert m.matched_text == utf16_slice(text, m.start_index, m.end_index)
 
 
-# e-5a46e7, e-c584ee: Rule.weight is an int. Node reads the same weight as a double, so 10**400 is Infinity.
+# Rule.weight is an int. Node reads the same weight as a double, so 10**400 is Infinity.
 BIG = 10**308
 HUGE = 10**400
 # (weights, hits text, raw score, normalized score), from Node.

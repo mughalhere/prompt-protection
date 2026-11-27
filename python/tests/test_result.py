@@ -1,4 +1,4 @@
-"""RED tests for prompt_protection._result.JsResult (PY-7; plan D4, owner decision 5).
+"""RED tests for prompt_protection._result.JsResult.
 
 Every dataclass here is test-local, so the mixin is tested apart from any result type.
 """

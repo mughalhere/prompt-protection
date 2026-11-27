@@ -1,4 +1,4 @@
-"""RED tests for prompt_protection.hash.fnv1a32 (plan design item 3, D32: expected values come from Node 22)."""
+"""RED tests for prompt_protection.hash.fnv1a32 (expected values come from Node 22)."""
 
 import pytest
 

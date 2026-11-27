@@ -1,4 +1,4 @@
-"""RED conformance tests for docs/CONFORMANCE.md (PY-4 holds behaviour 14; the rest land with later tasks)."""
+"""RED conformance tests for docs/CONFORMANCE.md (this file holds behaviour 14)."""
 
 import math
 from collections.abc import Callable

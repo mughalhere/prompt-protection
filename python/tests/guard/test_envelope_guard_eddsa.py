@@ -1,6 +1,6 @@
-"""EdDSA keys passed to the guard envelope methods raise DeferredFeatureError (PY-21, D5).
+"""EdDSA keys passed to the guard envelope methods raise DeferredFeatureError.
 
-A blocked 'malformed' source in place of the raise is the silent degrade D5 closes.
+A blocked 'malformed' source in place of the raise is the silent degrade that a raise prevents.
 """
 
 from typing import Any

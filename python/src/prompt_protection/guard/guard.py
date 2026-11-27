@@ -1,4 +1,4 @@
-"""The core tool-call guard (twin of src/guard/guard.ts, plan D1, D2, D40, owner decision 2).
+"""The core tool-call guard (twin of src/guard/guard.ts).
 
 Tool results enter through ``taint``, user turns through ``trust`` and ``analyze_user_turn``, and every
 model-proposed call goes through ``check_tool_call``. Memory lineage is here too. Later tasks add the rest.

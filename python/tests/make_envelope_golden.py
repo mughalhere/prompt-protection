@@ -1,8 +1,8 @@
 """Write tests/__fixtures__/envelope.py.golden.json: the JS envelope golden's inputs, resealed with Python.
 
-Run from the repo root or from python/: ``python tests/make_envelope_golden.py [--out PATH]`` (PY-22).
+Run from the repo root or from python/: ``python tests/make_envelope_golden.py [--out PATH]``.
 Handoff, memory and lock vectors are sealed at the wall-clock time the JS golden recorded for them.
-The hs256 and error vectors are sealed at header.now. EdDSA vectors are skipped because Python defers EdDSA (D5).
+The hs256 and error vectors are sealed at header.now. EdDSA vectors are skipped because Python defers EdDSA.
 """
 
 import argparse

@@ -1,4 +1,4 @@
-"""Fakes shared by the approval tests (PY-16): a manual clock, approval-store stand-ins and a check context."""
+"""Fakes shared by the approval tests: a manual clock, approval-store stand-ins and a check context."""
 
 from typing import Any
 

@@ -1,4 +1,4 @@
-"""RED guard golden test (PY-23; plan design items 4 and 5, D12, owner decision 5).
+"""RED guard golden test.
 
 tests/guard/__fixtures__/agent-flows.golden.json holds what Node 22 returned for every row of
 datasets/agent-flows.jsonl. The decision is compared through ``GuardDecision.to_dict()``, so the JS keys are
@@ -29,7 +29,7 @@ GOLDEN = {
 
 
 def project_decision(decision: dict[str, Any]) -> dict[str, Any]:
-    """The fields the golden stores (D12), read from the camelCase dict form of a decision."""
+    """The fields the golden stores, read from the camelCase dict form of a decision."""
     args = decision["argsAnalysis"]
     return {
         "action": decision["action"],

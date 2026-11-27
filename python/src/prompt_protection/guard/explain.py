@@ -1,4 +1,4 @@
-"""Plain-language explanation of a guard decision (twin of src/guard/explain.ts, plan D2, D40, e-0dc5fc).
+"""Plain-language explanation of a guard decision (twin of src/guard/explain.ts).
 
 ``flows`` are the plain camelCase dicts of ``logging_.FlowSummary``, as in a log event.
 """

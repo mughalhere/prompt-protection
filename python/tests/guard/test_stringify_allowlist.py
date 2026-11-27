@@ -1,4 +1,4 @@
-"""stringify_value allowlist (bead j8o, owner decision 2026-11-24, "A, with safeguards").
+"""stringify_value allowlist.
 
 Only str, int, float, bool, None, bytes and range keep their own text. An exact dict, list, tuple, set or
 frozenset is walked by its items. Any other object, and any other container, prints a marker that names its
@@ -359,7 +359,7 @@ def test_an_object_holding_a_subclass_of_an_allowlisted_type_prints_a_marker_and
     assert shown not in text
 
 
-# Owner decision 2026-11-24, "Base-type value": a subclass of an allowlisted leaf prints as its base leaf.
+# A subclass of an allowlisted leaf prints as its base leaf.
 OVER_LIMIT = 10**4300
 OVER_HEX = hex(OVER_LIMIT)
 

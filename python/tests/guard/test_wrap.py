@@ -1,7 +1,7 @@
-"""RED tests for guard.wrap_tools (PY-13; twin of src/guard/wrap.ts, plan D2, D6, D39, D40).
+"""RED tests for guard.wrap_tools (twin of src/guard/wrap.ts).
 
 Ported from the wrapTools cases of tests/guard/guard.test.ts. The spotlight cases are deferred (create_guard raises
-DeferredFeatureError for spotlight) and drift belongs to PY-17. No guard dataclass is serialised here (D40).
+DeferredFeatureError for spotlight) and drift has its own tests. No guard dataclass is serialised here.
 """
 
 import inspect
@@ -142,7 +142,7 @@ def test_a_tool_without_a_callable_execute_is_returned_unchanged(tool: dict[str,
     assert tools["provider_side"] == tool
 
 
-# --- spec-silent shape of the result: see the PY-13 decision entries ---
+# --- shape of the result, which the spec leaves open ---
 
 
 def test_the_result_is_a_new_mapping_that_keeps_extra_keys_and_leaves_the_input_untouched() -> None:
@@ -206,7 +206,7 @@ def test_the_source_id_falls_back_to_a_name_prefixed_id_without_a_string_call_id
     assert [source.id.startswith("search:") for source in guard.sources] == [True, True]
 
 
-# --- D39: wrap_tools calls execute synchronously; an awaitable result is not supported ---
+# --- wrap_tools calls execute synchronously; an awaitable result is not supported ---
 
 
 async def late() -> str:

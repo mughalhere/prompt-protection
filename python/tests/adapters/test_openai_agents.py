@@ -1,6 +1,6 @@
-"""RED tests for prompt_protection.adapters.openai_agents (PY-24; twin of tests/adapters/openai-agents.test.ts).
+"""RED tests for prompt_protection.adapters.openai_agents (twin of tests/adapters/openai-agents.test.ts).
 
-Plan: Scope In adapter, F-011, D24 (sync tests call asyncio.run), D33. Every hook is driven through the real
+Sync tests call asyncio.run. Every hook is driven through the real
 ``agents`` types, so these tests need the ``openai-agents`` extra.
 """
 

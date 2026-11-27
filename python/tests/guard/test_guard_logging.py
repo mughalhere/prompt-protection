@@ -1,7 +1,7 @@
-"""RED tests for the guard logger (PY-12a; twin of the logger cases of tests/guard/fail-closed.test.ts).
+"""RED tests for the guard logger (twin of the logger cases of tests/guard/fail-closed.test.ts).
 
-Expected values come from Node 22 running dist/guard/index.js. The guard dataclasses are not serialised here (D40):
-the event holds plain dicts for its flow summaries. Observe mode belongs to PY-19, so no event here sets ``mode``.
+Expected values come from Node 22 running dist/guard/index.js. The guard dataclasses are not serialised here:
+the event holds plain dicts for its flow summaries. Observe mode has its own tests, so no event here sets ``mode``.
 """
 
 from types import SimpleNamespace

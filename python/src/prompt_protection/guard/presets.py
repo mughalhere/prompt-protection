@@ -1,4 +1,4 @@
-"""The guard presets (twin of src/guard/presets.ts, plan D2, D40; PY-19 ports the strict-only policy, e-4e4edc)."""
+"""The guard presets (twin of src/guard/presets.ts, including the strict-only policy)."""
 
 from collections.abc import Mapping
 from typing import Any, Literal

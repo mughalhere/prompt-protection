@@ -1,7 +1,7 @@
 """RED tests for prompt_protection.guard.policy, .errors and the guard package exports.
 
-Twins of src/guard/policy.ts and errors.ts (plan D1, D2, D32: expected values come from Node 22). No guard dataclass
-is serialised here (D40).
+Twins of src/guard/policy.ts and errors.ts (expected values come from Node 22). No guard dataclass
+is serialised here.
 """
 
 from types import SimpleNamespace

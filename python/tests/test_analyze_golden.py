@@ -1,4 +1,4 @@
-"""RED golden test for prompt_protection.analyze_prompt (PY-7; plan design item 5, owner decision 5).
+"""RED golden test for prompt_protection.analyze_prompt.
 
 tests/__fixtures__/analyze.golden.json holds what the JS analyzePrompt returned on Node 22 for every case.
 The Python result is compared through to_dict(), so the JS camelCase keys are what the golden checks.

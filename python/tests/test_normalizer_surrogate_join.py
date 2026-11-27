@@ -1,4 +1,4 @@
-"""Stripping an invisible char between surrogate halves leaves a valid pair (PY-5 differential, e-e73e90).
+"""Stripping an invisible char between surrogate halves leaves a valid pair (found by differential testing).
 
 Oracle: Node 22, src/utils/unicode.ts normalizeUnicode (esbuild bundle) and dist/internal.js normalize,
 over strings built from String.fromCharCode(0xd83d) and (0xde00) around U+200B or U+202A.

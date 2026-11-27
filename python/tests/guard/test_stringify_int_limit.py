@@ -1,4 +1,4 @@
-"""stringify_value on an int past the int-to-str digit limit (bead j8o, owner decision 2026-11-24).
+"""stringify_value on an int past the int-to-str digit limit.
 
 At most 4300 decimal digits prints exact decimal. More prints hex() for that int only.
 The limit is min(4300, sys.get_int_max_str_digits()) when that exists, 4300 when it is 0 or absent,

@@ -1,4 +1,4 @@
-"""Argument-to-source flow detection (twin of src/guard/provenance.ts, plan D1, D2, D32, D40).
+"""Argument-to-source flow detection (twin of src/guard/provenance.ts).
 
 Lengths and slices count UTF-16 code units, as the JS ``.length`` and ``.slice`` do. Postings are
 dicts, and ``ShingleSet`` iterates in insertion order, so results follow the order JS ``Map`` and ``Set`` give.
@@ -210,7 +210,7 @@ def _int_text(value: int, limit: int) -> str:
     return hex(number) if _over_limit(number, limit) else repr(number)
 
 
-# Each base method below reads no overridable attribute of the instance (owner decision A, 2026-11-25).
+# Each base method below reads no overridable attribute of the instance.
 _BASE_TEXT: tuple[tuple[type, Callable[[Any], str]], ...] = (
     (complex, complex.__repr__),
     (Decimal, Decimal.__str__),

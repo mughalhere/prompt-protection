@@ -1,4 +1,4 @@
-"""Tests for the Python port of datasets/steps.cjs in tests/steps.py (PY-23; plan design item 5, D13, D19).
+"""Tests for the Python port of datasets/steps.cjs in tests/steps.py.
 
 Most tests drive ``run_row`` through a scripted guard that logs each call, so each op's mapping onto the Python
 ``Guard`` API is checked apart from guard behaviour. The ``lock`` op, which no dataset row uses, also runs

@@ -1,4 +1,4 @@
-"""RED test for the Unicode drift record in docs/PYTHON.md (PY-25; plan design item 6, owner decision 6, D16).
+"""RED test for the Unicode drift record in docs/PYTHON.md.
 
 Node's NFKC and toLowerCase tables are tests/__fixtures__/unicode-node.json. Python's unicodedata moves with the
 Python minor, so each minor's deltas against that table are recorded in docs/PYTHON.md as one fenced json block:

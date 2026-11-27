@@ -1,6 +1,6 @@
-"""RED tests for prompt_protection.canonical (PY-4, D37). Port of src/utils/canonical.ts.
+"""RED tests for prompt_protection.canonical. Port of src/utils/canonical.ts.
 
-Oracle (D32): Node 22 against the built dist. Run from the prompt-protection root:
+Oracle: Node 22 against the built dist. Run from the prompt-protection root:
   node -e "import('./dist/guard/index.js').then(m => console.log(m.canonicalJson(<js>)))"
   node -e "import('./dist/guard/index.js').then(async m => console.log(await m.digest(<js>), m.digestSyncWeak(<js>)))"
 `<js>` is the `js` argument of each case. `fnv1a64Hex` is not exported, so its body is lifted from dist/guard/index.js.

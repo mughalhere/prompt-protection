@@ -1,4 +1,4 @@
-"""RED tests for prompt_protection.verdict (PY-6; plan design item 1; D32).
+"""RED tests for prompt_protection.verdict.
 
 Expected values come from Node 22 running the bundled precisionAllowsBlock() and resolveAction() of
 src/verdict.ts (dist/internal.js). A match is any object with rule.precision and rule.category.

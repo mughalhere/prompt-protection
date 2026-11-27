@@ -1,4 +1,4 @@
-"""RED tests for ``to_dict`` on the guard result dataclasses (PY-23; plan D4, D40, owner decision 5).
+"""RED tests for ``to_dict`` on the guard result dataclasses.
 
 Every dataclass under prompt_protection/guard/ that a guard method returns or embeds is a ``JsResult``. Its
 ``to_dict`` gives the JS camelCase keys, omits a ``None`` field like a JS optional field and keeps a ``None`` field

@@ -1,4 +1,4 @@
-"""Policy-facing guard types (twin of the PolicyContext part of src/guard/types.ts, plan D2, D40).
+"""Policy-facing guard types (twin of the PolicyContext part of src/guard/types.ts).
 
 Nested records are structural: a policy reads them by attribute only, so the tasks that own
 Flow, TaintedSource and LockView stay free to define those classes.

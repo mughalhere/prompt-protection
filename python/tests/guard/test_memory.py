@@ -1,9 +1,9 @@
-"""RED tests for guard memory lineage (PY-14; twin of src/guard/memory.ts and the memory part of guard.ts).
+"""RED tests for guard memory lineage (twin of src/guard/memory.ts and the memory part of guard.ts).
 
 Ported from tests/guard/memory.test.ts. Expected values come from Node 22 running dist/guard/index.js. A
-MemoryEntry is a wire dict with JS keys (D3), a lineage edge on a guard object exposes from_ (D2). Ids ARE
+MemoryEntry is a wire dict with JS keys, a lineage edge on a guard object exposes from_. Ids ARE
 pinned (deterministic counters). The entry ts is checked by shape, and by its relation to source.timestamp.
-Skipped: spotlit (spotlight is deferred), sealed memory (PY-20 and later).
+Skipped: spotlit (spotlight is deferred), sealed memory.
 """
 
 import copy

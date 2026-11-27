@@ -1,4 +1,4 @@
-"""RED tests for JS-ordered containment and cross-source flows (PY-11b, twin of src/guard/provenance.ts).
+"""RED tests for JS-ordered containment and cross-source flows (twin of src/guard/provenance.ts).
 
 Six sources hold overlapping-by-five-words slices of one needle. Their word shingle sets are disjoint, and
 their char shingle sets share windows inside each five-word overlap. They are registered out of needle order.

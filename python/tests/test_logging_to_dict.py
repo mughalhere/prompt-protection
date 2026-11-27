@@ -1,7 +1,7 @@
-"""RED tests for ProtectionEvent.to_dict (PY-12a acceptance: same event shape, to_dict camelCase).
+"""RED tests for ProtectionEvent.to_dict (same event shape, to_dict camelCase).
 
 The expected dicts are the events that dist/index.js and dist/guard/index.js hand to a logger, as JSON,
-minus the timestamp. Only ProtectionEvent is serialised here. No guard dataclass has to_dict (D40).
+minus the timestamp. Only ProtectionEvent is serialised here. No guard dataclass has to_dict.
 """
 
 from typing import Any

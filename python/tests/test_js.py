@@ -1,4 +1,4 @@
-"""RED tests for prompt_protection._js (plan design item 3, D32: expected values come from Node 22)."""
+"""RED tests for prompt_protection._js (expected values come from Node 22)."""
 
 import re
 

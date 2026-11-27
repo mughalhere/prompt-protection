@@ -1,4 +1,4 @@
-"""Fixtures for the OpenAI Agents adapter tests (PY-24). They drive the adapter's hooks through the real SDK types."""
+"""Fixtures for the OpenAI Agents adapter tests. They drive the adapter's hooks through the real SDK types."""
 
 import asyncio
 from collections.abc import Callable

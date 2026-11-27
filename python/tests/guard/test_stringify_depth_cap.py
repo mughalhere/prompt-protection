@@ -1,4 +1,4 @@
-"""One shared depth cap for stringify_value (bead j8o, owner decision 2026-11-24, "One cap of 300").
+"""One shared depth cap for stringify_value.
 
 Depth is the number of containers open on the path, root = 0. The test value is a root dict whose
 "sib" sibling sits at depth 1 and whose "deep" subtree is n containers, so its innermost container

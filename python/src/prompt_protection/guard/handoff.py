@@ -1,6 +1,6 @@
-"""Taint handoff wire form and checks (twin of src/guard/handoff.ts, plan D2, D3, D40).
+"""Taint handoff wire form and checks (twin of src/guard/handoff.ts).
 
-A ``TaintHandoff`` is a plain dict with the JS keys (D3). Lineage edges inside it keep the key ``from``. A guard
+A ``TaintHandoff`` is a plain dict with the JS keys. Lineage edges inside it keep the key ``from``. A guard
 holds them as ``LineageEdge`` objects, except an item that is not exactly a well-formed edge, kept as received.
 """
 

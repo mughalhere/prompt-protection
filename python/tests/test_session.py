@@ -1,7 +1,7 @@
-"""RED tests for prompt_protection.session (PY-8; plan D2, D4).
+"""RED tests for prompt_protection.session.
 
 Twin of src/session.ts, ported from tests/session.test.ts. Expected values come from Node 22 running a bundle of
-src/session.ts. A JS options object is keyword-only here (D2). ``ml`` other than ``off`` raises DeferredFeatureError.
+src/session.ts. A JS options object is keyword-only here. ``ml`` other than ``off`` raises DeferredFeatureError.
 """
 
 import re

@@ -5,7 +5,7 @@ import type { Envelope, EnvelopeKey } from '../../src/envelope/index';
 import { createGuard } from '../../src/guard/index';
 import type { MemoryEntry, TaintHandoff, ToolLock, ToolSet } from '../../src/guard/index';
 
-// Owner decision 3 (py-port-4-5): JS opens what Python sealed, from the JS golden's inputs.
+// JS opens what Python sealed, from the JS golden's inputs.
 const JS_PATH = join(__dirname, '__fixtures__/envelope.golden.json');
 const PY_PATH = join(__dirname, '../../python/tests/__fixtures__/envelope.py.golden.json');
 const PY_EXISTS = existsSync(PY_PATH);

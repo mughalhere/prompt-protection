@@ -1,4 +1,4 @@
-"""Fakes and expected values shared by the logging tests (PY-12a; twin of src/logging.ts)."""
+"""Fakes and expected values shared by the logging tests (twin of src/logging.ts)."""
 
 from typing import Any
 

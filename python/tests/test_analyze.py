@@ -1,8 +1,8 @@
-"""RED tests for prompt_protection.analyze, .messages and .errors (PY-7; plan D1, D2, D4, D5, D32).
+"""RED tests for prompt_protection.analyze, .messages and .errors.
 
 Twins of src/core/analyze.ts, src/api.ts, src/messages.ts and src/error.ts, ported from tests/api.test.ts and
 tests/messages.test.ts. Expected values come from Node 22 running dist/index.cjs. A JS options object is
-keyword-only here (D2). Chat messages are plain dicts with the JS keys (D3).
+keyword-only here. Chat messages are plain dicts with the JS keys.
 """
 
 import re
