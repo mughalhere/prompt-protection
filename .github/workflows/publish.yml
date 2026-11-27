@@ -23,11 +23,11 @@ jobs:
       - name: Use Node.js 22.x
         uses: actions/setup-node@v4
         with:
-          node-version: '22.14'
+          node-version: '22.23'
           registry-url: https://registry.npmjs.org
 
       # Trusted publishing needs npm >= 11.5.1. Pin to npm@11 — npm@latest
-      # (12.x) requires Node ^22.22.2 / ^24.15 / >=26, which breaks on 22.14.
+      # (12.x) requires Node ^22.22.2 / ^24.15 / >=26.
       - name: Ensure npm supports trusted publishing
         run: npm install -g npm@11
 
