@@ -1,8 +1,8 @@
 """Option and input types shared by the analyze API (twin of the matching part of src/types.ts)."""
 
 import re
-from collections.abc import Sequence
-from typing import Literal, TypedDict
+from collections.abc import Mapping, Sequence
+from typing import Any, Literal, TypedDict
 
 __all__ = ["AnalyzeRoles", "ChatMessage", "CustomRule", "FailMode", "MlMode", "PromptInput", "Severity"]
 
@@ -27,6 +27,8 @@ class _CustomRuleRequired(TypedDict):
 
 class CustomRule(_CustomRuleRequired, total=False):
     precision: Literal["high", "medium", "low"]
+    mappings: Mapping[str, Any]
+    origin: Mapping[str, Any]
 
 
 PromptInput = str | Sequence[ChatMessage]

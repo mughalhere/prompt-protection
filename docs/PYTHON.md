@@ -52,6 +52,12 @@ The library does not check a custom-rule weight. A non-finite weight reaches the
 
 A built-in `Rule.to_dict()` has no `description` key. The JS rule object carries one.
 
+A custom rule may carry `mappings` and `origin`. Both reach `matches[0].rule`, as in JS.
+
+## OpenAI Agents adapter
+
+The input guardrail runs before the model, not beside it. The JS SDK default runs it in parallel with the model.
+
 ## Non-finite scores
 
 The scorer computes the score as `100 * (1 - exp(-raw / 15))` and rounds it. JS rounds whatever number results.

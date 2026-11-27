@@ -25,6 +25,7 @@ class Rule(JsResult):
     pattern: re.Pattern[str]
     mappings: Mapping[str, Any] | None = None
     description: str | None = None
+    origin: Mapping[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise like a JS rule; the compiled ``pattern`` is left out because ``source`` holds it."""

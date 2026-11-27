@@ -25,7 +25,7 @@ def is_chat_message_array(value: object) -> TypeGuard[list[ChatMessage]]:
 def _roles_to_scan(analyze_roles: AnalyzeRoles | None) -> frozenset[str] | None:
     if analyze_roles == "all":
         return None
-    if isinstance(analyze_roles, (list, tuple, set, frozenset)) and analyze_roles:
+    if isinstance(analyze_roles, (list, tuple)) and analyze_roles:
         return frozenset(role.lower() for role in analyze_roles)
     return _DEFAULT_UNTRUSTED_ROLES
 

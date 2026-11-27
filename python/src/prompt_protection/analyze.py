@@ -104,6 +104,8 @@ def _custom_rule(spec: CustomRule) -> Rule:
         precision=spec.get("precision", "medium"),
         pattern=re.compile(source, _FLAGS),
         description=spec["description"],
+        mappings=spec.get("mappings"),
+        origin=spec.get("origin"),
     )
 
 
