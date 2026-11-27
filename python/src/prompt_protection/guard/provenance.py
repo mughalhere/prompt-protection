@@ -507,6 +507,10 @@ class ArgLeaf:
 def _walk(args: Any, path: str, out: list[ArgLeaf], depth: int) -> None:
     if depth > _MAX_LEAF_DEPTH:
         return
+    if args is not None and not isinstance(args, (str, int, float, type)):
+        to_dict = getattr(args, "to_dict", None)
+        if callable(to_dict):
+            args = to_dict()
     if isinstance(args, str):
         out.append(ArgLeaf(path, args))
     elif isinstance(args, (list, tuple)):
