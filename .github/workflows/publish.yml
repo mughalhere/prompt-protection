@@ -58,3 +58,77 @@ jobs:
         run: |
           if node -e "process.exit(/-/.test(require('./package.json').version) ? 0 : 1)"; then PRE=--prerelease; else PRE=; fi
           gh release create "$GITHUB_REF_NAME" sbom.cdx.json --generate-notes --verify-tag $PRE || gh release upload "$GITHUB_REF_NAME" sbom.cdx.json --clobber
+
+  pypi-build:
+    name: Build and test the Python package
+    # A pre-release tag (a `-` in the name) publishes npm to `next` and skips PyPI. The `${{ }}` form
+    # is required, because a bare leading `!` is a YAML tag.
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    # No id-token here: this job runs unpinned transitive tooling and holds no publish rights.
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      # Lockstep versions: the tag, package.json and __version__ must agree before anything builds.
+      - name: Version gate
+        run: |
+          set -euo pipefail
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          NPM_VERSION="$(node -p "require('./package.json').version")"
+          PY_VERSION="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' python/src/prompt_protection/__init__.py)"
+          echo "tag=$TAG_VERSION package.json=$NPM_VERSION __version__=$PY_VERSION"
+          if [ "$TAG_VERSION" != "$NPM_VERSION" ] || [ "$TAG_VERSION" != "$PY_VERSION" ]; then
+            echo "::error::Version mismatch between the tag, package.json and __version__"
+            exit 1
+          fi
+
+      # Editable: pytest imports python/src, the tree the build packages. Runs after the version gate.
+      - name: Install Python tooling and the package
+        run: python -m pip install -r python/requirements-dev.txt -e ./python
+
+      - name: Test
+        working-directory: python
+        run: python -m pytest
+
+      - name: Build sdist and wheel
+        run: python -m build python
+
+      - name: Check distribution metadata
+        run: python -m twine check python/dist/*
+
+      - name: Upload the distribution
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-dist
+          path: python/dist/
+          if-no-files-found: error
+
+  pypi:
+    name: Publish to PyPI
+    needs: [publish, pypi-build]
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    # Upload only: no checkout, no install, no script. PyPI Trusted Publisher needs only OIDC.
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download the distribution
+        uses: actions/download-artifact@v8
+        with:
+          name: python-dist
+          path: dist/
+
+      # Auth via OIDC Trusted Publisher — no API token.
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
