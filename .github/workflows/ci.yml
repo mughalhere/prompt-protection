@@ -37,11 +37,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test
-        run: npm run test:coverage
-
       - name: Build
         run: npm run build
+
+      - name: Test
+        run: npm run test:coverage
 
   pack:
     name: npm pack (dry-run)
@@ -258,7 +258,7 @@ jobs:
         working-directory: python
         run: |
           set -euo pipefail
-          python -m pip install openai-agents==0.8.0
+          python -m pip install "openai-agents==0.8.0" "openai==2.9.0"
           python -c "import importlib.metadata as m; assert m.version('openai-agents') == '0.8.0'"
           python -m pytest tests/adapters
 
